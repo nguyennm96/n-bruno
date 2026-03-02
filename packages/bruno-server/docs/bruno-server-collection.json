@@ -1,0 +1,499 @@
+{
+    "info": {
+        "name": "Bruno Server API",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Health",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/health"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Register",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/auth/register"
+                        },
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"name\": \"Test User\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var json = pm.response.json();",
+                                    "pm.environment.set('ACCESS_TOKEN', json.data.access_token);",
+                                    "pm.environment.set('REFRESH_TOKEN', json.data.refresh_token);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/auth/login"
+                        },
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Me",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/auth/me"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "Refresh Token",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/auth/refresh"
+                        },
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"refresh_token\": \"{{REFRESH_TOKEN}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Logout",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/auth/logout"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"refresh_token\": \"{{REFRESH_TOKEN}}\"\n}"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Workspaces",
+            "item": [
+                {
+                    "name": "Create Workspace",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var json = pm.response.json();",
+                                    "pm.environment.set('WORKSPACE_ID', json.data.id);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/workspaces"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"My First Workspace\",\n  \"description\": \"Default workspace\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "List Workspaces",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/workspaces"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "Get Workspace",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/workspaces/{{WORKSPACE_ID}}"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "Update Workspace",
+                    "request": {
+                        "method": "PATCH",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/workspaces/{{WORKSPACE_ID}}"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"My Workspace (Updated)\"\n}"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Collections",
+            "item": [
+                {
+                    "name": "Create Collection",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var json = pm.response.json();",
+                                    "pm.environment.set('COLLECTION_ID', json.data.id);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/workspaces/{{WORKSPACE_ID}}/collections"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"My API Collection\",\n  \"description\": \"Test collection\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "List Collections",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/workspaces/{{WORKSPACE_ID}}/collections"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Items",
+            "item": [
+                {
+                    "name": "Create Folder",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var json = pm.response.json();",
+                                    "pm.environment.set('FOLDER_ID', json.data.id);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/collections/{{COLLECTION_ID}}/folders"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Users API\",\n  \"sort_order\": 1.0\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Create Request inside Folder",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var json = pm.response.json();",
+                                    "pm.environment.set('ITEM_ID', json.data.id);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/collections/{{COLLECTION_ID}}/requests"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Get All Users\",\n  \"method\": \"GET\",\n  \"url\": \"https://api.example.com/users\",\n  \"parent_item_id\": \"{{FOLDER_ID}}\",\n  \"sort_order\": 1.0\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "List Items",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/collections/{{COLLECTION_ID}}/items"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Environments",
+            "item": [
+                {
+                    "name": "Create Environment",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var json = pm.response.json();",
+                                    "pm.environment.set('ENV_ID', json.data.id);"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/workspaces/{{WORKSPACE_ID}}/environments"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Development\",\n  \"variables\": [\n    { \"key\": \"API_URL\", \"value\": \"https://dev.api.example.com\", \"enabled\": true },\n    { \"key\": \"API_KEY\", \"value\": \"dev-secret-key\", \"enabled\": true }\n  ]\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "List Environments",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/workspaces/{{WORKSPACE_ID}}/environments"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Examples",
+            "item": [
+                {
+                    "name": "Create Example",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/items/{{ITEM_ID}}/examples"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Success Response\",\n  \"status_code\": 200,\n  \"headers\": { \"Content-Type\": \"application/json\" },\n  \"body\": \"{\\\"users\\\": [], \\\"total\\\": 0}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "List Examples",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{BASE_URL}}/api/items/{{ITEM_ID}}/examples"
+                        },
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{ACCESS_TOKEN}}"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "BASE_URL",
+            "value": "http://localhost:8080"
+        },
+        {
+            "key": "ACCESS_TOKEN",
+            "value": ""
+        },
+        {
+            "key": "REFRESH_TOKEN",
+            "value": ""
+        },
+        {
+            "key": "WORKSPACE_ID",
+            "value": ""
+        },
+        {
+            "key": "COLLECTION_ID",
+            "value": ""
+        },
+        {
+            "key": "FOLDER_ID",
+            "value": ""
+        },
+        {
+            "key": "ITEM_ID",
+            "value": ""
+        },
+        {
+            "key": "ENV_ID",
+            "value": ""
+        }
+    ]
+}

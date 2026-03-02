@@ -46,6 +46,22 @@ impl Config {
         })
     }
 
+    /// Create a config suitable for integration tests.
+    /// Avoids relying on shared env vars (which cause race conditions in parallel tests).
+    pub fn for_test(mongodb_uri: String, db_name: String) -> Self {
+        Config {
+            app_env: "test".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            mongodb_uri,
+            mongodb_database: db_name,
+            jwt_secret: "test-only-secret-do-not-use-in-production-32".to_string(),
+            jwt_access_expires_minutes: 15,
+            jwt_refresh_expires_days: 30,
+            cors_allowed_origins: vec!["http://localhost:3000".to_string()],
+        }
+    }
+
     pub fn is_production(&self) -> bool {
         self.app_env == "production"
     }

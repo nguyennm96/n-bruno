@@ -107,16 +107,22 @@ impl AuthService {
 
     /// Validates refresh token and returns (user, new_refresh_token)
     pub async fn rotate_refresh_token(&self, raw_token: &str) -> AppResult<(User, String)> {
-        // Find all non-expired tokens for candidate matching
+        use futures::StreamExt;
+
+        // Fetch all tokens (TTL index auto-deletes expired ones in background)
         let mut cursor = self
             .refresh_tokens
-            .find(doc! { "expires_at": { "$gt": bson::DateTime::from_millis(Utc::now().timestamp_millis()) } })
+            .find(doc! {})
             .await
             .map_err(AppError::from)?;
 
-        use futures::StreamExt;
+        let now = Utc::now();
         let mut found: Option<RefreshToken> = None;
         while let Some(Ok(rt)) = cursor.next().await {
+            // Skip already-expired tokens (TTL cleanup may lag slightly)
+            if rt.expires_at <= now {
+                continue;
+            }
             if self.verify_password(raw_token, &rt.token_hash)? {
                 found = Some(rt);
                 break;

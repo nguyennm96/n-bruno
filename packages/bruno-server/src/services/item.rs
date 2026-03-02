@@ -117,7 +117,7 @@ impl ItemService {
 
         let item_oid = item.id.unwrap();
         let now = Utc::now();
-        let mut update = doc! { "updated_at": bson::DateTime::from_millis(now.timestamp_millis()) };
+        let mut update = doc! { "updated_at": now.to_rfc3339() };
         if let Some(n) = &name { update.insert("name", n); }
         if let Some(m) = &method { update.insert("method", m); }
         if let Some(u) = &url { update.insert("url", u); }
@@ -163,7 +163,7 @@ impl ItemService {
 
         let item_oid = item.id.unwrap();
         let now = Utc::now();
-        let mut update = doc! { "updated_at": bson::DateTime::from_millis(now.timestamp_millis()) };
+        let mut update = doc! { "updated_at": now.to_rfc3339() };
 
         match parse_optional_oid(new_parent_id)? {
             Some(oid) => { update.insert("parent_item_id", oid); }

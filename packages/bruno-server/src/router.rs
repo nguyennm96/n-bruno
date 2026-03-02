@@ -7,7 +7,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
     handlers::{
-        auth, collection, environment, example, health, item, workspace,
+        auth, collection, environment, example, health, import_export, item, workspace,
     },
     middleware::auth_middleware,
     state::AppState,
@@ -61,10 +61,20 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/items/:item_id/examples", get(example::list_examples))
         .route("/api/examples/:id", patch(example::update_example))
         .route("/api/examples/:id", delete(example::delete_example))
+        // ── Phase 10: Import / Export ──────────────────────────────────────
+        // Import
+        .route("/api/workspaces/:workspace_id/import/postman", post(import_export::import_postman))
+        .route("/api/workspaces/:workspace_id/import/insomnia", post(import_export::import_insomnia))
+        // Export collection (format=postman|openapi|swagger via query param)
+        .route("/api/collections/:id/export", get(import_export::export_collection))
+        // Export entire workspace (all collections as Postman)
+        .route("/api/workspaces/:workspace_id/export", get(import_export::export_workspace))
         // Apply auth middleware to all protected routes
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     Router::new()
+        // TODO: Re-enable after fixing OpenAPI schema definitions
+        // .merge(crate::openapi::swagger_ui())
         .merge(public_routes)
         .merge(protected_routes)
         .layer(TraceLayer::new_for_http())

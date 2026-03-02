@@ -65,7 +65,7 @@ impl CollectionService {
 
         let col_oid = col.id.unwrap();
         let now = Utc::now();
-        let mut update = doc! { "updated_at": bson::DateTime::from_millis(now.timestamp_millis()) };
+        let mut update = doc! { "updated_at": now.to_rfc3339() };
         if let Some(n) = &name { update.insert("name", n); }
         if let Some(d) = &description { update.insert("description", d); }
 

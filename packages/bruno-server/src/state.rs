@@ -5,6 +5,11 @@ use crate::{
         collection::CollectionService,
         environment::EnvironmentService,
         example::ExampleService,
+        import_export::{
+            insomnia::InsomniaService,
+            openapi::OpenApiService,
+            postman::PostmanService,
+        },
         item::ItemService,
         workspace::WorkspaceService,
     },
@@ -21,4 +26,8 @@ pub struct AppState {
     pub environment_service: EnvironmentService,
     pub example_service: ExampleService,
     pub ws_manager: WsManager,
+    // Phase 10: Import/Export
+    pub postman_service: PostmanService,
+    pub openapi_service: OpenApiService,
+    pub insomnia_service: InsomniaService,
 }

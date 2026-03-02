@@ -86,7 +86,7 @@ impl ExampleService {
 
         let ex_oid = example.id.unwrap();
         let now = Utc::now();
-        let mut update = doc! { "updated_at": bson::DateTime::from_millis(now.timestamp_millis()) };
+        let mut update = doc! { "updated_at": now.to_rfc3339() };
         if let Some(n) = &name { update.insert("name", n); }
         if let Some(sc) = status_code { update.insert("status_code", sc as i32); }
         if let Some(b) = &body { update.insert("body", b); }

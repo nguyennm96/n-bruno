@@ -7,6 +7,10 @@ edition = "2021"
 name = "bruno-server"
 path = "src/main.rs"
 
+[lib]
+name = "bruno_server"
+path = "src/lib.rs"
+
 [dependencies]
 # Web framework
 axum = { version = "0.7", features = ["ws", "multipart", "macros"] }
@@ -52,5 +56,14 @@ uuid = { version = "1", features = ["v4", "serde"] }
 futures = "0.3"
 async-trait = "0.1"
 
+# OpenAPI / Docs (Phase 8)
+utoipa = { version = "4", features = ["axum_extras", "chrono"] }
+utoipa-swagger-ui = { version = "6", features = ["axum"] }
+
+# Import/Export helpers (Phase 10)
+url = "2"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+axum-test = "15"
+uuid = { version = "1", features = ["v4"] }

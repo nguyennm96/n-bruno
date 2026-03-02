@@ -17,6 +17,11 @@ use services::{
     collection::CollectionService,
     environment::EnvironmentService,
     example::ExampleService,
+    import_export::{
+        insomnia::InsomniaService,
+        openapi::OpenApiService,
+        postman::PostmanService,
+    },
     item::ItemService,
     workspace::WorkspaceService,
 };
@@ -50,6 +55,11 @@ async fn main() -> anyhow::Result<()> {
     let example_service = ExampleService::new(&db, workspace_service.clone());
     let ws_manager = WsManager::new();
 
+    // Phase 10: Import/Export services
+    let postman_service = PostmanService::new(&db, workspace_service.clone());
+    let openapi_service = OpenApiService::new(&db, workspace_service.clone());
+    let insomnia_service = InsomniaService::new(&db, workspace_service.clone());
+
     let state = AppState {
         config: config.clone(),
         auth_service,
@@ -59,6 +69,9 @@ async fn main() -> anyhow::Result<()> {
         environment_service,
         example_service,
         ws_manager,
+        postman_service,
+        openapi_service,
+        insomnia_service,
     };
 
     // ── Router ────────────────────────────────────────────────────────────────
@@ -69,7 +82,8 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
     tracing::info!("✅ Server listening on http://{}", addr);
-    tracing::info!("   WebSocket endpoint: ws://{}/ws?token=<jwt>", addr);
+    tracing::info!("   API Docs: http://{}/api/docs", addr);
+    tracing::info!("   WebSocket: ws://{}/ws?token=<jwt>", addr);
 
     axum::serve(listener, app).await?;
 

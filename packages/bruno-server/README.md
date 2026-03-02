@@ -92,6 +92,50 @@ cargo run
 | PATCH | `/api/examples/:id` | Update |
 | DELETE | `/api/examples/:id` | Delete |
 
+### Import/Export
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/workspaces/:id/import/postman` | Import Postman Collection v2.1 |
+| POST | `/api/workspaces/:id/import/insomnia` | Import Insomnia export |
+| GET | `/api/collections/:id/export?format=postman` | Export collection to Postman |
+| GET | `/api/collections/:id/export?format=openapi` | Export collection to OpenAPI 3.0 |
+| GET | `/api/collections/:id/export?format=swagger` | Export collection to Swagger 2.0 |
+| GET | `/api/workspaces/:id/export` | Export entire workspace |
+
+**Import Postman Example:**
+```bash
+curl -X POST http://localhost:8080/api/workspaces/{workspace_id}/import/postman \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "json": "{...postman collection JSON...}",
+    "conflict": "rename"
+  }'
+```
+
+**Conflict Handling Options:**
+- `error` (default): Returns 409 if collection name already exists
+- `replace`: Deletes existing collection and imports new one
+- `rename`: Creates new collection with name like "Collection Name (imported)"
+
+**Export Example:**
+```bash
+# Export to Postman
+curl http://localhost:8080/api/collections/{collection_id}/export?format=postman \
+  -H "Authorization: Bearer {access_token}" \
+  -o collection.postman.json
+
+# Export to OpenAPI 3.0
+curl http://localhost:8080/api/collections/{collection_id}/export?format=openapi \
+  -H "Authorization: Bearer {access_token}" \
+  -o openapi.json
+
+# Export entire workspace (all collections as Postman format)
+curl http://localhost:8080/api/workspaces/{workspace_id}/export \
+  -H "Authorization: Bearer {access_token}" \
+  -o workspace.json
+```
+
 ### WebSocket
 ```
 ws://localhost:8080/ws?token=<access_token>

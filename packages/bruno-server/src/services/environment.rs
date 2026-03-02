@@ -59,7 +59,7 @@ impl EnvironmentService {
 
         let env_oid = env.id.unwrap();
         let now = Utc::now();
-        let mut update = doc! { "updated_at": bson::DateTime::from_millis(now.timestamp_millis()) };
+        let mut update = doc! { "updated_at": now.to_rfc3339() };
         if let Some(n) = &name { update.insert("name", n); }
         if let Some(vars) = &variables {
             let bson_vars = bson::to_bson(vars).map_err(|e| AppError::Internal(e.to_string()))?;
