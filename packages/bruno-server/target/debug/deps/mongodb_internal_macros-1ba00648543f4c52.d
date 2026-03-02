@@ -1,0 +1,8 @@
+/Users/daniel_nguyen/Workspace/n-bruno/packages/bruno-server/target/debug/deps/mongodb_internal_macros-1ba00648543f4c52.d: /Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/lib.rs /Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/action_impl.rs /Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/option.rs /Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/rustdoc.rs
+
+/Users/daniel_nguyen/Workspace/n-bruno/packages/bruno-server/target/debug/deps/libmongodb_internal_macros-1ba00648543f4c52.dylib: /Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/lib.rs /Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/action_impl.rs /Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/option.rs /Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/rustdoc.rs
+
+/Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/lib.rs:
+/Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/action_impl.rs:
+/Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/option.rs:
+/Users/daniel_nguyen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mongodb-internal-macros-3.5.1/src/rustdoc.rs:
