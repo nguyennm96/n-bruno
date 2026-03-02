@@ -64,3 +64,9 @@ packages/bruno-filestore/dist
 packages/bruno-requests/dist
 packages/bruno-schema-types/dist
 packages/bruno-converters/dist
+
+# bruno-server (Rust)
+packages/bruno-server/target/
+packages/bruno-server/.env
+packages/bruno-server/**/*.rs.bk
+packages/bruno-server/Cargo.lock
