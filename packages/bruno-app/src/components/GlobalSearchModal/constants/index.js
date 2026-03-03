@@ -24,9 +24,9 @@ export const SEARCH_CONFIG = {
 
 export const DOCUMENTATION_RESULT = {
   type: SEARCH_TYPES.DOCUMENTATION,
-  item: { id: 'docs', name: 'Bruno Documentation' },
-  name: 'Bruno Documentation',
+  item: { id: 'docs', name: 'AhaMan Documentation' },
+  name: 'AhaMan Documentation',
   path: '/',
-  description: 'Browse the official Bruno documentation',
+  description: 'Browse the official AhaMan documentation',
   matchType: MATCH_TYPES.DOCUMENTATION
 };

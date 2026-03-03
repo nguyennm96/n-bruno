@@ -93,6 +93,7 @@
     "swagger-ui-react": "^5.31.0",
     "system": "^2.0.1",
     "url": "^0.11.3",
+    "uuid": "^13.0.0",
     "xml-formatter": "^3.5.0",
     "xml2js": "^0.6.2",
     "yup": "^0.32.11"

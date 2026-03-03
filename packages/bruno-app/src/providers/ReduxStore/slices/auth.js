@@ -20,7 +20,7 @@ export const initializeBrunoApi = (apiInstance) => {
 /**
  * Register new user account
  */
-export const register = createAsyncThunk('auth/register', async ({ email, password, name }, { rejectWithValue }) => {
+export const register = createAsyncThunk('auth/register', async ({ email, password, name }, { dispatch, rejectWithValue }) => {
   try {
     if (!brunoApi) throw new Error('API client not initialized');
 
@@ -42,6 +42,12 @@ export const register = createAsyncThunk('auth/register', async ({ email, passwo
 
     toast.success(`Welcome, ${user.name}!`);
 
+    // Initialize cloud data for new user (don't await - runs in background)
+    dispatch(initializeCloudData(user.id)).catch((error) => {
+      console.error('Failed to initialize cloud data, but registration succeeded:', error);
+      toast.error('Registration successful, but failed to load cloud data. You can retry later.');
+    });
+
     return {
       user,
       accessToken: access_token,
@@ -60,7 +66,7 @@ export const register = createAsyncThunk('auth/register', async ({ email, passwo
 /**
  * Login with email and password
  */
-export const login = createAsyncThunk('auth/login', async ({ email, password }, { rejectWithValue }) => {
+export const login = createAsyncThunk('auth/login', async ({ email, password }, { dispatch, rejectWithValue }) => {
   try {
     if (!brunoApi) throw new Error('API client not initialized');
 
@@ -77,6 +83,13 @@ export const login = createAsyncThunk('auth/login', async ({ email, password }, 
     });
 
     toast.success(`Welcome back, ${user.name}!`);
+
+    // Initialize cloud data after successful login (don't await - runs in background)
+    // If this fails, user is still logged in successfully
+    dispatch(initializeCloudData(user.id)).catch((error) => {
+      console.error('Failed to initialize cloud data, but login succeeded:', error);
+      toast.error('Login successful, but failed to load cloud data. You can retry later.');
+    });
 
     return {
       user,
@@ -96,7 +109,7 @@ export const login = createAsyncThunk('auth/login', async ({ email, password }, 
 /**
  * Logout and clear tokens
  */
-export const logout = createAsyncThunk('auth/logout', async (_, { getState, rejectWithValue }) => {
+export const logout = createAsyncThunk('auth/logout', async (_, { getState, dispatch, rejectWithValue }) => {
   try {
     if (!brunoApi) throw new Error('API client not initialized');
 
@@ -110,12 +123,32 @@ export const logout = createAsyncThunk('auth/logout', async (_, { getState, reje
     // Clear tokens from secure storage
     await window.ipcRenderer.invoke('auth:clear-tokens');
 
+    // Clear IndexedDB cache
+    const { clearAllCache } = await import('utils/cache/indexedDB');
+    await clearAllCache();
+
+    // Clear cloud workspaces state
+    const { resetWorkspaces } = await import('./cloudWorkspaces');
+    dispatch(resetWorkspaces());
+
+    // Clear collections state (remove cloud collections from UI)
+    dispatch({ type: 'collections/clearAllCollections' });
+
     toast.success('Logged out successfully');
 
     return null;
   } catch (error) {
-    // Even if server logout fails, clear local tokens
+    // Even if server logout fails, clear local tokens and cache
     await window.ipcRenderer.invoke('auth:clear-tokens');
+
+    const { clearAllCache } = await import('utils/cache/indexedDB');
+    await clearAllCache();
+
+    const { resetWorkspaces } = await import('./cloudWorkspaces');
+    dispatch(resetWorkspaces());
+
+    // Clear collections state
+    dispatch({ type: 'collections/clearAllCollections' });
 
     const errorData = error.response?.data?.error;
     const message = typeof errorData === 'string'
@@ -164,9 +197,45 @@ export const refreshAccessToken = createAsyncThunk('auth/refresh', async (_, { g
 });
 
 /**
+ * Initialize cloud data after login
+ * Fetches workspaces and collections from cloud, caches locally
+ */
+export const initializeCloudData = createAsyncThunk(
+  'auth/initializeCloudData',
+  async (userId, { dispatch, rejectWithValue }) => {
+    try {
+      if (!brunoApi) throw new Error('API client not initialized');
+
+      console.log('🔄 Initializing cloud data...');
+
+      // 1. Fetch workspaces from cloud
+      const { fetchWorkspaces, fetchWorkspaceItems } = await import('./cloudWorkspaces');
+      const workspaces = await dispatch(fetchWorkspaces()).unwrap();
+
+      // 2. Cache workspaces to IndexedDB
+      const { cacheWorkspaces } = await import('utils/cache/indexedDB');
+      await cacheWorkspaces(workspaces, userId);
+
+      // 3. Fetch items for each workspace
+      for (const workspace of workspaces) {
+        await dispatch(fetchWorkspaceItems(workspace.id)).unwrap();
+      }
+
+      console.log('✅ Cloud data initialized');
+      return { success: true };
+    } catch (error) {
+      const message = error.message || 'Failed to initialize cloud data';
+      console.error('Failed to initialize cloud data:', error);
+      // Don't show error toast - this is background operation
+      return rejectWithValue(message);
+    }
+  }
+);
+
+/**
  * Load saved tokens from storage on app startup
  */
-export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { rejectWithValue }) => {
+export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { dispatch, rejectWithValue }) => {
   try {
     // Get tokens from secure storage
     const tokens = await window.ipcRenderer.invoke('auth:get-tokens');
@@ -182,9 +251,16 @@ export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { reje
 
     // Verify tokens by fetching user info
     const response = await brunoApi.auth.getMe();
+    const user = response.data;
+
+    // Initialize cloud data after successful token verification (don't await - runs in background)
+    dispatch(initializeCloudData(user.id)).catch((error) => {
+      console.error('Failed to initialize cloud data on app start:', error);
+      // Don't show toast - user just opened the app, silent failure is okay
+    });
 
     return {
-      user: response.data,
+      user,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken
     };

@@ -38,7 +38,7 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpe
           setCollectionLocation(dirPath);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   };
 
   const persistPreferences = () => {
@@ -106,7 +106,7 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpe
             <Bruno width={48} />
           </div>
           <h1 className="welcome-heading">
-            {step === 1 ? 'Welcome to Bruno' : step === 4 ? 'Ready to go!' : 'Set up Bruno'}
+            {step === 1 ? 'Welcome to AhaMan' : step === 4 ? 'Ready to go!' : 'Set up AhaMan'}
           </h1>
           {step === 1 && (
             <p className="welcome-tagline">

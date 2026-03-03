@@ -113,7 +113,7 @@ const AuthModal = ({ onClose }) => {
       <StyledWrapper>
         <Modal
           size="sm"
-          title={isLoginMode ? 'Sign In to Bruno Cloud' : 'Create Bruno Cloud Account'}
+          title={isLoginMode ? 'Sign In to AhaMan Cloud' : 'Create AhaMan Cloud Account'}
           handleCancel={onClose}
           hideFooter={true}
         >

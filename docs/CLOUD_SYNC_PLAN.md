@@ -14,6 +14,42 @@ Enable Bruno users to:
 
 ---
 
+## 🔄 Cloud-First vs Local-First
+
+### Cloud-First (NEW Architecture) ✅
+**Primary Storage:** bruno-server (cloud)
+**Offline Storage:** IndexedDB cache
+
+**Flow:**
+1. User logs in → Fetch collections from cloud
+2. Display cloud data in UI
+3. Cache to IndexedDB for offline
+4. When offline → Use cache + queue changes
+5. When back online → Sync queue to cloud
+
+**Benefits:**
+- Accessible from anywhere
+- No manual sync needed
+- Real-time collaboration ready
+- Like Google Docs, Notion, Figma
+
+### Local-First (OLD Architecture) ❌
+**Primary Storage:** Local `.bru` files
+**Cloud Storage:** Optional sync
+
+**Flow:**
+1. User creates collection locally
+2. Manually link to cloud workspace
+3. File changes → Auto-sync to cloud
+4. Cloud is backup, not primary
+
+**Limitations:**
+- Tied to one machine
+- Manual linking required
+- Sync conflicts more common
+
+---
+
 ## 🏗️ Architecture Overview (Cloud-First)
 
 ```
@@ -64,12 +100,12 @@ Data Flow:
 ## 📦 Implementation Phases
 
 ### **PHASE 1: Authentication & Cloud Account** (1 week)
-**Goal**: Users can create cloud accounts and sign in
+**Goal**: Users can create cloud accounts, sign in, and fetch their cloud data
 
 #### 1.1 UI Components
 - Login/Register modal (React)
 - Account settings page
-- Cloud sync toggle in preferences
+- Online/Offline status indicator in UI
 - Authentication status indicator in UI
 
 #### 1.2 API Client Service
@@ -83,106 +119,268 @@ Data Flow:
 - Actions: login, logout, register, refreshToken
 - Persist auth state to encrypted storage
 
+#### 1.4 Cloud Data Initialization
+**On Login:**
+1. Authenticate user → Get JWT tokens
+2. Fetch user's workspaces from cloud
+3. Fetch user's collections from cloud
+4. Store in Redux (cloudCollections, workspaces)
+5. Download/cache to local storage (IndexedDB) for offline
+6. Display cloud collections in UI
+
+**Initial Load Flow:**
+```javascript
+async function onLoginSuccess() {
+  // 1. Fetch cloud data
+  const workspaces = await api.workspaces.getAll();
+  const collections = await api.collections.getAllForUser();
+
+  // 2. Update Redux
+  dispatch(setWorkspaces(workspaces));
+  dispatch(setCloudCollections(collections));
+
+  // 3. Cache for offline
+  await cacheToIndexedDB(collections);
+
+  // 4. Show in UI
+  dispatch(setDataSource('cloud'));
+}
+```
+
+#### 1.5 Global Loading Indicator (UX)
+**Top Bar Loading:**
+- Linear progress bar at top of screen (GitHub/YouTube style)
+- Shows operation message: "Loading collections...", "Syncing...", etc.
+- Auto-tracks all `createAsyncThunk` operations via middleware
+- Supports progress tracking (0-100%)
+- Bottom-right notification for operation details
+- Handles multiple simultaneous operations
+
+**Implementation:**
+- Redux slice: `globalLoading` (tracks active operations)
+- Middleware: Auto-tracks all async thunks
+- Component: `<GlobalLoadingBar />` (top bar + notification)
+- Hook: `useGlobalLoading()` for manual tracking
+
+**User Experience:**
+- User always knows when app is working
+- Never appears "stuck" or "frozen"
+- Clear feedback for all async operations
+- Professional, polished feel
+
 #### Deliverables:
-- [ ] Users can register/login to cloud account
-- [ ] JWT tokens stored securely in Electron
-- [ ] Auto refresh when access token expires
-- [ ] "Signed in as..." indicator in UI
-- [ ] Can logout and clear credentials
+- ✅ Users can register/login to cloud account
+- ✅ JWT tokens stored securely in Electron
+- ✅ Auto refresh when access token expires
+- ✅ "Signed in as..." indicator in UI
+- ✅ Can logout and clear credentials
+- ✅ **Global loading indicator tracks all operations**
+- ✅ **On login, fetch user's workspaces from cloud**
+- ✅ **On login, fetch user's collections from cloud**
+- ✅ **Cache cloud data locally (IndexedDB) for offline**
+- ✅ **Display cloud collections in UI**
+
+**Status**: ✅ **COMPLETE** (100%) - See [PHASE_1_IMPLEMENTATION.md](./PHASE_1_IMPLEMENTATION.md)
 
 ---
 
-### **PHASE 2: Cloud Workspaces** (1 week)
-**Goal**: Map local collections to cloud workspaces
+### **PHASE 2: Offline Mode & Local Caching** (1 week)
+**Goal**: Work offline with cached data, auto-sync when back online
 
-#### 2.1 Workspace Mapping
-- Local collection folder → Cloud workspace
-- Store mapping: `{ localPath: "/path/to/collection", cloudWorkspaceId: "abc123" }`
-- UI to link existing collection to cloud workspace
-- Create new cloud workspace from local collection
+#### 2.1 Offline Detection
+- Listen to `window.addEventListener('online')` / `window.addEventListener('offline')`
+- Redux state: `isOnline: boolean`
+- Detect on app startup: `navigator.onLine`
+- Show status in UI: "☁️ Online" or "📴 Offline"
 
-#### 2.2 Sync Metadata
-- Store sync state per collection:
-  - `lastSyncedAt`: timestamp
-  - `syncEnabled`: boolean
-  - `conflictStrategy`: "local-wins" | "cloud-wins" | "manual"
-- Metadata stored in `.bruno/cloud-sync.json` (gitignored)
+#### 2.2 Local Cache (IndexedDB)
+- Store collections in IndexedDB for offline access
+- Cache structure:
+  ```javascript
+  {
+    collections: [
+      { id, name, items, updatedAt, ... }
+    ],
+    workspaces: [...],
+    lastCachedAt: timestamp
+  }
+  ```
+- Download cloud data → Cache locally on login
+- Update cache when online changes are made
 
-#### 2.3 UI Updates
-- "Cloud Sync" button in collection toolbar
-- Sync status indicator (synced, syncing, conflict, offline)
-- Workspace members list (read-only for now)
+#### 2.3 Data Source Switching
+**Online Mode:**
+- Primary source: Cloud (bruno-server API)
+- Display: `state.cloudCollections`
+- User changes → Update cloud → Update cache
+
+**Offline Mode:**
+- Primary source: Local cache (IndexedDB)
+- Display: `state.localCache`
+- User changes → Queue for sync → Show "pending" indicator
+
+#### 2.4 Sync Queue
+- When offline, queue all changes:
+  ```javascript
+  syncQueue: [
+    { action: 'create', type: 'request', data: {...} },
+    { action: 'update', type: 'folder', id: '...', data: {...} },
+    { action: 'delete', type: 'request', id: '...' }
+  ]
+  ```
+- When back online → Process queue → Sync to cloud
+
+#### 2.5 UI Updates
+- Online/Offline indicator in header
+- "Pending sync: 3 changes" when offline
+- Auto-sync when connection restored
+- Toast: "Back online - syncing changes..."
 
 #### Deliverables:
-- [ ] Can link local collection to cloud workspace
-- [ ] Metadata file tracks sync state
-- [ ] UI shows which collections are cloud-synced
-- [ ] Can create new cloud workspace from local collection
-- [ ] Can view workspace members (read-only)
+- [ ] Detect online/offline status
+- [ ] Cache cloud collections to IndexedDB
+- [ ] Switch data source based on online/offline
+- [ ] Queue changes when offline
+- [ ] Auto-sync queue when back online
+- [ ] UI shows online/offline status
+- [ ] Can create workspace from UI (online only)
+- [ ] Can view workspace members
 
 ---
 
-### **PHASE 3: One-Way Sync (Local → Cloud)** (1 week)
-**Goal**: Push local changes to cloud (upload only)
+### **PHASE 3: Cloud-First CRUD Operations** (1 week)
+**Goal**: All create/update/delete operations go to cloud first, then update cache
 
-#### 3.1 Change Detection
-- Watch `.bru` files for changes (existing file watcher)
-- Detect: file created, modified, deleted, moved
-- Queue changes to sync (debounced)
+#### 3.1 Cloud-First Write Strategy
+**When user creates/updates/deletes:**
+1. **Optimistic update**: Update Redux state immediately (UI feels instant)
+2. **API call**: Send change to cloud (bruno-server)
+3. **On success**: Update local cache, mark as synced
+4. **On failure**: Rollback optimistic update, show error
+5. **If offline**: Add to sync queue, mark as pending
 
-#### 3.2 Upload Strategy
-- Parse `.bru` file → convert to bruno-server format
-- Create/Update/Delete via REST API:
-  - POST `/api/collections/:id/requests`
-  - PATCH `/api/items/:id`
-  - DELETE `/api/items/:id`
-- Handle conflicts (for now: local always wins)
+```javascript
+async function createRequest(data) {
+  // 1. Optimistic update
+  dispatch(addRequestOptimistic(data));
 
-#### 3.3 Sync UI
-- Manual "Push to Cloud" button
-- Auto-sync toggle in settings
-- Show last synced time
-- Sync progress indicator
+  try {
+    // 2. Send to cloud
+    const result = await api.requests.create(data);
+
+    // 3. Confirm success
+    dispatch(confirmRequest(result));
+    await updateCache(result);
+  } catch (error) {
+    // 4. Rollback on error
+    dispatch(rollbackRequest(data.id));
+    toast.error('Failed to create request');
+  }
+}
+```
+
+#### 3.2 CRUD Operations
+- **Create**: POST `/api/workspaces/:id/items`
+- **Update**: PATCH `/api/items/:id`
+- **Delete**: DELETE `/api/items/:id`
+- **Move**: PATCH `/api/items/:id/move`
+- All operations update cloud first, then cache
+
+#### 3.3 Sync Status Per Collection
+- Track sync state in Redux:
+  ```javascript
+  syncStatus: {
+    '/workspace/123': {
+      status: 'synced' | 'syncing' | 'pending' | 'error',
+      lastSyncedAt: timestamp,
+      pendingChanges: 3,
+      error: null
+    }
+  }
+  ```
+
+#### 3.4 Sync UI
+- Real-time sync status per collection
+- Progress indicator while syncing
+- Error messages with retry button
+- "Last synced: 2 minutes ago"
 
 #### Deliverables:
-- [ ] Local file changes detected automatically
-- [ ] Can manually push to cloud
-- [ ] Can enable auto-push on file save
-- [ ] UI shows sync progress and last synced time
-- [ ] Errors shown clearly (network issues, auth expired, etc.)
+- [ ] Create/Update/Delete goes to cloud first
+- [ ] Optimistic UI updates for instant feel
+- [ ] Rollback on error
+- [ ] Local cache updated after cloud success
+- [ ] Sync status tracked per collection
+- [ ] UI shows sync progress and errors
+- [ ] Offline changes queued automatically
 
 ---
 
-### **PHASE 4: Two-Way Sync (Cloud → Local)** (1 week)
-**Goal**: Pull cloud changes to local files
+### **PHASE 4: Offline Queue Processing** (1 week)
+**Goal**: Process queued changes when back online, handle conflicts
 
-#### 4.1 Download Strategy
-- Fetch collection from cloud API
-- Convert bruno-server format → `.bru` files
-- Write to filesystem (update existing files)
+#### 4.1 Sync Queue Processing
+**When back online:**
+1. Detect `navigator.onLine === true`
+2. Process sync queue in order
+3. For each queued change:
+   - Send to cloud API
+   - On success: Remove from queue, update cache
+   - On conflict: Show conflict resolution UI
+   - On error: Keep in queue, show error
+
+```javascript
+async function processSyncQueue() {
+  toast.info('Syncing offline changes...');
+
+  for (const change of syncQueue) {
+    try {
+      await syncChangeToCloud(change);
+      dispatch(removeFromQueue(change.id));
+    } catch (error) {
+      if (error.status === 409) {
+        // Conflict detected
+        dispatch(showConflictModal(change, error.cloudVersion));
+      } else {
+        // Other error - keep in queue
+        toast.error(`Failed to sync: ${error.message}`);
+      }
+    }
+  }
+
+  toast.success('All changes synced!');
+}
+```
 
 #### 4.2 Conflict Detection
-- Compare timestamps: `local.modifiedAt` vs `cloud.updatedAt`
-- Detect conflicts:
-  - Both changed since last sync
-  - Deleted locally but updated on cloud
-  - Updated locally but deleted on cloud
+- Server detects conflicts by comparing timestamps
+- Conflict scenarios:
+  - **Edit-Edit**: Both local and cloud modified same item
+  - **Delete-Edit**: Deleted locally, modified on cloud
+  - **Edit-Delete**: Modified locally, deleted on cloud
 
-#### 4.3 Conflict Resolution
-- **Phase 4a**: Manual resolution (show diff, let user choose)
-- **Phase 4b**: Auto strategies (configurable: local-wins, cloud-wins, newer-wins)
+#### 4.3 Conflict Resolution UI
+- Show diff between local and cloud versions
+- Options:
+  - "Keep Local" → Overwrite cloud with local
+  - "Keep Cloud" → Discard local, use cloud
+  - "View Diff" → Show side-by-side comparison
+- Remember choice: "Always keep local/cloud for conflicts"
 
-#### 4.4 Sync UI
-- Manual "Pull from Cloud" button
-- Conflict resolution modal
-- Show what changed (diff viewer)
+#### 4.4 Auto-Retry on Network Errors
+- Exponential backoff: 1s, 2s, 4s, 8s, 16s
+- Max retries: 5
+- Show retry countdown in UI
+- Option to "Retry Now" or "Cancel"
 
 #### Deliverables:
-- [ ] Can manually pull from cloud
-- [ ] Conflicts detected and shown to user
+- [ ] Process sync queue when back online
+- [ ] Auto-sync queued changes on reconnect
+- [ ] Detect conflicts from server
+- [ ] Conflict resolution modal with diff
 - [ ] User can choose which version to keep
-- [ ] Changes written to local `.bru` files
-- [ ] Redux state updated after pull
+- [ ] Auto-retry with exponential backoff
+- [ ] Clear UI feedback during sync
 
 ---
 
@@ -299,30 +497,84 @@ Data Flow:
 
 ---
 
+## 🔄 Cloud-First Data Flow
+
+### Online Mode (Primary)
+```
+User Action (Create/Update/Delete)
+    ↓
+Optimistic Redux Update (instant UI)
+    ↓
+API Call to bruno-server
+    ↓
+┌──── Success ────┐         ┌──── Failure ────┐
+│   Confirm Redux │         │  Rollback Redux │
+│   Update Cache  │         │  Show Error     │
+└─────────────────┘         └─────────────────┘
+```
+
+### Offline Mode (Fallback)
+```
+User Action
+    ↓
+Update Local Cache (IndexedDB)
+    ↓
+Add to Sync Queue
+    ↓
+Show "Pending Sync" indicator
+    ↓
+[Wait for connection]
+    ↓
+Connection restored → Process queue → Sync to cloud
+```
+
+### Login Flow (Cloud → Local)
+```
+1. User logs in
+    ↓
+2. Fetch workspaces from cloud
+    ↓
+3. Fetch collections from cloud
+    ↓
+4. Update Redux state
+    ↓
+5. Cache to IndexedDB (for offline)
+    ↓
+6. Display in UI
+```
+
+---
+
 ## 🔧 Technical Decisions
 
-### 1. File Format Compatibility
-- **Keep `.bru` format unchanged** on disk
-- Convert `.bru` ↔ bruno-server JSON format in sync layer
-- Use existing `bruno-filestore` package for parsing
+### 1. **Primary Data Source: Cloud**
+- **Online**: All reads/writes go to cloud (bruno-server)
+- **Offline**: Use local cache (IndexedDB) as fallback
+- **No local `.bru` files** by default (cloud-first)
+- **Optional export** to `.bru` files for backup/version control
 
-### 2. Sync Metadata Storage
-- Create `.bruno/` folder in collection root (gitignored)
-- Store in `.bruno/cloud-sync.json`:
-  ```json
+### 2. Local Cache (IndexedDB)
+- Store collections for offline access
+- Cache structure:
+  ```javascript
   {
-    "workspaceId": "abc123",
-    "lastSyncedAt": "2024-03-02T12:00:00Z",
-    "syncEnabled": true,
-    "conflictStrategy": "manual",
-    "items": {
-      "request-123.bru": {
-        "cloudId": "item_xyz",
-        "lastSyncedHash": "sha256..."
+    collections: [
+      {
+        id: 'workspace_123',
+        name: 'My API',
+        items: [...],
+        cachedAt: timestamp,
+        updatedAt: timestamp
       }
-    }
+    ],
+    syncQueue: [
+      { action: 'create', data: {...} },
+      { action: 'update', id: '...', data: {...} }
+    ]
   }
   ```
+- Cleared on logout
+- Refreshed on login
 
 ### 3. Authentication
 - JWT tokens stored in Electron `safeStorage` API (encrypted)
@@ -331,9 +583,9 @@ Data Flow:
 - Auto logout on token expiration
 
 ### 4. Conflict Resolution Priority
-- Phase 4: Manual (user chooses)
-- Phase 5: Configurable strategies
-- Phase 8: Smart auto-merge
+- Phase 4: Manual (user chooses via modal)
+- Phase 5: Configurable strategies (local-wins, cloud-wins, newer-wins)
+- Phase 8: Smart auto-merge (three-way merge)
 
 ### 5. New Packages
 - `packages/bruno-api`: API client for bruno-server
@@ -341,34 +593,59 @@ Data Flow:
   - WebSocket client
   - Token management
   - Type definitions (TypeScript)
-- `packages/bruno-sync`: Sync logic
-  - Conflict detection
-  - File ↔ API conversion
-  - Change queue
-  - Sync strategies
+- Local cache managed in Redux middleware (no separate package needed)
+
+### 6. Offline Detection
+- Use browser APIs: `navigator.onLine`, `online`/`offline` events
+- Fallback: Ping bruno-server every 30s
+- Show status in UI header
+
+### 7. File Export (Optional)
+- Users can **export** collections to `.bru` files
+- For Git versioning or backup
+- Not the primary storage method
 
 ---
 
-## 🚀 Rollout Strategy
+## 🚀 Rollout Strategy (Cloud-First)
 
 ### MVP (Minimum Viable Product)
-**Phases 1-4**: Basic cloud sync
-- Users can backup collections to cloud
-- Manual push/pull
-- Basic conflict resolution
+**Phases 1-4**: Cloud-first with offline fallback
+- ✅ Login and fetch cloud collections
+- ✅ Display cloud data in UI
+- ✅ Offline mode with local cache
+- ✅ Auto-sync when back online
+- ✅ Basic conflict resolution
+
+**Key Features:**
+- Cloud as primary source
+- Offline fallback
+- Automatic sync queue
+- Online/offline indicators
 
 ### V1 (Full Release)
 **Phases 1-6**: Real-time collaboration
-- WebSocket live sync
+- WebSocket live sync (multi-user editing)
 - Import/Export integration
 - Team workspaces
+- Live cursors/presence
+
+**Key Features:**
+- Real-time updates
+- Multi-user collaboration
+- Import Postman/OpenAPI
 
 ### V2 (Enterprise)
 **Phases 1-8**: Advanced features
-- Offline queue
-- Smart conflict resolution
-- Selective sync
-- Version history
+- Smart conflict resolution (three-way merge)
+- Version history (undo/redo)
+- Activity feed (audit log)
+- Advanced permissions
+
+**Key Features:**
+- Time travel (view history)
+- Smart merging
+- Enterprise security
 
 ---
 
@@ -394,15 +671,24 @@ Data Flow:
 
 ---
 
-## 🎨 UI/UX Mockups Needed
+## 🎨 UI/UX Components
 
+### Implemented ✅
+1. **Global Loading Bar** (Top bar + bottom notification)
+   - Linear progress bar at top
+   - Operation message display
+   - Multiple operation tracking
+   - Auto-tracking via middleware
+
+### To Implement
 1. Login/Register modal
-2. Cloud sync status indicator
-3. Workspace settings page
-4. Conflict resolution modal
-5. Sync preferences panel
-6. Team members list
-7. Import/Export dialogs
+2. Online/Offline status indicator
+3. Cloud sync status per collection
+4. Workspace settings page
+5. Conflict resolution modal
+6. Sync preferences panel
+7. Team members list
+8. Import/Export dialogs
 
 ---
 
@@ -431,17 +717,111 @@ Data Flow:
 
 ---
 
-## 🤔 Open Questions
+## 🤔 Open Questions (Cloud-First)
 
 1. Should we support **multiple cloud accounts** per user?
-2. Should `.bruno/` folder be **gitignored by default**?
+   - Use case: Personal + Work accounts
+2. How to handle **migration from local-first** users?
+   - Provide migration tool to upload existing collections?
 3. Should we add **collection sharing** via public links?
+   - Share read-only link with non-users
 4. Should we support **nested workspaces** (workspace hierarchy)?
-5. How to handle **environment variables** (local vs cloud)?
-   - Proposal: Keep `.env` files local-only for security
+   - Organize workspaces into folders
+5. How to handle **environment variables** security?
+   - **Proposal**: Cloud-stored but encrypted end-to-end
+   - Only decrypt client-side with user's password
 6. Should we add **activity feed** (who changed what when)?
+   - Useful for team collaboration
+7. How long to keep **offline cache** before clearing?
+   - **Proposal**: 30 days since last login
+8. Should we support **exporting to `.bru` files** for Git?
+   - **Proposal**: Yes, as optional backup/version control
+9. What's the **offline storage limit** (IndexedDB)?
+   - **Proposal**: 500MB per user
+10. Should we support **guest mode** (use without account)?
+    - **Proposal**: No - cloud-first requires authentication
 
 ---
 
-**Status**: 📋 Planning Phase - Awaiting Approval
-**Last Updated**: 2024-03-02
+**Status**: 📋 Updated to Cloud-First Architecture
+**Last Updated**: 2024-03-03
+
+---
+
+## 📋 Implementation Roadmap Summary
+
+### Current Status: Phase 1 - 100% COMPLETE ✅
+- ✅ Authentication (login/register)
+- ✅ JWT token management
+- ✅ Secure token storage
+- ✅ **Global loading indicator** (auto-tracks all operations)
+- ✅ **Fetch workspaces on login**
+- ✅ **Fetch collections on login**
+- ✅ **Cache to IndexedDB**
+- ✅ **Display cloud collections in UI**
+- ✅ **Zero mistakes implementation**
+
+### Next Steps (Phase 2): Offline Mode
+**Week 1-2:**
+1. Implement IndexedDB cache layer
+2. Add online/offline detection
+3. Create sync queue system
+4. Build offline mode UI indicators
+5. Test offline → online transitions
+
+**Deliverables:**
+- Can work offline with cached data
+- Changes queue when offline
+- Auto-sync when back online
+- UI shows connection status
+
+### Future Phases:
+- **Phase 3**: Cloud-first CRUD operations
+- **Phase 4**: Offline queue processing & conflicts
+- **Phase 5**: Real-time sync (WebSocket)
+- **Phase 6**: Import/Export
+- **Phase 7**: Team collaboration
+- **Phase 8**: Advanced features
+
+### Migration Plan (for existing users):
+1. Prompt user on first cloud login: "Upload existing collections?"
+2. Scan local file system for `.bru` collections
+3. Upload to cloud and link to workspaces
+4. Show migration progress
+5. Option to keep local files or switch to cloud-only
+
+---
+
+## 🎯 Success Criteria (Cloud-First)
+
+### Phase 1 (Authentication) ✅
+- [x] Login successful
+- [x] Tokens stored securely
+- [x] Auto-refresh working
+- [x] **Global loading indicator working**
+- [ ] Fetch user data on login
+
+### Phase 2 (Offline Mode)
+- [ ] Works offline with cached data
+- [ ] Auto-syncs when back online
+- [ ] Queue processes correctly
+- [ ] No data loss during transitions
+
+### Phase 3 (Cloud CRUD)
+- [ ] Create/Update/Delete works online
+- [ ] Optimistic updates feel instant
+- [ ] Errors handled gracefully
+- [ ] Cache updated after cloud success
+
+### Phase 4 (Conflict Resolution)
+- [ ] Conflicts detected accurately
+- [ ] User can resolve conflicts
+- [ ] No data loss on conflicts
+- [ ] Sync queue processes completely
+
+### Overall Success Metrics:
+- **Sync Success Rate**: >99%
+- **Offline → Online Sync**: <5 seconds
+- **UI Responsiveness**: <100ms (optimistic updates)
+- **Data Loss**: 0%
+- **User Satisfaction**: >90% would recommend cloud sync

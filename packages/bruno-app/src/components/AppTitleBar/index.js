@@ -22,6 +22,7 @@ import AppMenu from './AppMenu';
 import StyledWrapper from './StyledWrapper';
 import ResponseLayoutToggle from 'components/ResponsePane/ResponseLayoutToggle';
 import { CloudAuthButton } from 'components/CloudAuth';
+import NetworkStatusIndicator from 'components/NetworkStatusIndicator';
 import { isMacOS, isWindowsOS, isLinuxOS } from 'utils/common/platform';
 import classNames from 'classnames';
 
@@ -274,7 +275,7 @@ const AppTitleBar = () => {
         {/* Center section: Bruno logo + text */}
         <div className="titlebar-center">
           <Bruno width={18} />
-          <span className="bruno-text">Bruno</span>
+          <span className="bruno-text">AhaMan</span>
         </div>
 
         {/* Right section: Action buttons */}
@@ -282,6 +283,9 @@ const AppTitleBar = () => {
           <div className="titlebar-actions">
             {/* Cloud Auth */}
             <CloudAuthButton />
+
+            {/* Network Status */}
+            <NetworkStatusIndicator />
 
             {/* Toggle sidebar */}
             <ActionIcon

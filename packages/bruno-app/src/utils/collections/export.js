@@ -111,7 +111,7 @@ export const exportCollection = (collection, version) => {
   transformItem(collection.items);
 
   collection.exportedAt = new Date().toISOString();
-  collection.exportedUsing = version ? `Bruno/${version}` : 'Bruno';
+  collection.exportedUsing = version ? `AhaMan/${version}` : 'AhaMan';
 
   const fileName = `${collection.name}.json`;
   const fileBlob = new Blob([JSON.stringify(collection, null, 2)], { type: 'application/json' });

@@ -800,13 +800,13 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
         info: {
           type: 'bruno-environment',
           exportedAt: new Date().toISOString(),
-          exportedUsing: `Bruno/v${appVersion}`
+          exportedUsing: `AhaMan/v${appVersion}`
         }
       });
 
       if (exportFormat === 'folder') {
         // separate environment json files in folder
-        const baseFolderName = `bruno-${environmentType}-environments`;
+        const baseFolderName = `ahaman-${environmentType}-environments`;
         const uniqueFolderName = generateUniqueName(baseFolderName, (name) => fs.existsSync(path.join(filePath, name)));
         const exportPath = path.join(filePath, uniqueFolderName);
 
@@ -823,7 +823,7 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
         }
       } else if (exportFormat === 'single-file') {
         // all environments in a single file with top-level info and environments array
-        const baseFileName = `bruno-${environmentType}-environments`;
+        const baseFileName = `ahaman-${environmentType}-environments`;
         const uniqueFileName = generateUniqueName(baseFileName, (name) => fs.existsSync(path.join(filePath, `${name}.json`)));
         const fullPath = path.join(filePath, `${uniqueFileName}.json`);
 
@@ -831,7 +831,7 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
           info: {
             type: 'bruno-environment',
             exportedAt: new Date().toISOString(),
-            exportedUsing: `Bruno/v${appVersion}`
+            exportedUsing: `AhaMan/v${appVersion}`
           },
           environments
         };
@@ -2376,7 +2376,7 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
 
         await fsExtra.move(collectionDir, finalCollectionPath);
         if (tempDir !== collectionDir) {
-          await fsExtra.remove(tempDir).catch(() => {});
+          await fsExtra.remove(tempDir).catch(() => { });
         }
 
         const uid = generateUidBasedOnHash(finalCollectionPath);
@@ -2389,7 +2389,7 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
 
         return finalCollectionPath;
       } catch (error) {
-        await fsExtra.remove(tempDir).catch(() => {});
+        await fsExtra.remove(tempDir).catch(() => { });
         throw error;
       }
     } catch (error) {

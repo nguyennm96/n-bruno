@@ -21,7 +21,7 @@ const highlights = [
   {
     icon: IconLock,
     title: 'Privacy-focused',
-    desc: 'No accounts required. No telemetry. Bruno works entirely offline — your API keys never leave your machine.'
+    desc: 'No accounts required. No telemetry. AhaMan works entirely offline — your API keys never leave your machine.'
   },
   {
     icon: IconRocket,

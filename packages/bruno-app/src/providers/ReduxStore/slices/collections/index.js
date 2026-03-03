@@ -3740,6 +3740,9 @@ export const collectionsSlice = createSlice({
     clearAllSaveTransientRequestModals: (state) => {
       state.saveTransientRequestModals = [];
     },
+    clearAllCollections: (state) => {
+      state.collections = [];
+    },
     /* Response Example Actions */
     addResponseExample: exampleReducers.addResponseExample,
     cloneResponseExample: exampleReducers.cloneResponseExample,
@@ -3973,7 +3976,8 @@ export const {
   addTransientDirectory,
   addSaveTransientRequestModal,
   removeSaveTransientRequestModal,
-  clearAllSaveTransientRequestModals
+  clearAllSaveTransientRequestModals,
+  clearAllCollections
 } = collectionsSlice.actions;
 
 export default collectionsSlice.reducer;

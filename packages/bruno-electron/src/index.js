@@ -148,7 +148,7 @@ if (useSingleInstance && !gotTheLock) {
   if (isLinux) {
     try {
       execSync('xdg-mime default bruno.desktop x-scheme-handler/bruno');
-    } catch (err) {}
+    } catch (err) { }
   }
 
   // Handle protocol URLs for MacOS
@@ -223,7 +223,7 @@ app.on('ready', async () => {
       preload: path.join(__dirname, 'preload.js'),
       webviewTag: true
     },
-    title: 'Bruno',
+    title: 'AhaMan',
     icon: path.join(__dirname, 'about/256x256.png'),
     titleBarStyle: isMac ? 'hiddenInset' : isWindows ? 'hidden' : undefined,
     frame: isLinux ? false : true,

@@ -3,9 +3,11 @@ import { get } from 'lodash';
 import { useDispatch, useSelector } from 'react-redux';
 import { refreshScreenWidth } from 'providers/ReduxStore/slices/app';
 import { loadSavedAuth, selectIsAuthInitializing } from 'providers/ReduxStore/slices/auth';
+import { setupNetworkListeners } from 'providers/ReduxStore/slices/network';
 import { initializeBrunoCloudApi } from 'services/brunoApi';
 import { store } from 'providers/ReduxStore';
 import ConfirmAppClose from './ConfirmAppClose';
+import GlobalLoadingBar from 'components/GlobalLoadingBar';
 import useIpcEvents from './useIpcEvents';
 import useTelemetry from './useTelemetry';
 import useParsedFileCacheIpc from './useParsedFileCacheIpc';
@@ -28,8 +30,16 @@ export const AppProvider = (props) => {
       // Initialize API client
       initializeBrunoCloudApi(store);
 
+      // Setup network status listeners
+      const cleanupNetworkListeners = setupNetworkListeners(dispatch);
+
       // Load saved auth tokens if they exist
       dispatch(loadSavedAuth());
+
+      // Cleanup on unmount
+      return () => {
+        cleanupNetworkListeners();
+      };
     } catch (error) {
       console.error('Failed to initialize Bruno Cloud:', error);
     }
@@ -74,6 +84,7 @@ export const AppProvider = (props) => {
   return (
     <AppContext.Provider {...props} value={{ version }}>
       <StyledWrapper>
+        <GlobalLoadingBar />
         <ConfirmAppClose />
         {props.children}
       </StyledWrapper>
