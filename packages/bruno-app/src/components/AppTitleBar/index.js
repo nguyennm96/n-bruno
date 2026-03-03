@@ -21,6 +21,7 @@ import IconBottombarToggle from 'components/Icons/IconBottombarToggle/index';
 import AppMenu from './AppMenu';
 import StyledWrapper from './StyledWrapper';
 import ResponseLayoutToggle from 'components/ResponsePane/ResponseLayoutToggle';
+import { CloudAuthButton } from 'components/CloudAuth';
 import { isMacOS, isWindowsOS, isLinuxOS } from 'utils/common/platform';
 import classNames from 'classnames';
 
@@ -279,6 +280,9 @@ const AppTitleBar = () => {
         {/* Right section: Action buttons */}
         <div className="titlebar-right">
           <div className="titlebar-actions">
+            {/* Cloud Auth */}
+            <CloudAuthButton />
+
             {/* Toggle sidebar */}
             <ActionIcon
               onClick={handleToggleSidebar}

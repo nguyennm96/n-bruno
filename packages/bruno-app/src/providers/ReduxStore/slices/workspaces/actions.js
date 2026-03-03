@@ -473,16 +473,15 @@ export const saveWorkspaceDocs = (workspaceUid, docs) => {
   };
 };
 
-export const createCollectionInWorkspace = (collectionName, collectionFolderName, collectionLocation, workspaceUid) => {
+export const createCollectionInWorkspace = (collectionName, workspaceUid) => {
   return async (dispatch, getState) => {
     const currentWorkspace = getState().workspaces.workspaces.find((w) => w.uid === workspaceUid);
     if (!currentWorkspace) {
       throw new Error('Workspace not found');
     }
 
-    const projectCollectionLocation = `${currentWorkspace.pathname}/collections`;
-
-    return await dispatch(createCollection(collectionName, collectionFolderName, projectCollectionLocation, {
+    // Collection will be created in default location based on userId
+    return await dispatch(createCollection(collectionName, {
       workspaceId: currentWorkspace.pathname
     }));
   };

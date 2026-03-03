@@ -385,6 +385,40 @@ const useIpcEvents = () => {
       dispatch(setGitVersion(val));
     });
 
+    // Cloud sync on file change
+    const removeCloudSyncRequestListener = ipcRenderer.on('main:request-cloud-sync', async (syncData) => {
+      const { collectionUid, collectionPath, pathname, changeType } = syncData;
+
+      const state = store.getState();
+      const { isAuthenticated } = state.auth;
+      const { linkedCollections } = state.cloudWorkspaces;
+
+      // Skip if not authenticated
+      if (!isAuthenticated) {
+        return;
+      }
+
+      // Check if collection is linked to cloud
+      const linkInfo = linkedCollections[collectionPath];
+      if (!linkInfo) {
+        return; // Collection not linked, skip sync
+      }
+
+      const workspaceId = linkInfo.workspaceId;
+
+      console.log(`☁️  Queueing sync ${changeType}: ${pathname}`);
+
+      // Import sync queue and add to queue
+      const { syncQueue } = await import('utils/cloudSync');
+
+      // Initialize store if not already done
+      if (!syncQueue.store) {
+        syncQueue.setStore(store);
+      }
+
+      syncQueue.add(pathname, workspaceId, changeType, collectionPath);
+    });
+
     return () => {
       removeCollectionTreeUpdateListener();
       removeCollectionTreeBatchUpdateListener();
@@ -419,6 +453,7 @@ const useIpcEvents = () => {
       removePersistentEnvVariablesUpdateListener();
       removeSystemResourcesListener();
       gitVersionListener();
+      removeCloudSyncRequestListener();
     };
   }, [isElectron]);
 };

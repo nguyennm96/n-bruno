@@ -20,10 +20,12 @@ import {
   IconSettings,
   IconTerminal2,
   IconFolder,
-  IconBook
+  IconBook,
+  IconCloud,
+  IconCloudOff
 } from '@tabler/icons';
 import { toggleCollection, collapseFullCollection } from 'providers/ReduxStore/slices/collections';
-import { mountCollection, moveCollectionAndPersist, handleCollectionItemDrop, pasteItem, showInFolder, saveCollectionSecurityConfig } from 'providers/ReduxStore/slices/collections/actions';
+import { mountCollection, moveCollectionAndPersist, handleCollectionItemDrop, pasteItem, saveCollectionSecurityConfig } from 'providers/ReduxStore/slices/collections/actions';
 import { useDispatch, useSelector } from 'react-redux';
 import { addTab, makeTabPermanent } from 'providers/ReduxStore/slices/tabs';
 import toast from 'react-hot-toast';
@@ -49,6 +51,11 @@ import ActionIcon from 'ui/ActionIcon';
 import MenuDropdown from 'ui/MenuDropdown';
 import { useSidebarAccordion } from 'components/Sidebar/SidebarAccordionContext';
 import { areItemsLoading } from 'utils/collections';
+import { SyncStatusIndicator, WorkspaceSelector } from 'components/CloudWorkspace';
+import { selectIsAuthenticated } from 'providers/ReduxStore/slices/auth';
+import { selectIsCollectionLinked, unlinkCollection, selectWorkspaces, fetchWorkspaces } from 'providers/ReduxStore/slices/cloudWorkspaces';
+import { selectSyncStatus } from 'providers/ReduxStore/slices/syncStatus';
+import { autoLinkCollectionToCloud } from 'utils/cloudSync';
 
 const Collection = ({ collection, searchText }) => {
   const { dropdownContainerRef } = useSidebarAccordion();
@@ -59,6 +66,7 @@ const Collection = ({ collection, searchText }) => {
   const [showShareCollectionModal, setShowShareCollectionModal] = useState(false);
   const [showGenerateDocumentationModal, setShowGenerateDocumentationModal] = useState(false);
   const [showRemoveCollectionModal, setShowRemoveCollectionModal] = useState(false);
+  const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(false);
   const [dropType, setDropType] = useState(null);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
   const dispatch = useDispatch();
@@ -68,6 +76,69 @@ const Collection = ({ collection, searchText }) => {
   const isCollectionFocused = useSelector(isTabForItemActive({ itemUid: collection.uid }));
   const { hasCopiedItems } = useSelector((state) => state.app.clipboard);
   const menuDropdownRef = useRef(null);
+
+  // Cloud workspace integration
+  const isAuthenticated = useSelector(selectIsAuthenticated);
+  const isLinked = useSelector((state) => selectIsCollectionLinked(state, collection.pathname));
+  const workspaces = useSelector(selectWorkspaces);
+  const syncStatus = useSelector((state) => selectSyncStatus(state, collection.pathname));
+
+  // Auto-link collection to cloud on mount
+  useEffect(() => {
+    let mounted = true;
+
+    const tryAutoLink = async () => {
+      if (!isAuthenticated || isLinked || !collection.pathname) {
+        return;
+      }
+
+      try {
+        // Fetch workspaces first
+        await dispatch(fetchWorkspaces()).unwrap();
+
+        // Check if still mounted and needs linking
+        if (!mounted) return;
+
+        // Auto-link to default workspace or first available
+        const state = workspaces;
+        let targetWorkspace = state.find((w) => w.name === 'My Collections');
+
+        if (!targetWorkspace) {
+          // Create default workspace
+          const { createWorkspace, linkCollection } = await import('providers/ReduxStore/slices/cloudWorkspaces');
+          const result = await dispatch(
+            createWorkspace({
+              name: 'My Collections',
+              description: 'Auto-synced collections'
+            })
+          ).unwrap();
+          targetWorkspace = result;
+        }
+
+        if (!mounted) return;
+
+        // Link collection
+        const { linkCollection } = await import('providers/ReduxStore/slices/cloudWorkspaces');
+        await dispatch(
+          linkCollection({
+            workspaceId: targetWorkspace.id,
+            collectionPath: collection.pathname,
+            collectionName: collection.name
+          })
+        ).unwrap();
+
+        console.log(`✅ Auto-linked "${collection.name}" to cloud`);
+      } catch (error) {
+        console.error('Auto-link failed:', error);
+      }
+    };
+
+    tryAutoLink();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isAuthenticated, collection.pathname, isLinked]); // Run when these change
 
   const handleRun = () => {
     dispatch(
@@ -152,6 +223,21 @@ const Collection = ({ collection, searchText }) => {
     dispatch(collapseFullCollection({ collectionUid: collection.uid }));
   };
 
+  const handleLinkToCloud = () => {
+    if (isLinked) {
+      // Unlink
+      if (confirm(`Unlink "${collection.name}" from cloud workspace?`)) {
+        dispatch(unlinkCollection({
+          collectionPath: collection.pathname,
+          collectionName: collection.name
+        }));
+      }
+    } else {
+      // Show workspace selector
+      setShowWorkspaceSelector(true);
+    }
+  };
+
   const viewCollectionSettings = () => {
     dispatch(
       addTab({
@@ -160,13 +246,6 @@ const Collection = ({ collection, searchText }) => {
         type: 'collection-settings'
       })
     );
-  };
-
-  const handleShowInFolder = () => {
-    dispatch(showInFolder(collection.pathname)).catch((error) => {
-      console.error('Error opening the folder', error);
-      toast.error('Error opening the folder');
-    });
   };
 
   const handlePasteItem = () => {
@@ -343,6 +422,16 @@ const Collection = ({ collection, searchText }) => {
         setShowShareCollectionModal(true);
       }
     },
+    ...(isAuthenticated
+      ? [
+          {
+            id: 'link-to-cloud',
+            leftSection: isLinked ? IconCloudOff : IconCloud,
+            label: isLinked ? 'Unlink from Cloud' : 'Link to Cloud',
+            onClick: handleLinkToCloud
+          }
+        ]
+      : []),
     {
       id: 'generate-docs',
       leftSection: IconBook,
@@ -357,12 +446,6 @@ const Collection = ({ collection, searchText }) => {
       leftSection: IconFoldDown,
       label: 'Collapse',
       onClick: handleCollapseFullCollection
-    },
-    {
-      id: 'show-in-folder',
-      leftSection: IconFolder,
-      label: getRevealInFolderLabel(),
-      onClick: handleShowInFolder
     },
     {
       id: 'divider-1',
@@ -402,6 +485,14 @@ const Collection = ({ collection, searchText }) => {
       )}
       {showRemoveCollectionModal && (
         <RemoveCollection collectionUid={collection.uid} onClose={() => setShowRemoveCollectionModal(false)} />
+      )}
+      {showWorkspaceSelector && (
+        <WorkspaceSelector
+          collectionPath={collection.pathname}
+          collectionName={collection.name}
+          onClose={() => setShowWorkspaceSelector(false)}
+          onSelect={() => setShowWorkspaceSelector(false)}
+        />
       )}
       {showShareCollectionModal && (
         <ShareCollection collectionUid={collection.uid} onClose={() => setShowShareCollectionModal(false)} />
@@ -444,6 +535,13 @@ const Collection = ({ collection, searchText }) => {
           <div className="ml-1 w-full" id="sidebar-collection-name" title={collection.name}>
             {collection.name}
           </div>
+          {isAuthenticated && isLinked && (
+            <SyncStatusIndicator
+              status={syncStatus.status}
+              lastSyncedAt={syncStatus.lastSyncedAt}
+              error={syncStatus.error}
+            />
+          )}
           {isLoading ? <IconLoader2 className="animate-spin mx-1" size={18} strokeWidth={1.5} /> : null}
         </div>
         <div>

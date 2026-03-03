@@ -74,6 +74,7 @@ const { transformBrunoConfigBeforeSave } = require('../utils/transformBrunoConfi
 const { REQUEST_TYPES } = require('../utils/constants');
 const { cancelOAuth2AuthorizationRequest, isOauth2AuthorizationRequestInProgress } = require('../utils/oauth2-protocol-handler');
 const { findUniqueFolderName } = require('../utils/collection-import');
+const { getNewCollectionPath, clearUserCollections } = require('../utils/default-collection-path');
 
 const environmentSecretsStore = new EnvironmentSecretsStore();
 const collectionSecurityStore = new CollectionSecurityStore();
@@ -166,11 +167,14 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
   // create collection
   ipcMain.handle(
     'renderer:create-collection',
-    async (event, collectionName, collectionFolderName, collectionLocation, options = {}) => {
+    async (event, collectionName, userId, options = {}) => {
       try {
         const format = options.format || DEFAULT_COLLECTION_FORMAT;
-        collectionFolderName = sanitizeName(collectionFolderName);
-        const dirPath = path.join(collectionLocation, collectionFolderName);
+
+        // Use default collection path based on userId
+        // Auto-generates unique name if collectionName not provided
+        const dirPath = getNewCollectionPath(userId, collectionName);
+
         if (fs.existsSync(dirPath)) {
           const files = fs.readdirSync(dirPath);
 
@@ -187,10 +191,13 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
           await createDirectory(dirPath);
         }
 
+        // Use the directory name as the actual collection name if auto-generated
+        const actualCollectionName = collectionName || path.basename(dirPath);
+
         const uid = generateUidBasedOnHash(dirPath);
         let brunoConfig = {
           version: '1',
-          name: collectionName,
+          name: actualCollectionName,
           type: 'collection',
           ignore: ['node_modules', '.git']
         };
@@ -198,13 +205,13 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
         if (format === 'yml') {
           const collectionRoot = {
             meta: {
-              name: collectionName
+              name: actualCollectionName
             }
           };
           // For YAML collections, set opencollection instead of version
           brunoConfig = {
             opencollection: '1.0.0',
-            name: collectionName,
+            name: actualCollectionName,
             type: 'collection',
             ignore: ['node_modules', '.git']
           };
@@ -216,6 +223,8 @@ const registerRendererEventHandlers = (mainWindow, watcher) => {
         } else {
           throw new Error(`Invalid format: ${format}`);
         }
+
+        console.log(`✅ Created collection "${actualCollectionName}" at: ${dirPath}`);
 
         await writeFile(path.join(dirPath, '.gitignore'), DEFAULT_GITIGNORE);
 
@@ -2424,6 +2433,31 @@ const registerMainEventHandlers = (mainWindow, watcher) => {
 
   ipcMain.handle('main:force-quit', () => {
     process.exit();
+  });
+
+  // Clear all collections for a user (cloud-first architecture)
+  ipcMain.handle('renderer:clear-user-collections', async (event, userId) => {
+    try {
+      const success = clearUserCollections(userId);
+      if (success) {
+        console.log(`✅ Cleared all collections for user: ${userId || 'anonymous'}`);
+      }
+      return success;
+    } catch (error) {
+      console.error('Failed to clear user collections:', error);
+      throw error;
+    }
+  });
+
+  // Read file content (for cloud sync)
+  ipcMain.handle('renderer:read-file', async (event, filepath) => {
+    try {
+      const content = fs.readFileSync(filepath, 'utf8');
+      return content;
+    } catch (error) {
+      console.error(`Failed to read file: ${filepath}`, error);
+      throw error;
+    }
   });
 };
 

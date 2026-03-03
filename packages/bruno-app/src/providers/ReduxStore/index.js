@@ -10,6 +10,9 @@ import logsReducer from './slices/logs';
 import performanceReducer from './slices/performance';
 import workspacesReducer from './slices/workspaces';
 import apiSpecReducer from './slices/apiSpec';
+import authReducer from './slices/auth';
+import cloudWorkspacesReducer from './slices/cloudWorkspaces';
+import syncStatusReducer from './slices/syncStatus';
 import { draftDetectMiddleware } from './middlewares/draft/middleware';
 import { autosaveMiddleware } from './middlewares/autosave/middleware';
 
@@ -32,7 +35,10 @@ export const store = configureStore({
     logs: logsReducer,
     performance: performanceReducer,
     workspaces: workspacesReducer,
-    apiSpec: apiSpecReducer
+    apiSpec: apiSpecReducer,
+    auth: authReducer,
+    cloudWorkspaces: cloudWorkspacesReducer,
+    syncStatus: syncStatusReducer
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(middleware)
 });

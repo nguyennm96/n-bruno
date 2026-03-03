@@ -1,0 +1,26 @@
+{
+  "name": "@usebruno/api",
+  "version": "0.1.0",
+  "description": "API client for Bruno Cloud Server",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "bruno",
+    "api-client",
+    "cloud-sync"
+  ],
+  "author": "Bruno Team",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

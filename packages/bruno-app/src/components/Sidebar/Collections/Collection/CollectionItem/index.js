@@ -22,7 +22,7 @@ import {
 } from '@tabler/icons';
 import { useSelector, useDispatch } from 'react-redux';
 import { addTab, focusTab, makeTabPermanent } from 'providers/ReduxStore/slices/tabs';
-import { handleCollectionItemDrop, sendRequest, showInFolder, pasteItem, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
+import { handleCollectionItemDrop, sendRequest, pasteItem, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { toggleCollectionItem, addResponseExample } from 'providers/ReduxStore/slices/collections';
 import { insertTaskIntoQueue } from 'providers/ReduxStore/slices/app';
 import { uuid } from 'utils/common';
@@ -378,15 +378,6 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
       });
     }
 
-    items.push(
-      {
-        id: 'show-in-folder',
-        leftSection: IconFolder,
-        label: getRevealInFolderLabel(),
-        onClick: handleShowInFolder
-      }
-    );
-
     items.push({ id: 'separator-1', type: 'divider' });
 
     items.push({
@@ -450,13 +441,6 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
   // Sort items by their "seq" property.
   const sortItemsBySequence = (items = []) => {
     return items.sort((a, b) => a.seq - b.seq);
-  };
-
-  const handleShowInFolder = () => {
-    dispatch(showInFolder(item.pathname)).catch((error) => {
-      console.error('Error opening the folder', error);
-      toast.error('Error opening the folder');
-    });
   };
 
   const handleCreateExample = async (name, description = '') => {

@@ -376,6 +376,14 @@ const add = async (win, pathname, collectionUid, collectionPath, useWorkerThread
       }
 
       watcher.markFileAsProcessed(win, collectionUid, pathname);
+
+      // Trigger cloud sync for newly added file
+      win.webContents.send('main:request-cloud-sync', {
+        collectionUid,
+        collectionPath,
+        pathname,
+        changeType: 'add'
+      });
     } catch (error) {
       console.error(`Error processing file ${pathname}:`, error);
       file.data = {
@@ -570,6 +578,14 @@ const change = async (win, pathname, collectionUid, collectionPath) => {
 
       // Change events are not batched - they need immediate feedback
       win.webContents.send('main:collection-tree-updated', 'change', file);
+
+      // Trigger cloud sync for changed file
+      win.webContents.send('main:request-cloud-sync', {
+        collectionUid,
+        collectionPath,
+        pathname,
+        changeType: 'update'
+      });
     } catch (err) {
       console.error(err);
     }
@@ -603,6 +619,14 @@ const unlink = async (win, pathname, collectionUid, collectionPath) => {
       }
     };
     win.webContents.send('main:collection-tree-updated', 'unlink', file);
+
+    // Trigger cloud sync for deleted file
+    win.webContents.send('main:request-cloud-sync', {
+      collectionUid,
+      collectionPath,
+      pathname,
+      changeType: 'delete'
+    });
   }
 };
 

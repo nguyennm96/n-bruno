@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { getTotalRequestCountInCollection } from 'utils/collections/';
-import { IconFolder, IconWorld, IconApi, IconShare, IconBook } from '@tabler/icons';
+import { IconWorld, IconApi, IconShare, IconBook } from '@tabler/icons';
 import { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import ShareCollection from 'components/ShareCollection/index';
@@ -33,19 +33,6 @@ const Info = ({ collection }) => {
     <StyledWrapper className="w-full flex flex-col h-fit">
       <div className="rounded-lg py-6">
         <div className="grid gap-5">
-          {/* Location Row */}
-          <div className="flex items-start">
-            <div className="icon-box location flex-shrink-0 p-3 rounded-lg">
-              <IconFolder className="w-5 h-5" stroke={1.5} />
-            </div>
-            <div className="ml-4">
-              <div className="font-medium">Location</div>
-              <div className="mt-1 text-muted break-all">
-                {collection.pathname}
-              </div>
-            </div>
-          </div>
-
           {/* Environments Row */}
           <div className="flex items-start">
             <div className="icon-box environments flex-shrink-0 p-3 rounded-lg">

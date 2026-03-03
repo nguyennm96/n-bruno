@@ -14,7 +14,8 @@
       "pageComponents/*": ["src/pageComponents/*"],
       "providers/*": ["src/providers/*"],
       "utils/*": ["src/utils/*"],
-      "store/*": ["src/store/*"]
+      "store/*": ["src/store/*"],
+      "services/*": ["src/services/*"]
     }
   },
   "exclude": ["node_modules", "dist"]

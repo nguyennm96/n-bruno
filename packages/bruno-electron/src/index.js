@@ -40,9 +40,11 @@ const registerNetworkIpc = require('./ipc/network');
 const registerCollectionsIpc = require('./ipc/collection');
 const registerFilesystemIpc = require('./ipc/filesystem');
 const registerPreferencesIpc = require('./ipc/preferences');
+const registerAuthIpc = require('./ipc/auth');
 const { parsedFileCacheStore } = require('./store/parsed-file-cache-idb');
 const registerSystemMonitorIpc = require('./ipc/system-monitor');
 const registerWorkspaceIpc = require('./ipc/workspace');
+const registerCloudWorkspaceIpc = require('./ipc/cloudWorkspace');
 const registerApiSpecIpc = require('./ipc/apiSpec');
 const registerGitIpc = require('./ipc/git');
 const collectionWatcher = require('./app/collection-watcher');
@@ -72,7 +74,7 @@ const apiSpecWatcher = new ApiSpecWatcher();
 // Reference: https://content-security-policy.com/
 const contentSecurityPolicy = [
   'default-src \'self\'',
-  'connect-src \'self\' https://*.posthog.com',
+  'connect-src \'self\' http://localhost:* http://127.0.0.1:* https://*.posthog.com',
   'font-src \'self\' https: data:;',
   'frame-src data:',
   'script-src \'self\' data:',
@@ -451,6 +453,8 @@ app.on('ready', async () => {
   parsedFileCacheStore.initialize(mainWindow);
 
   // register all ipc handlers
+  registerAuthIpc(); // Cloud auth - no mainWindow needed
+  registerCloudWorkspaceIpc(); // Cloud workspace - no mainWindow needed
   registerNetworkIpc(mainWindow);
   registerGlobalEnvironmentsIpc(mainWindow, globalEnvironmentsManager);
   registerCollectionsIpc(mainWindow, collectionWatcher);

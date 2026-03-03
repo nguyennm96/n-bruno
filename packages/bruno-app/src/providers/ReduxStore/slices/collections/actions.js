@@ -2607,11 +2607,15 @@ export const openCollectionEvent = (uid, pathname, brunoConfig) => (dispatch, ge
   });
 };
 
-export const createCollection = (collectionName, collectionFolderName, collectionLocation, options = {}) => (dispatch, getState) => {
+export const createCollection = (collectionName, options = {}) => (dispatch, getState) => {
   const { ipcRenderer } = window;
+  const state = getState();
+
+  // Get userId from auth state (null if not authenticated)
+  const userId = state.auth?.user?.id || null;
 
   if (!options.workspaceId) {
-    const { workspaces } = getState();
+    const { workspaces } = state;
     const activeWorkspace = workspaces.workspaces.find((w) => w.uid === workspaces.activeWorkspaceUid);
 
     if (activeWorkspace && activeWorkspace.pathname) {
@@ -2621,9 +2625,11 @@ export const createCollection = (collectionName, collectionFolderName, collectio
     }
   }
 
+  console.log(`Creating collection "${collectionName || 'auto-generated'}" for user:`, userId || 'anonymous');
+
   return new Promise((resolve, reject) => {
     ipcRenderer
-      .invoke('renderer:create-collection', collectionName, collectionFolderName, collectionLocation, options)
+      .invoke('renderer:create-collection', collectionName, userId, options)
       .then(resolve)
       .catch(reject);
   });
@@ -3172,5 +3178,38 @@ export const closeTabs = ({ tabUids }) => async (dispatch, getState) => {
     } catch (err) {
       console.error('Failed to delete transient request files:', err);
     }
+  }
+};
+
+/**
+ * Clear all collections for the current user (cloud-first architecture)
+ * This removes all collections from the user's directory to start fresh
+ */
+export const clearAllUserCollections = () => async (dispatch, getState) => {
+  const { ipcRenderer } = window;
+  const state = getState();
+
+  // Get userId from auth state (null if not authenticated)
+  const userId = state.auth?.user?.id || null;
+
+  try {
+    const success = await ipcRenderer.invoke('renderer:clear-user-collections', userId);
+
+    if (success) {
+      // Close all tabs since all collections are being removed
+      const allTabUids = state.tabs.tabs.map((tab) => tab.uid);
+      if (allTabUids.length > 0) {
+        await dispatch(closeTabs({ tabUids: allTabUids }));
+      }
+
+      toast.success('All collections cleared successfully');
+      console.log(`✅ Cleared all collections for user: ${userId || 'anonymous'}`);
+    }
+
+    return success;
+  } catch (error) {
+    console.error('Failed to clear user collections:', error);
+    toast.error('Failed to clear collections');
+    throw error;
   }
 };

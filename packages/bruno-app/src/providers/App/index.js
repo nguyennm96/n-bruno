@@ -1,7 +1,10 @@
 import React, { useEffect } from 'react';
 import { get } from 'lodash';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { refreshScreenWidth } from 'providers/ReduxStore/slices/app';
+import { loadSavedAuth, selectIsAuthInitializing } from 'providers/ReduxStore/slices/auth';
+import { initializeBrunoCloudApi } from 'services/brunoApi';
+import { store } from 'providers/ReduxStore';
 import ConfirmAppClose from './ConfirmAppClose';
 import useIpcEvents from './useIpcEvents';
 import useTelemetry from './useTelemetry';
@@ -16,6 +19,21 @@ export const AppProvider = (props) => {
   useIpcEvents();
   useParsedFileCacheIpc();
   const dispatch = useDispatch();
+
+  // Initialize Bruno Cloud API on app startup
+  useEffect(() => {
+    console.log('Initializing Bruno Cloud...');
+
+    try {
+      // Initialize API client
+      initializeBrunoCloudApi(store);
+
+      // Load saved auth tokens if they exist
+      dispatch(loadSavedAuth());
+    } catch (error) {
+      console.error('Failed to initialize Bruno Cloud:', error);
+    }
+  }, []);
 
   useEffect(() => {
     dispatch(refreshScreenWidth());
