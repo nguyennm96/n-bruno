@@ -1,6 +1,5 @@
 import { createBrunoApi } from '@usebruno/api';
 import { initializeBrunoApi as initializeAuthSlice, setTokens } from 'providers/ReduxStore/slices/auth';
-import { initializeWorkspacesApi } from 'providers/ReduxStore/slices/cloudWorkspaces';
 
 let brunoApiInstance = null;
 
@@ -54,9 +53,6 @@ export const initializeBrunoCloudApi = (store) => {
 
   // Initialize auth slice with API instance
   initializeAuthSlice(brunoApiInstance);
-
-  // Initialize workspaces slice with API instance
-  initializeWorkspacesApi(brunoApiInstance);
 
   return brunoApiInstance;
 };

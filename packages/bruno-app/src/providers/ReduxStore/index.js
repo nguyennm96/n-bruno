@@ -13,7 +13,6 @@ import performanceReducer from './slices/performance';
 import workspacesReducer from './slices/workspaces';
 import apiSpecReducer from './slices/apiSpec';
 import authReducer from './slices/auth';
-import cloudWorkspacesReducer from './slices/cloudWorkspaces';
 import syncStatusReducer from './slices/syncStatus';
 import globalLoadingReducer from './slices/globalLoading';
 import networkReducer from './slices/network';
@@ -49,7 +48,6 @@ export const store = configureStore({
     workspaces: workspacesReducer,
     apiSpec: apiSpecReducer,
     auth: authReducer,
-    cloudWorkspaces: cloudWorkspacesReducer,
     syncStatus: syncStatusReducer,
     globalLoading: globalLoadingReducer,
     network: networkReducer,

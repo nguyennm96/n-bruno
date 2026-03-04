@@ -1058,7 +1058,7 @@ export const openWorkspaceDialog = async () => {
   throw new Error('Local workspace operations are not available in cloud mode');
 };
 
-export const removeCollectionFromWorkspace = async (workspacePath, collectionPath) => {
+export const removeCollectionFromWorkspace = async (workspaceUid, workspacePath, collectionPath, options = {}) => {
   throw new Error('Local workspace operations are not available in cloud mode');
 };
 

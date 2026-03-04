@@ -4,21 +4,16 @@ import { useMemo } from 'react';
 /**
  * Hook to get collections that works for both local and cloud modes
  * Returns the appropriate collections array based on authentication state
+ * Note: cloudWorkspaces (workspace linking) removed - now only returns local collections
  */
 export const useCollections = () => {
   const localCollections = useSelector((state) => state.collections.collections);
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
-  const cloudWorkspaceCollectionsTree = useSelector((state) => state.cloudWorkspaces.workspaceCollectionsTree);
-  const selectedCloudWorkspaceId = useSelector((state) => state.cloudWorkspaces.selectedWorkspaceId);
 
   const collections = useMemo(() => {
-    if (isAuthenticated && selectedCloudWorkspaceId) {
-      // Cloud mode: return collections from cloud workspace tree
-      return cloudWorkspaceCollectionsTree[selectedCloudWorkspaceId] || [];
-    }
-    // Local mode: return local filesystem collections
+    // Return local filesystem collections
+    // TODO: Cloud collections will be synced directly to collections state
     return localCollections;
-  }, [isAuthenticated, selectedCloudWorkspaceId, cloudWorkspaceCollectionsTree, localCollections]);
+  }, [localCollections]);
 
   return collections;
 };

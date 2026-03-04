@@ -534,9 +534,9 @@ class StorageManager {
     return this.localStorage.openWorkspaceDialog();
   }
 
-  async removeCollectionFromWorkspace(workspacePath, collectionPath) {
+  async removeCollectionFromWorkspace(workspaceUid, workspacePath, collectionPath, options = {}) {
     console.log('StorageManager.removeCollectionFromWorkspace: always local');
-    return this.localStorage.removeCollectionFromWorkspace(workspacePath, collectionPath);
+    return this.localStorage.removeCollectionFromWorkspace(workspaceUid, workspacePath, collectionPath, options);
   }
 
   async loadWorkspaceApiSpecs(workspacePath) {

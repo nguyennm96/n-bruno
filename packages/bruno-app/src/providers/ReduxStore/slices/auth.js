@@ -128,10 +128,6 @@ export const logout = createAsyncThunk('auth/logout', async (_, { getState, disp
     const { clearAllCache } = await import('utils/cache/indexedDB');
     await clearAllCache();
 
-    // Clear cloud workspaces state
-    const { resetWorkspaces } = await import('./cloudWorkspaces');
-    dispatch(resetWorkspaces());
-
     // Clear collections state (remove cloud collections from UI)
     dispatch({ type: 'collections/clearAllCollections' });
 
@@ -145,9 +141,6 @@ export const logout = createAsyncThunk('auth/logout', async (_, { getState, disp
     const { clearAllCache } = await import('utils/cache/indexedDB');
     await clearAllCache();
 
-    const { resetWorkspaces } = await import('./cloudWorkspaces');
-    dispatch(resetWorkspaces());
-
     // Clear collections state
     dispatch({ type: 'collections/clearAllCollections' });
 
@@ -158,6 +151,28 @@ export const logout = createAsyncThunk('auth/logout', async (_, { getState, disp
     console.error('Logout error:', message);
 
     return null; // Don't reject, always logout locally
+  }
+});
+
+/**
+ * Initialize cloud data after login/register
+ * This runs in background and doesn't block the auth flow
+ */
+export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', async (userId, { rejectWithValue }) => {
+  try {
+    if (!brunoApi) throw new Error('API client not initialized');
+
+    // Initialize cloud workspaces, collections, etc.
+    // For now this is a placeholder - implement based on your cloud sync strategy
+    console.log('Initializing cloud data for user:', userId);
+
+    // TODO: Load user's cloud workspaces, default workspace, etc.
+    // This should be coordinated with your cloud sync mechanism
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to initialize cloud data:', error);
+    return rejectWithValue(error.message);
   }
 });
 
@@ -196,42 +211,6 @@ export const refreshAccessToken = createAsyncThunk('auth/refresh', async (_, { g
     return rejectWithValue(message);
   }
 });
-
-/**
- * Initialize cloud data after login
- * Fetches workspaces and collections from cloud, caches locally
- */
-export const initializeCloudData = createAsyncThunk(
-  'auth/initializeCloudData',
-  async (userId, { dispatch, rejectWithValue }) => {
-    try {
-      if (!brunoApi) throw new Error('API client not initialized');
-
-      console.log('🔄 Initializing cloud data...');
-
-      // 1. Fetch workspaces from cloud
-      const { fetchWorkspaces, fetchWorkspaceItems } = await import('./cloudWorkspaces');
-      const workspaces = await dispatch(fetchWorkspaces()).unwrap();
-
-      // 2. Cache workspaces to IndexedDB
-      const { cacheWorkspaces } = await import('utils/cache/indexedDB');
-      await cacheWorkspaces(workspaces, userId);
-
-      // 3. Fetch items for each workspace
-      for (const workspace of workspaces) {
-        await dispatch(fetchWorkspaceItems(workspace.id)).unwrap();
-      }
-
-      console.log('✅ Cloud data initialized');
-      return { success: true };
-    } catch (error) {
-      const message = error.message || 'Failed to initialize cloud data';
-      console.error('Failed to initialize cloud data:', error);
-      // Don't show error toast - this is background operation
-      return rejectWithValue(message);
-    }
-  }
-);
 
 /**
  * Load saved tokens from storage on app startup

@@ -840,9 +840,9 @@ export const openWorkspaceDialog = async () => {
   return ipcRenderer.invoke('renderer:open-workspace-dialog');
 };
 
-export const removeCollectionFromWorkspace = async (workspacePath, collectionPath) => {
-  console.log('[LocalStorage] removeCollectionFromWorkspace:', { workspacePath, collectionPath });
-  return ipcRenderer.invoke('renderer:remove-collection-from-workspace', workspacePath, collectionPath);
+export const removeCollectionFromWorkspace = async (workspaceUid, workspacePath, collectionPath, options = {}) => {
+  console.log('[LocalStorage] removeCollectionFromWorkspace:', { workspaceUid, workspacePath, collectionPath, options });
+  return ipcRenderer.invoke('renderer:remove-collection-from-workspace', workspaceUid, workspacePath, collectionPath, options);
 };
 
 export const loadWorkspaceApiSpecs = async (workspacePath) => {
