@@ -14,7 +14,10 @@ import CollectionListItem from './CollectionListItem';
 import FolderBreadcrumbs from './FolderBreadcrumbs';
 import useCollectionFolderTree from 'hooks/useCollectionFolderTree';
 import { removeSaveTransientRequestModal } from 'providers/ReduxStore/slices/collections';
+import { newItem as _newItem } from 'providers/ReduxStore/slices/collections';
 import { insertTaskIntoQueue } from 'providers/ReduxStore/slices/app';
+import { addTab } from 'providers/ReduxStore/slices/tabs';
+import { getDefaultRequestPaneTab } from 'utils/collections';
 import { newFolder, closeTabs, mountCollection } from 'providers/ReduxStore/slices/collections/actions';
 import { sanitizeName, validateName, validateNameError } from 'utils/common/regex';
 import { resolveRequestFilename } from 'utils/common/platform';
@@ -201,41 +204,57 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
       delete itemToSave.draft;
 
       const transformedItem = transformRequestToSaveToFilesystem(itemToSave);
-      await itemSchema.validate(transformedItem);
 
-      const targetFormat = targetCollection.format || DEFAULT_COLLECTION_FORMAT;
-      const sourceFormat = collection.format || DEFAULT_COLLECTION_FORMAT;
-      const targetFilename = resolveRequestFilename(sanitizedFilename, targetFormat);
-      const targetPathname = path.join(targetDirname, targetFilename);
+      if (storage.isCloudMode()) {
+        // Cloud mode: save to server, then update Redux with created item
+        const createdItem = await storage.saveTransientRequest({
+          sourcePathname: item.pathname,
+          targetDirname,
+          targetFilename: sanitizedFilename,
+          request: { ...transformedItem, name: sanitizedFilename }
+        });
 
-      await storage.saveTransientRequest({
-        sourcePathname: item.pathname,
-        targetDirname,
-        targetFilename,
-        request: transformedItem,
-        format: targetFormat,
-        sourceFormat
-      });
+        dispatch(closeTabs({ tabUids: [item.uid] }));
+        dispatch({ type: 'collections/deleteItem', payload: { itemUid: item.uid, collectionUid: collection.uid } });
+        dispatch(_newItem({ collectionUid: targetCollection.uid, currentItemUid: null, item: createdItem }));
+        dispatch(addTab({ uid: createdItem.uid, collectionUid: targetCollection.uid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
+      } else {
+        await itemSchema.validate(transformedItem);
 
-      dispatch(
-        insertTaskIntoQueue({
-          uid: uuid(),
-          type: 'OPEN_REQUEST',
-          collectionUid: targetCollection.uid,
-          itemPathname: targetPathname,
-          preview: false
-        })
-      );
+        const targetFormat = targetCollection.format || DEFAULT_COLLECTION_FORMAT;
+        const sourceFormat = collection.format || DEFAULT_COLLECTION_FORMAT;
+        const targetFilename = resolveRequestFilename(sanitizedFilename, targetFormat);
+        const targetPathname = path.join(targetDirname, targetFilename);
 
-      dispatch(closeTabs({ tabUids: [item.uid] }));
+        await storage.saveTransientRequest({
+          sourcePathname: item.pathname,
+          targetDirname,
+          targetFilename,
+          request: transformedItem,
+          format: targetFormat,
+          sourceFormat
+        });
 
-      dispatch({
-        type: 'collections/deleteItem',
-        payload: {
-          itemUid: item.uid,
-          collectionUid: collection.uid
-        }
-      });
+        dispatch(
+          insertTaskIntoQueue({
+            uid: uuid(),
+            type: 'OPEN_REQUEST',
+            collectionUid: targetCollection.uid,
+            itemPathname: targetPathname,
+            preview: false
+          })
+        );
+
+        dispatch(closeTabs({ tabUids: [item.uid] }));
+
+        dispatch({
+          type: 'collections/deleteItem',
+          payload: {
+            itemUid: item.uid,
+            collectionUid: collection.uid
+          }
+        });
+      }
 
       toast.success('Request saved successfully');
       handleClose();

@@ -19,10 +19,45 @@ const CreateWorkspace = ({ onClose }) => {
   const dispatch = useDispatch();
   const workspaces = useSelector((state) => state.workspaces.workspaces);
   const preferences = useSelector((state) => state.app.preferences);
+  const activeWorkspaceUid = useSelector((state) => state.workspaces.activeWorkspaceUid);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
+  const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
+  const isCloudMode = activeWorkspace?.isCloud === true;
+
   const defaultLocation = get(preferences, 'general.defaultLocation', '');
+
+  const validationSchema = isCloudMode
+    ? Yup.object({
+        workspaceName: Yup.string()
+          .min(1, 'Must be at least 1 character')
+          .max(255, 'Must be 255 characters or less')
+          .required('Workspace name is required')
+          .test('unique-name', 'A workspace with this name already exists', function (value) {
+            if (!value) return true;
+            return !workspaces.some((w) => w.name.toLowerCase() === value.toLowerCase());
+          })
+      })
+    : Yup.object({
+        workspaceName: Yup.string()
+          .min(1, 'Must be at least 1 character')
+          .max(255, 'Must be 255 characters or less')
+          .required('Workspace name is required')
+          .test('unique-name', 'A workspace with this name already exists', function (value) {
+            if (!value) return true;
+            return !workspaces.some((w) => w.name.toLowerCase() === value.toLowerCase());
+          }),
+        workspaceFolderName: Yup.string()
+          .min(1, 'Must be at least 1 character')
+          .max(255, 'Must be 255 characters or less')
+          .test('is-valid-folder-name', function (value) {
+            const isValid = validateName(value);
+            return isValid ? true : this.createError({ message: validateNameError(value) });
+          })
+          .required('Folder name is required'),
+        workspaceLocation: Yup.string().min(1, 'Location is required').required('Location is required')
+      });
 
   const formik = useFormik({
     enableReinitialize: true,
@@ -31,34 +66,18 @@ const CreateWorkspace = ({ onClose }) => {
       workspaceFolderName: '',
       workspaceLocation: defaultLocation
     },
-    validationSchema: Yup.object({
-      workspaceName: Yup.string()
-        .min(1, 'Must be at least 1 character')
-        .max(255, 'Must be 255 characters or less')
-        .required('Workspace name is required')
-        .test('unique-name', 'A workspace with this name already exists', function (value) {
-          if (!value) return true;
-
-          return !workspaces.some((w) =>
-            w.name.toLowerCase() === value.toLowerCase());
-        }),
-      workspaceFolderName: Yup.string()
-        .min(1, 'Must be at least 1 character')
-        .max(255, 'Must be 255 characters or less')
-        .test('is-valid-folder-name', function (value) {
-          const isValid = validateName(value);
-          return isValid ? true : this.createError({ message: validateNameError(value) });
-        })
-        .required('Folder name is required'),
-      workspaceLocation: Yup.string().min(1, 'Location is required').required('Location is required')
-    }),
+    validationSchema,
     onSubmit: async (values) => {
       if (isSubmitting) return;
 
       try {
         setIsSubmitting(true);
 
-        await dispatch(createWorkspaceAction(values.workspaceName, values.workspaceFolderName, values.workspaceLocation));
+        if (isCloudMode) {
+          await dispatch(createWorkspaceAction(values.workspaceName, null, null));
+        } else {
+          await dispatch(createWorkspaceAction(values.workspaceName, values.workspaceFolderName, values.workspaceLocation));
+        }
         toast.success('Workspace created!');
         onClose();
       } catch (error) {
@@ -128,7 +147,7 @@ const CreateWorkspace = ({ onClose }) => {
             ) : null}
           </div>
 
-          {formik.values.workspaceName?.trim()?.length > 0 && (
+          {!isCloudMode && formik.values.workspaceName?.trim()?.length > 0 && (
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <label htmlFor="workspaceFolderName" className="flex items-center font-semibold">
@@ -180,43 +199,45 @@ const CreateWorkspace = ({ onClose }) => {
             </div>
           )}
 
-          <div className="mb-4">
-            <label htmlFor="workspaceLocation" className="font-semibold mb-2 flex items-center">
-              Location
-              <Help>
-                <p>
-                  AhaMan stores your workspaces on your computer's filesystem.
-                </p>
-                <p className="mt-2">
-                  Choose the location where you want to store this workspace.
-                </p>
-              </Help>
-            </label>
-            <input
-              id="workspace-location"
-              type="text"
-              name="workspaceLocation"
-              readOnly={true}
-              className="block textbox mt-2 w-full cursor-pointer"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck="false"
-              value={formik.values.workspaceLocation || ''}
-              onClick={browse}
-            />
-            {formik.touched.workspaceLocation && formik.errors.workspaceLocation ? (
-              <div className="text-red-500 text-sm mt-1">{formik.errors.workspaceLocation}</div>
-            ) : null}
-            <div className="mt-1">
-              <span
-                className="text-link cursor-pointer hover:underline"
+          {!isCloudMode && (
+            <div className="mb-4">
+              <label htmlFor="workspaceLocation" className="font-semibold mb-2 flex items-center">
+                Location
+                <Help>
+                  <p>
+                    AhaMan stores your workspaces on your computer's filesystem.
+                  </p>
+                  <p className="mt-2">
+                    Choose the location where you want to store this workspace.
+                  </p>
+                </Help>
+              </label>
+              <input
+                id="workspace-location"
+                type="text"
+                name="workspaceLocation"
+                readOnly={true}
+                className="block textbox mt-2 w-full cursor-pointer"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
+                value={formik.values.workspaceLocation || ''}
                 onClick={browse}
-              >
-                Browse
-              </span>
+              />
+              {formik.touched.workspaceLocation && formik.errors.workspaceLocation ? (
+                <div className="text-red-500 text-sm mt-1">{formik.errors.workspaceLocation}</div>
+              ) : null}
+              <div className="mt-1">
+                <span
+                  className="text-link cursor-pointer hover:underline"
+                  onClick={browse}
+                >
+                  Browse
+                </span>
+              </div>
             </div>
-          </div>
+          )}
         </form>
       </div>
     </Modal>

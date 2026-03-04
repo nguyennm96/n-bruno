@@ -2,29 +2,21 @@
 
 ## Goal
 
-Lấp đầy parity cho các nhóm nâng cao: OAuth2, gRPC, Git, Dotenv, runner và các luồng liên quan.
+Tất cả các tính năng nâng cao đều là **local-mode only** — không cần implement thêm cho cloud mode.
 
-## Detailed steps
+## Out of scope (local-mode only)
 
-1. Chốt phạm vi OAuth2 cloud (authorize, refresh, in-progress, cancel, cache).
-2. Chốt gRPC parity (reflection, command generation, runtime dependencies).
-3. Chốt Git parity (clone/scan/import workflow boundaries).
-4. Chốt Dotenv parity ở cả collection/workspace context.
-5. Chốt runner behavior parity ở collection/folder execution.
-6. Chốt security/compliance checklist cho credentials & secrets.
+| Feature | Reason |
+|---------|--------|
+| gRPC | Phụ thuộc `grpc-js` runtime và protobuf binary |
+| Git clone/sync | Phụ thuộc filesystem và `git` binary |
+| Collection Runner | Phụ thuộc filesystem execution context |
+| Security / Credentials | SSL certs, client certs, proxy — filesystem-based |
+| Dotenv | Phụ thuộc filesystem watcher (`chokidar`) |
+| OAuth2 | Token cache và Authorization Code flow phụ thuộc Electron IPC |
 
-## Deliverables
+## Kết luận
 
-- Advanced features contract set
-- Security handling plan for credentials/secrets
-- Operational constraints for gRPC/Git runner
+Phase 4 không có deliverable cho cloud mode. Cloud mode dùng **Environments** thay thế cho Dotenv và OAuth2 manual token nếu cần.
 
-## Risks
-
-- Lệch behavior với local tooling phụ thuộc host machine
-- Rủi ro bảo mật với token/secret handling
-
-## Exit criteria
-
-- Các nhóm advanced có contract và acceptance criteria rõ ràng
-- Có policy bảo mật được duyệt trước khi triển khai
+Chuyển sang Phase 5 (nếu có) hoặc đánh dấu cloud migration hoàn tất.

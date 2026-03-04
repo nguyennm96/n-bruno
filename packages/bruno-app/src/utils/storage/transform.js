@@ -16,8 +16,8 @@
  *    Cloud:  id → Local: uid
  *
  * 3. Pathname
- *    Cloud:  generated as `cloud://collection-id/item-id`
- *    Local:  actual filesystem path
+ *    Cloud:  client_id (21-char alphanumeric, no slashes — doubles as API ID)
+ *    Local:  actual filesystem path (always contains '/')
  */
 
 import { nanoid } from 'nanoid';
@@ -31,14 +31,19 @@ import { nanoid } from 'nanoid';
  * Handles both requests and folders
  */
 export function transformCloudItemToLocal(cloudItem, collectionId) {
-  const isRequest = cloudItem.type === 'request' || cloudItem.item_type === 'request';
-  const itemType = cloudItem.type || (cloudItem.item_type === 'request' ? 'http-request' : 'folder');
+  const isRequest = cloudItem.type === 'request' || cloudItem.item_type === 'request' || cloudItem.item_subtype;
+  // item_subtype preserves the original local type (http-request, graphql-request, etc.)
+  const itemType = cloudItem.item_subtype || (isRequest ? 'http-request' : 'folder');
 
   const baseItem = {
-    uid: cloudItem.id || cloudItem.uid,
+    // Use client_id (21-char nanoid-compatible) as uid so it passes uidSchema validation.
+    // Fall back to id only for data that predates client_id.
+    uid: cloudItem.client_id || cloudItem.id || cloudItem.uid,
     type: itemType,
     name: cloudItem.name,
-    pathname: `cloud://${collectionId}/${cloudItem.id}`,
+    // pathname IS the API item ID in cloud mode (client_id, no slashes).
+    // This lets all storage calls use item.pathname directly without parsing.
+    pathname: cloudItem.client_id || cloudItem.id,
     seq: cloudItem.sort_order || cloudItem.seq || 1
   };
 
@@ -62,7 +67,10 @@ export function transformCloudItemToLocal(cloudItem, collectionId) {
         graphql: null
       },
       script: cloudItem.request.script || { req: null, res: null },
-      vars: cloudItem.request.vars || { req: [], res: [] },
+      vars: {
+        req: cloudItem.request.vars?.req || [],
+        res: cloudItem.request.vars?.res || []
+      },
       assertions: cloudItem.request.assertions || [],
       tests: cloudItem.request.tests || null,
       docs: cloudItem.request.docs || null
@@ -96,6 +104,7 @@ export function transformLocalItemToCloud(localItem) {
   const cloudItem = {
     name: localItem.name,
     type: isRequest ? 'request' : 'folder',
+    item_subtype: isRequest ? localItem.type : undefined, // preserve sub-type (http-request, graphql-request, etc.)
     parent_item_id: localItem.parentItemId || null,
     sort_order: localItem.seq || 1
   };

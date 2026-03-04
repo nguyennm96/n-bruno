@@ -30,7 +30,7 @@ export class BrunoApiClient {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor - handle 401 and auto-refresh
+    // Response interceptor - handle 401, auto-refresh, and retry transient errors
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
@@ -55,6 +55,9 @@ export class BrunoApiClient {
             const newTokens = await this.refreshAccessTokenInternal();
             this.setTokens(newTokens.accessToken, newTokens.refreshToken);
 
+            // Persist new tokens and update Redux state
+            this.config.onTokenRefresh?.(newTokens);
+
             // Notify all waiting requests
             this.refreshSubscribers.forEach((callback) => callback(newTokens.accessToken));
             this.refreshSubscribers = [];
@@ -68,6 +71,40 @@ export class BrunoApiClient {
             return Promise.reject(refreshError);
           } finally {
             this.isRefreshing = false;
+          }
+        }
+
+        // Retry transient errors (429 Rate Limit, 500 Internal Error, 503 Service Unavailable)
+        const retryableStatuses = [429, 500, 503];
+        const status = error.response?.status;
+
+        if (status && retryableStatuses.includes(status)) {
+          // Initialize retry count
+          originalRequest._retryCount = originalRequest._retryCount || 0;
+
+          // Max 3 retries
+          if (originalRequest._retryCount < 3) {
+            originalRequest._retryCount += 1;
+
+            // Exponential backoff: 1s, 2s, 4s (capped at 10s)
+            const delay = Math.min(1000 * Math.pow(2, originalRequest._retryCount - 1), 10000);
+
+            // Log retry attempt
+            console.warn(
+              `🔄 Retrying request (attempt ${originalRequest._retryCount}/3) after ${delay}ms due to ${status} error`,
+              { url: originalRequest.url, method: originalRequest.method }
+            );
+
+            // Wait before retrying
+            await new Promise((resolve) => setTimeout(resolve, delay));
+
+            // Retry the request
+            return this.client(originalRequest);
+          } else {
+            console.error(
+              `❌ Max retries (3) exceeded for request`,
+              { url: originalRequest.url, method: originalRequest.method, status }
+            );
           }
         }
 

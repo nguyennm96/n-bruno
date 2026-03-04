@@ -260,8 +260,9 @@ const EnvironmentList = ({
         setNewEnvName('');
         setEnvNameError('');
       })
-      .catch(() => {
+      .catch((err) => {
         toast.error('An error occurred while creating the environment');
+        console.error('Failed to create environment:', err?.message || err);
       });
   };
 

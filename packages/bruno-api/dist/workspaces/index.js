@@ -27,6 +27,13 @@ class WorkspaceService {
         return response.data.data;
     }
     /**
+     * Update a workspace (rename, description)
+     */
+    async update(id, data) {
+        const response = await this.client.getClient().patch(`/api/workspaces/${id}`, data);
+        return response.data.data;
+    }
+    /**
      * Get workspace members
      */
     async getMembers(id) {

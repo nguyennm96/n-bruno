@@ -173,10 +173,20 @@ const useIpcEvents = () => {
     });
 
     const removeOpenWorkspaceListener = ipcRenderer.on('main:workspace-opened', (workspacePath, workspaceUid, workspaceConfig) => {
+      // In cloud mode (authenticated), skip local workspace events — cloud workspaces are
+      // loaded via initializeCloudData and the default local workspace must not pollute the list.
+      const state = store.getState();
+      if (state.auth?.isAuthenticated) {
+        return;
+      }
       dispatch(workspaceOpenedEvent(workspacePath, workspaceUid, workspaceConfig));
     });
 
     const removeWorkspaceConfigUpdatedListener = ipcRenderer.on('main:workspace-config-updated', (workspacePath, workspaceUid, workspaceConfig) => {
+      const state = store.getState();
+      if (state.auth?.isAuthenticated) {
+        return;
+      }
       dispatch(workspaceConfigUpdatedEvent(workspacePath, workspaceUid, workspaceConfig));
     });
 

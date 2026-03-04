@@ -9,6 +9,8 @@ import type {
 export class EnvironmentService {
   constructor(private client: BrunoApiClient) {}
 
+  // ── Workspace-Level Environments ───────────────────────────────────────────
+
   /**
    * Create a new environment in a workspace
    */
@@ -52,5 +54,31 @@ export class EnvironmentService {
    */
   async deleteEnvironment(environmentId: string): Promise<void> {
     await this.client.getClient().delete(`/api/environments/${environmentId}`);
+  }
+
+  // ── Collection-Level Environments ──────────────────────────────────────────
+
+  /**
+   * Create a new environment for a specific collection
+   */
+  async createCollectionEnvironment(
+    collectionId: string,
+    data: EnvironmentCreateRequest
+  ): Promise<Environment> {
+    const response = await this.client.getClient().post<ApiResponse<Environment>>(
+      `/api/collections/${collectionId}/environments`,
+      data
+    );
+    return response.data.data;
+  }
+
+  /**
+   * List all environments for a collection
+   */
+  async listCollectionEnvironments(collectionId: string): Promise<Environment[]> {
+    const response = await this.client.getClient().get<ApiResponse<Environment[]>>(
+      `/api/collections/${collectionId}/environments`
+    );
+    return response.data.data;
   }
 }

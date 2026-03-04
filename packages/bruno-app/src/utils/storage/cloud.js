@@ -12,10 +12,12 @@ import { addDepth, collapseAllItemsInCollection } from 'utils/collections';
 import {
   transformCloudCollectionToLocal,
   transformCloudItemToLocal,
+  transformCloudEnvironmentToLocal,
   transformLocalItemToCloud,
   createDefaultRequest,
   createDefaultSettings
 } from './transform';
+import { transformError } from './errors';
 import * as LocalStorage from './local';
 
 const getBrunoApi = () => {
@@ -28,12 +30,47 @@ const getBrunoApi = () => {
 
 const getSelectedWorkspace = (getState) => {
   const state = getState();
-  const workspaceId = state.cloudWorkspaces?.selectedWorkspaceId;
+  const workspaceId = state.workspaces?.activeWorkspaceUid;
   if (!workspaceId) {
     throw new Error('No cloud workspace selected');
   }
   return workspaceId;
 };
+
+/**
+ * Wrapper to handle errors consistently across all cloud operations
+ * Transforms cloud errors to standard format and logs them
+ *
+ * Usage:
+ *   export const myOperation = withErrorHandler('myOperation', async (arg1, arg2) => {
+ *     // ... implementation ...
+ *   });
+ *
+ * Or use directly in try-catch:
+ *   try {
+ *     await someCloudOperation();
+ *   } catch (error) {
+ *     throw transformError(error, 'cloud');
+ *   }
+ */
+export const withErrorHandler = (operationName, fn) => {
+  return async (...args) => {
+    try {
+      return await fn(...args);
+    } catch (error) {
+      console.error(`❌ [CloudStorage] Error in ${operationName}:`, error);
+
+      // Transform error to standard format
+      const transformedError = transformError(error, 'cloud');
+
+      // Re-throw transformed error
+      throw transformedError;
+    }
+  };
+};
+
+// Export transformError for direct use
+export { transformError };
 
 export const getCollections = async (getState) => {
   const brunoApi = getBrunoApi();
@@ -135,15 +172,13 @@ export const removeCollection = async (pathname, collectionUid, workspaceId) => 
 
 export const cloneCollection = async (collectionName, collectionFolderName, collectionLocation, previousPath, collectionUid, getState) => {
   const brunoApi = getBrunoApi();
-  const workspaceId = getSelectedWorkspace(getState);
   const state = getState();
 
-  console.log(`☁️  [CloudStorage] Cloning collection: ${collectionUid || collectionName}`);
+  console.log(`☁️  [CloudStorage] Cloning collection: ${collectionUid || previousPath}`);
 
-  // Get the original collection
+  // Find source collection by uid or pathname
   const collections = state.collections.collections;
   let sourceCollection = null;
-
   if (collectionUid) {
     sourceCollection = collections.find((c) => c.uid === collectionUid);
   } else if (previousPath) {
@@ -154,16 +189,41 @@ export const cloneCollection = async (collectionName, collectionFolderName, coll
     throw new Error('Source collection not found');
   }
 
-  // Clone collection by creating a new one
-  // TODO: Copy all items recursively (needs backend support)
-  const clonedCollection = await brunoApi.collections.createCollection(workspaceId, {
-    name: collectionName,
-    description: sourceCollection.description || ''
+  const sourceCollectionId = sourceCollection.pathname.replace('cloud://', '');
+
+  // Use the server's clone endpoint which deep-copies all items
+  const clonedCollection = await brunoApi.collections.cloneCollection(sourceCollectionId, {
+    name: collectionName
   });
 
-  console.log(`✅ [CloudStorage] Collection cloned (items not copied - needs backend support)`);
+  console.log(`✅ [CloudStorage] Collection cloned: ${clonedCollection.id}`);
 
-  return clonedCollection;
+  // Fetch items and environments for the cloned collection so caller can mount it into Redux
+  let items = [];
+  let environments = [];
+  try {
+    const tree = await brunoApi.collections.getCollectionsTreeByWorkspace(sourceCollection.workspaceId || clonedCollection.workspace_id);
+    const clonedTree = tree.find((c) => c.id === clonedCollection.id);
+    if (clonedTree) {
+      items = (clonedTree.items || []).map((item) => transformCloudItemToLocal(item, clonedCollection.id));
+    }
+  } catch (e) {
+    console.warn('⚠️  [CloudStorage] cloneCollection: could not fetch cloned items', e?.message);
+  }
+  try {
+    const rawEnvs = await brunoApi.environments.listCollectionEnvironments(clonedCollection.id);
+    environments = rawEnvs.map(transformCloudEnvironmentToLocal);
+  } catch (e) {
+    console.warn('⚠️  [CloudStorage] cloneCollection: could not fetch environments', e?.message);
+  }
+
+  return {
+    ...clonedCollection,
+    items,
+    environments,
+    isCloud: true,
+    pathname: `cloud://${clonedCollection.id}`
+  };
 };
 
 export const importCollection = async (collection, collectionLocation, options, getState) => {
@@ -247,20 +307,18 @@ export const createRequest = async (collectionUid, requestData, getState) => {
   // Create request with nested structure matching local schema
   const requestPayload = {
     name,
-    type: 'request',
     parent_item_id: parentFolderId,
     sort_order: sortOrder,
     request: createDefaultRequest(method, url), // Use transformation helper
-    settings: createDefaultSettings(),
-    filename: `${name.toLowerCase().replace(/\s+/g, '-')}.bru`
+    settings: createDefaultSettings()
   };
 
-  const request = await brunoApi.collections.createItem(collectionUid, requestPayload);
+  const request = await brunoApi.collections.createRequest(collectionUid, requestPayload);
 
-  console.log(`✅ [CloudStorage] Request created with nested structure`);
+  console.log(`✅ [CloudStorage] Request created with ID: ${request.id}`);
 
   // Transform response to match local schema
-  return transformCloudItemToLocal(request, collectionUid);
+  return transformCloudItemToLocal({ ...request, item_subtype: type }, collectionUid);
 };
 
 export const updateRequest = async (itemUid, data, getState) => {
@@ -366,64 +424,66 @@ export const newRequest = async (itemUid, itemData, format) => {
 
   // Transform nested structure to flat for API
   const flatData = transformLocalItemToCloud(itemData);
-
-  const result = await brunoApi.collections.createRequest(flatData);
-
+  // Ensure collectionUid is passed as first param
+  const collectionUid = itemData.collectionUid || itemData.collection_id || itemData.collection || flatData.collectionUid || flatData.collection_id || flatData.collection;
+  if (!collectionUid) {
+    throw new Error('Missing collectionUid when creating request');
+  }
+  const result = await brunoApi.collections.createRequest(collectionUid, flatData);
   console.log(`✅ [CloudStorage] Request created`);
-
-  return result;
+  // Preserve the original local type (http-request, graphql-request, etc.) since the API only returns generic 'request'
+  return transformCloudItemToLocal({ ...result, item_subtype: itemData.type }, collectionUid);
 };
 
 export const cloneFolder = async (sourceItem, targetPath, collectionUid) => {
   const brunoApi = getBrunoApi();
+  const collectionId = collectionUid.replace('cloud://', '');
 
-  console.log(`☁️  [CloudStorage] Cloning folder: ${sourceItem.uid}`);
+  console.log(`☁️  [CloudStorage] Cloning folder: ${sourceItem.uid} into collection: ${collectionId}`);
 
-  // Recursively clone folder and all its contents
   const cloneFolderRecursive = async (item, parentId) => {
-    const folderData = {
+    const newFolder = await brunoApi.collections.createFolder(collectionId, {
       name: item.name,
-      type: 'folder',
-      parent_item_id: parentId,
-      collection_id: collectionUid
-    };
+      parent_item_id: parentId
+    });
 
-    const newFolder = await brunoApi.collections.createFolder(folderData);
-
-    // Clone all children
+    const clonedChildren = [];
     if (item.items?.length) {
       for (const child of item.items) {
         if (child.type === 'folder') {
-          await cloneFolderRecursive(child, newFolder.id);
+          const clonedChild = await cloneFolderRecursive(child, newFolder.id);
+          clonedChildren.push(clonedChild);
         } else {
           const childData = transformLocalItemToCloud(child);
           childData.parent_item_id = newFolder.id;
-          await brunoApi.collections.createRequest(childData);
+          const createdChild = await brunoApi.collections.createRequest(collectionId, childData);
+          clonedChildren.push(transformCloudItemToLocal({ ...createdChild, item_subtype: child.type }, collectionId));
         }
       }
     }
 
-    return newFolder;
+    return transformCloudItemToLocal({ ...newFolder, items: clonedChildren }, collectionId);
   };
 
   const result = await cloneFolderRecursive(sourceItem, null);
 
-  console.log(`✅ [CloudStorage] Folder cloned`);
+  console.log(`✅ [CloudStorage] Folder cloned: ${result.uid}`);
 
   return result;
 };
 
-export const resequenceItems = async (itemsToResequence, collectionUid) => {
+export const resequenceItems = async (itemsToResequence, collectionPathname) => {
   const brunoApi = getBrunoApi();
+  const collectionId = collectionPathname.replace('cloud://', '');
 
-  console.log(`☁️  [CloudStorage] Resequencing items: ${itemsToResequence.length}`);
+  console.log(`☁️  [CloudStorage] Resequencing ${itemsToResequence.length} items in collection: ${collectionId}`);
 
-  // Update sequence for each item
-  const promises = itemsToResequence.map((item) => {
-    return brunoApi.collections.updateItem(item.uid, { seq: item.seq });
+  await brunoApi.collections.resequenceItems(collectionId, {
+    items: itemsToResequence.map((item) => ({
+      id: item.uid, // client_id stored as uid in Redux
+      sort_order: item.seq
+    }))
   });
-
-  await Promise.all(promises);
 
   console.log(`✅ [CloudStorage] Items resequenced`);
 };
@@ -489,77 +549,147 @@ export const updateEnvironment = async (environmentUid, data, getState) => {
   return updated;
 };
 
-export const renameEnvironment = async (collectionUid, oldName, newName) => {
+export const renameEnvironment = async (pathname, oldName, newName, envUid) => {
   const brunoApi = getBrunoApi();
 
   console.log(`☁️  [CloudStorage] Renaming environment: ${oldName} -> ${newName}`);
 
-  // Find environment by old name and update
-  const environments = await brunoApi.collections.getEnvironments(collectionUid);
-  const env = environments.find((e) => e.name === oldName);
-
-  if (!env) {
-    throw new Error('Environment not found');
+  let envId = envUid;
+  if (!envId) {
+    const collectionId = pathname.replace('cloud://', '');
+    const environments = await brunoApi.environments.listCollectionEnvironments(collectionId);
+    const env = environments.find((e) => e.name === oldName);
+    if (!env) throw new Error(`Environment '${oldName}' not found`);
+    envId = env.id;
   }
 
-  await brunoApi.collections.updateEnvironment(env.id, { name: newName });
+  await brunoApi.environments.updateEnvironment(envId, { name: newName });
 
   console.log(`✅ [CloudStorage] Environment renamed`);
 };
 
-export const saveEnvironment = async (collectionUid, environmentData) => {
+export const saveEnvironment = async (pathname, environmentData) => {
   const brunoApi = getBrunoApi();
 
   console.log(`☁️  [CloudStorage] Saving environment: ${environmentData.name}`);
 
-  // Check if environment exists
-  const environments = await brunoApi.collections.getEnvironments(collectionUid);
-  const existingEnv = environments.find((e) => e.name === environmentData.name);
-
-  if (existingEnv) {
-    await brunoApi.collections.updateEnvironment(existingEnv.id, environmentData);
-  } else {
-    await brunoApi.collections.createEnvironment({ ...environmentData, collection_id: collectionUid });
-  }
+  // environmentData.uid is the server ID in cloud mode (set during transform)
+  const { uid: envId, variables, color, name } = environmentData;
+  await brunoApi.environments.updateEnvironment(envId, { name, variables, color });
 
   console.log(`✅ [CloudStorage] Environment saved`);
 };
 
-export const updateEnvironmentColor = async (collectionUid, environmentName, color) => {
+export const updateEnvironmentColor = async (pathname, environmentName, color, envUid) => {
   const brunoApi = getBrunoApi();
 
   console.log(`☁️  [CloudStorage] Updating environment color: ${environmentName}`);
 
-  const environments = await brunoApi.collections.getEnvironments(collectionUid);
-  const env = environments.find((e) => e.name === environmentName);
-
-  if (!env) {
-    throw new Error('Environment not found');
+  let envId = envUid;
+  if (!envId) {
+    const collectionId = pathname.replace('cloud://', '');
+    const environments = await brunoApi.environments.listCollectionEnvironments(collectionId);
+    const env = environments.find((e) => e.name === environmentName);
+    if (!env) throw new Error(`Environment '${environmentName}' not found`);
+    envId = env.id;
   }
 
-  await brunoApi.collections.updateEnvironment(env.id, { color });
+  await brunoApi.environments.updateEnvironment(envId, { color });
 
   console.log(`✅ [CloudStorage] Environment color updated`);
 };
 
-export const saveCollectionRoot = async (collectionUid, collectionRootData, brunoConfig) => {
+export const saveCollectionRoot = async (collectionPathname, collectionRootData, brunoConfig) => {
   const brunoApi = getBrunoApi();
+  const collectionId = collectionPathname.replace('cloud://', '');
 
-  console.log(`☁️  [CloudStorage] Saving collection root: ${collectionUid}`);
+  console.log(`☁️  [CloudStorage] Saving collection root: ${collectionId}`);
 
-  await brunoApi.collections.updateCollection(collectionUid, collectionRootData);
+  await brunoApi.collections.updateCollection(collectionId, {
+    root: collectionRootData,
+    bruno_config: brunoConfig
+  });
 
   console.log(`✅ [CloudStorage] Collection root saved`);
 };
 
-export const updateBrunoConfig = async (brunoConfig, collectionUid, collectionRoot) => {
+export const updateBrunoConfig = async (brunoConfig, collectionPathname, collectionRoot) => {
   const brunoApi = getBrunoApi();
+  const collectionId = collectionPathname.replace('cloud://', '');
 
-  console.log(`☁️  [CloudStorage] Updating bruno config: ${collectionUid}`);
+  console.log(`☁️  [CloudStorage] Updating bruno config: ${collectionId}`);
 
-  await brunoApi.collections.updateCollection(collectionUid, { brunoConfig });
+  await brunoApi.collections.updateCollection(collectionId, {
+    bruno_config: brunoConfig,
+    root: collectionRoot
+  });
 
   console.log(`✅ [CloudStorage] Bruno config updated`);
+};
+
+// ── Global (Workspace-Level) Environment Operations ──────────────────────────
+
+export const getGlobalEnvironments = async ({ workspaceUid }) => {
+  const brunoApi = getBrunoApi();
+  console.log(`☁️  [CloudStorage] getGlobalEnvironments:`, { workspaceUid });
+
+  const envs = await brunoApi.environments.listEnvironments(workspaceUid);
+  const globalEnvironments = envs.map((e) => ({
+    uid: e.id,
+    name: e.name,
+    variables: e.variables || [],
+    color: e.color || null
+  }));
+
+  return { globalEnvironments, activeGlobalEnvironmentUid: null };
+};
+
+export const createGlobalEnvironment = async ({ name, uid, variables, color, workspaceUid }) => {
+  const brunoApi = getBrunoApi();
+  console.log(`☁️  [CloudStorage] createGlobalEnvironment:`, { name, workspaceUid });
+
+  const env = await brunoApi.environments.createEnvironment(workspaceUid, {
+    name,
+    variables: variables || [],
+    color: color || null
+  });
+
+  // Return with the server-assigned ID so Redux uses it as uid
+  return { uid: env.id, name: env.name, variables: env.variables || [], color: env.color || null };
+};
+
+export const renameGlobalEnvironment = async ({ name, environmentUid, workspaceUid }) => {
+  const brunoApi = getBrunoApi();
+  console.log(`☁️  [CloudStorage] renameGlobalEnvironment:`, { environmentUid, name });
+
+  await brunoApi.environments.updateEnvironment(environmentUid, { name });
+  return { uid: environmentUid };
+};
+
+export const saveGlobalEnvironment = async ({ environmentUid, variables, workspaceUid }) => {
+  const brunoApi = getBrunoApi();
+  console.log(`☁️  [CloudStorage] saveGlobalEnvironment:`, { environmentUid });
+
+  await brunoApi.environments.updateEnvironment(environmentUid, { variables });
+};
+
+export const updateGlobalEnvironmentColor = async ({ environmentUid, color, workspaceUid }) => {
+  const brunoApi = getBrunoApi();
+  console.log(`☁️  [CloudStorage] updateGlobalEnvironmentColor:`, { environmentUid, color });
+
+  await brunoApi.environments.updateEnvironment(environmentUid, { color });
+};
+
+export const selectGlobalEnvironment = async ({ environmentUid, workspaceUid }) => {
+  // Selection is UI-only state in cloud mode; no server persistence needed
+  console.log(`☁️  [CloudStorage] selectGlobalEnvironment (UI only):`, { environmentUid });
+};
+
+export const deleteGlobalEnvironment = async ({ environmentUid, workspaceUid }) => {
+  const brunoApi = getBrunoApi();
+  console.log(`☁️  [CloudStorage] deleteGlobalEnvironment:`, { environmentUid });
+
+  await brunoApi.environments.deleteEnvironment(environmentUid);
 };
 
 export const openCollection = async (options) => {
@@ -756,23 +886,30 @@ export const createEnvironment = async (pathname, name, variables, color) => {
   console.log(`☁️  [CloudStorage] createEnvironment:`, { pathname, name });
 
   const collectionId = pathname.replace('cloud://', '');
-  const environment = await brunoApi.environments.createEnvironment(collectionId, {
+  const environment = await brunoApi.environments.createCollectionEnvironment(collectionId, {
     name,
-    variables,
-    color
+    variables: variables || [],
+    color: color || null
   });
 
-  return environment;
+  // Return transformed env so actions.js can update Redux directly (no file watcher in cloud mode)
+  return transformCloudEnvironmentToLocal(environment);
 };
 
-export const deleteEnvironment = async (pathname, name) => {
+export const deleteEnvironment = async (pathname, name, envUid) => {
   const brunoApi = getBrunoApi();
   console.log(`☁️  [CloudStorage] deleteEnvironment:`, { pathname, name });
 
-  const collectionId = pathname.replace('cloud://', '');
-  await brunoApi.environments.deleteEnvironment(collectionId, name);
+  let envId = envUid;
+  if (!envId) {
+    const collectionId = pathname.replace('cloud://', '');
+    const environments = await brunoApi.environments.listCollectionEnvironments(collectionId);
+    const env = environments.find((e) => e.name === name);
+    if (!env) throw new Error(`Environment '${name}' not found`);
+    envId = env.id;
+  }
 
-  return { success: true };
+  await brunoApi.environments.deleteEnvironment(envId);
 };
 
 // Variable operations
@@ -893,21 +1030,11 @@ export const deleteDotenvFile = async (pathname, filename) => {
 
 // Git operations
 export const cloneGitRepository = async (data) => {
-  const brunoApi = getBrunoApi();
-  console.log(`☁️  [CloudStorage] cloneGitRepository`);
-
-  // Cloud mode: clone Git repository
-  const result = await brunoApi.git.cloneRepository(data);
-  return result;
+  throw new Error('Git repository cloning is not available in cloud mode. Please use local workspace to clone from Git.');
 };
 
 export const scanForBrunoFiles = async (dir) => {
-  const brunoApi = getBrunoApi();
-  console.log(`☁️  [CloudStorage] scanForBrunoFiles:`, { dir });
-
-  // Cloud mode: scan for Bruno files
-  const files = await brunoApi.git.scanForBrunoFiles(dir);
-  return files;
+  throw new Error('Scanning for Bruno files is not available in cloud mode. This operation requires local filesystem access.');
 };
 
 // Mount collection
@@ -925,9 +1052,14 @@ export const newRequestFile = async (fullName, item) => {
   const brunoApi = getBrunoApi();
   console.log(`☁️  [CloudStorage] newRequestFile:`, { fullName });
 
-  // Create new request in cloud
-  const request = await brunoApi.requests.createRequest(item);
-  return request;
+  const flatData = transformLocalItemToCloud(item);
+  const collectionUid = item.collectionUid || item.collection_id || flatData.collection_id;
+  if (!collectionUid) {
+    throw new Error('Missing collectionUid when creating request file');
+  }
+
+  const request = await brunoApi.collections.createRequest(collectionUid, flatData);
+  return transformCloudItemToLocal({ ...request, item_subtype: item.type }, collectionUid);
 };
 
 // Preferences
@@ -1046,8 +1178,15 @@ export const getWorkspaceLinks = async () => {
 };
 
 // Workspace operations (local filesystem only - not applicable to cloud)
-export const createWorkspace = async (workspaceName, workspacePath) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
+export const createWorkspace = async (workspaceName, _workspaceFolderName, _workspaceLocation) => {
+  const brunoApi = getBrunoApi();
+  console.log(`☁️  [CloudStorage] createWorkspace: "${workspaceName}"`);
+  const workspace = await brunoApi.workspaces.create({ name: workspaceName });
+  return {
+    workspaceUid: workspace.id,
+    workspacePath: null,
+    workspaceConfig: { name: workspace.name, isCloud: true }
+  };
 };
 
 export const openWorkspace = async (workspacePath) => {
@@ -1070,10 +1209,6 @@ export const openApiSpecFile = async (apiSpecPath, workspacePath) => {
   throw new Error('Local workspace operations are not available in cloud mode');
 };
 
-export const getGlobalEnvironments = async (workspacePath) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
-};
-
 export const loadWorkspaceCollections = async (workspacePath) => {
   throw new Error('Local workspace operations are not available in cloud mode');
 };
@@ -1090,12 +1225,21 @@ export const saveWorkspaceDocs = async (workspacePath, docs) => {
   throw new Error('Local workspace operations are not available in cloud mode');
 };
 
-export const renameWorkspace = async (...args) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
+export const renameWorkspace = async (workspaceUid, newName) => {
+  const brunoApi = getBrunoApi();
+  console.log(`☁️  [CloudStorage] renameWorkspace: ${workspaceUid} → "${newName}"`);
+  await brunoApi.workspaces.update(workspaceUid, { name: newName });
 };
 
-export const closeWorkspace = async (workspacePath) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
+export const closeWorkspace = async (workspaceUid) => {
+  // Cloud workspaces don't need a local close operation; deletion is handled separately
+  console.log(`☁️  [CloudStorage] closeWorkspace (no-op): ${workspaceUid}`);
+};
+
+export const deleteCloudWorkspace = async (workspaceUid) => {
+  const brunoApi = getBrunoApi();
+  console.log(`☁️  [CloudStorage] deleteWorkspace: ${workspaceUid}`);
+  await brunoApi.workspaces.delete(workspaceUid);
 };
 
 export const loadWorkspaceEnvironments = async (workspacePath) => {
@@ -1167,30 +1311,6 @@ export const fetchNotifications = async () => {
   return LocalStorage.fetchNotifications();
 };
 
-export const createGlobalEnvironment = async (params) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
-};
-
-export const renameGlobalEnvironment = async (params) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
-};
-
-export const saveGlobalEnvironment = async (params) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
-};
-
-export const updateGlobalEnvironmentColor = async (params) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
-};
-
-export const selectGlobalEnvironment = async (params) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
-};
-
-export const deleteGlobalEnvironment = async (params) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
-};
-
 export const getCollectionJson = async (collectionLocation) => {
   throw new Error('Local workspace operations are not available in cloud mode');
 };
@@ -1211,8 +1331,24 @@ export const removeApiSpec = async (pathname, workspacePath) => {
   throw new Error('Local workspace operations are not available in cloud mode');
 };
 
-export const saveTransientRequest = async (params) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
+export const saveTransientRequest = async ({ sourcePathname, targetDirname, targetFilename, request }) => {
+  const brunoApi = getBrunoApi();
+  console.log(`☁️  [CloudStorage] saveTransientRequest: creating request on server`, { targetDirname });
+
+  // targetDirname is collection.pathname ('cloud://id') or folder pathname (client_id)
+  const collectionId = targetDirname.replace('cloud://', '');
+
+  const flatData = transformLocalItemToCloud({ ...request, collectionUid: collectionId });
+  const createdItem = await brunoApi.collections.createRequest(collectionId, flatData);
+
+  console.log(`✅ [CloudStorage] saveTransientRequest: request created`, { id: createdItem.id });
+
+  // Remove draft from localStorage
+  const { removeDraft } = await import('./cloudDrafts');
+  const draftUid = sourcePathname?.replace('draft://', '');
+  if (draftUid) removeDraft(draftUid);
+
+  return transformCloudItemToLocal({ ...createdItem, item_subtype: request.type }, collectionId);
 };
 
 export const ensureCollectionsFolder = async (workspacePath) => {
@@ -1220,7 +1356,21 @@ export const ensureCollectionsFolder = async (workspacePath) => {
 };
 
 export const exportCollectionZip = async (collectionPath, collectionName) => {
-  throw new Error('Local workspace operations are not available in cloud mode');
+  const brunoApi = getBrunoApi();
+  const collectionId = collectionPath.replace('cloud://', '');
+  console.log(`☁️  [CloudStorage] exportCollection: ${collectionId}`);
+
+  const blob = await brunoApi.collections.exportCollection(collectionId, 'postman');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${collectionName || 'collection'}.postman_collection.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  return { success: true };
 };
 
 export const isBrunoCollectionZip = async (filePath) => {

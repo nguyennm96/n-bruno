@@ -161,14 +161,16 @@ impl InsomniaService {
             // Map body
             if let Some(body) = &request.body {
                 if body.text.is_some() || body.mimeType.is_some() {
-                    let body_type = body.mimeType.as_deref()
+                    let body_mode = body.mimeType.as_deref()
                         .map(|m| if m.contains("json") { "json" } else { "text" })
                         .unwrap_or("text")
                         .to_string();
-                    item.body = Some(crate::models::item::RequestBody {
-                        body_type: Some(body_type),
-                        content: body.text.clone(),
+
+                    let body_json = serde_json::json!({
+                        "mode": body_mode,
+                        "text": body.text,
                     });
+                    item.body = Some(body_json);
                 }
             }
 

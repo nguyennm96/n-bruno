@@ -1,5 +1,5 @@
 import { BrunoApiClient } from '../client';
-import type { Workspace, WorkspaceCreateRequest, WorkspaceMember } from '../types';
+import type { Workspace, WorkspaceCreateRequest, WorkspaceUpdateRequest, WorkspaceMember } from '../types';
 export declare class WorkspaceService {
     private client;
     constructor(client: BrunoApiClient);
@@ -15,6 +15,10 @@ export declare class WorkspaceService {
      * Get workspace by ID
      */
     getById(id: string): Promise<Workspace>;
+    /**
+     * Update a workspace (rename, description)
+     */
+    update(id: string, data: WorkspaceUpdateRequest): Promise<Workspace>;
     /**
      * Get workspace members
      */

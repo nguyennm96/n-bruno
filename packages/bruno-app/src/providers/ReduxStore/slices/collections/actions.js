@@ -5,6 +5,7 @@ import cloneDeep from 'lodash/cloneDeep';
 import filter from 'lodash/filter';
 import find from 'lodash/find';
 import get from 'lodash/get';
+import omit from 'lodash/omit';
 import set from 'lodash/set';
 import trim from 'lodash/trim';
 import path, { normalizePath } from 'utils/common/path';
@@ -23,7 +24,8 @@ import {
   getAllVariables,
   transformRequestToSaveToFilesystem,
   transformCollectionRootToSave,
-  flattenItems
+  flattenItems,
+  getDefaultRequestPaneTab
 } from 'utils/collections';
 import { uuid, waitForNextTick } from 'utils/common';
 import { cancelNetworkRequest, connectWS, sendGrpcRequest, sendNetworkRequest, sendWsRequest } from 'utils/network/index';
@@ -31,6 +33,7 @@ import brunoClipboard from 'utils/bruno-clipboard';
 
 import {
   collectionAddEnvFileEvent as _collectionAddEnvFileEvent,
+  collectionUnlinkEnvFileEvent as _collectionUnlinkEnvFileEvent,
   createCollection as _createCollection,
   removeCollection as _removeCollection,
   selectEnvironment as _selectEnvironment,
@@ -61,12 +64,15 @@ import {
   updateCollectionVar,
   addTransientDirectory,
   addSaveTransientRequestModal,
-  updatePathParam
+  updatePathParam,
+  newItem as _newItem,
+  deleteItem as _deleteItem,
+  renameItem as _renameItem
 } from './index';
 
 import { each } from 'lodash';
 import { closeAllCollectionTabs, closeTabs as _closeTabs, focusTab, updateResponsePaneScrollPosition } from 'providers/ReduxStore/slices/tabs';
-import { removeCollectionFromWorkspace } from 'providers/ReduxStore/slices/workspaces';
+import { removeCollectionFromWorkspace, addCollectionToWorkspace as _addCollectionToWorkspace } from 'providers/ReduxStore/slices/workspaces';
 import { resolveRequestFilename } from 'utils/common/platform';
 import { interpolateUrl, parsePathParams, splitOnFirst } from 'utils/url/index';
 import { sendCollectionOauth2Request as _sendCollectionOauth2Request } from 'utils/network/index';
@@ -90,6 +96,7 @@ import { addTab } from 'providers/ReduxStore/slices/tabs';
 import { updateSettingsSelectedTab } from './index';
 import { saveGlobalEnvironment } from 'providers/ReduxStore/slices/global-environments';
 import { getTabToFocusForCurrentWorkspace } from 'providers/ReduxStore/slices/workspaces/getTabToFocusForCurrentWorkspace';
+import { saveDraft as saveCloudDraft, removeDraft as removeCloudDraft, getAllDrafts as getAllCloudDrafts, clearAllDrafts as clearAllCloudDrafts } from 'utils/storage/cloudDrafts';
 
 // generate a unique names
 const generateUniqueName = (originalName, existingItems, isFolder) => {
@@ -155,7 +162,8 @@ export const saveRequest = (itemUid, collectionUid, silent = false) => (dispatch
       return reject(new Error('Not able to locate item'));
     }
 
-    const isTransient = tempDirectory && item.pathname.startsWith(tempDirectory);
+    const isTransient = (tempDirectory && item.pathname.startsWith(tempDirectory))
+      || (storage.isCloudMode() && item.pathname?.startsWith('draft://'));
     if (isTransient) {
       dispatch(addSaveTransientRequestModal({ item, collection }));
       return reject();
@@ -732,6 +740,23 @@ export const newFolder = (folderName, directoryName, collectionUid, itemUid) => 
 
   try {
     const result = await storage.createFolder(collectionUid, folderName, itemUid);
+    if (result?.id) {
+      // Cloud mode: manually update Redux state (no filesystem watcher in cloud)
+      dispatch(_newItem({
+        collectionUid,
+        currentItemUid: itemUid || null,
+        item: {
+          uid: result.client_id || result.id,
+          name: result.name,
+          type: 'folder',
+          filename: result.name,
+          pathname: result.client_id || result.id,
+          collapsed: true,
+          items: [],
+          seq: result.sort_order || 1
+        }
+      }));
+    }
     return result;
   } catch (error) {
     toast.error('Failed to create a new folder!');
@@ -795,6 +820,10 @@ export const renameItem
         renameOperation()
           .then(() => {
             toast.success('Item renamed successfully');
+            // Cloud mode: manually update Redux state (no filesystem watcher in cloud)
+            if (storage.isCloudMode()) {
+              dispatch(_renameItem({ collectionUid, itemUid, newName: newName || item.name }));
+            }
             resolve();
           })
           .catch((err) => reject(err));
@@ -836,7 +865,14 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
 
       // Use unified storage layer
       console.log('Using unified storage layer for cloneFolder');
-      storage.cloneFolder(item, collectionPath, collection.pathname).then(resolve).catch(reject);
+      storage.cloneFolder(item, collectionPath, collection.pathname)
+        .then((clonedFolder) => {
+          if (clonedFolder?.uid) {
+            dispatch(_newItem({ collectionUid, currentItemUid: parentFolder?.uid || null, item: clonedFolder }));
+          }
+          resolve();
+        })
+        .catch(reject);
       return;
     }
 
@@ -845,6 +881,7 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
     const itemToSave = refreshUidsInItem(transformRequestToSaveToFilesystem(item));
     set(itemToSave, 'name', trim(newName));
     set(itemToSave, 'filename', trim(filename));
+    set(itemToSave, 'collectionUid', collectionUid);
     if (!parentItem) {
       const reqWithSameNameExists = find(
         collection.items,
@@ -857,20 +894,27 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
 
         // Use unified storage layer
         console.log('Using unified storage layer for newRequest (cloneItem - collection root)');
+        if (!storage.isCloudMode()) {
+          dispatch(
+            insertTaskIntoQueue({
+              uid: uuid(),
+              type: 'OPEN_REQUEST',
+              collectionUid,
+              itemPathname: fullPathname
+            })
+          );
+        }
         itemSchema
-          .validate(itemToSave)
+          .validate(omit(itemToSave, ['collectionUid']))
           .then(() => storage.newRequest(fullPathname, itemToSave))
+          .then((createdItem) => {
+            if (createdItem?.uid) {
+              dispatch(_newItem({ collectionUid, currentItemUid: null, item: createdItem }));
+              dispatch(addTab({ uid: createdItem.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: true }));
+            }
+          })
           .then(resolve)
           .catch(reject);
-
-        dispatch(
-          insertTaskIntoQueue({
-            uid: uuid(),
-            type: 'OPEN_REQUEST',
-            collectionUid,
-            itemPathname: fullPathname
-          })
-        );
       } else {
         return reject(new Error('Duplicate request names are not allowed under the same folder'));
       }
@@ -887,20 +931,27 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
 
         // Use unified storage layer
         console.log('Using unified storage layer for newRequest (cloneItem - in folder)');
+        if (!storage.isCloudMode()) {
+          dispatch(
+            insertTaskIntoQueue({
+              uid: uuid(),
+              type: 'OPEN_REQUEST',
+              collectionUid,
+              itemPathname: fullName
+            })
+          );
+        }
         itemSchema
-          .validate(itemToSave)
+          .validate(omit(itemToSave, ['collectionUid']))
           .then(() => storage.newRequest(fullName, itemToSave))
+          .then((createdItem) => {
+            if (createdItem?.uid) {
+              dispatch(_newItem({ collectionUid, currentItemUid: parentItem.uid, item: createdItem }));
+              dispatch(addTab({ uid: createdItem.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: true }));
+            }
+          })
           .then(resolve)
           .catch(reject);
-
-        dispatch(
-          insertTaskIntoQueue({
-            uid: uuid(),
-            type: 'OPEN_REQUEST',
-            collectionUid,
-            itemPathname: fullName
-          })
-        );
       } else {
         return reject(new Error('Duplicate request names are not allowed under the same folder'));
       }
@@ -960,7 +1011,10 @@ export const pasteItem = (targetCollectionUid, targetItemUid = null) => (dispatc
 
           // Use unified storage layer
           console.log('Using unified storage layer for cloneFolder (pasteItem)');
-          await storage.cloneFolder(copiedItem, fullPathname, targetCollection.pathname);
+          const clonedFolder = await storage.cloneFolder(copiedItem, fullPathname, targetCollection.pathname);
+          if (clonedFolder?.uid) {
+            dispatch(_newItem({ collectionUid: targetCollection.uid, currentItemUid: targetItem?.uid || null, item: clonedFolder }));
+          }
         } else {
           // Handle request pasting
           // Generate unique name for request
@@ -970,6 +1024,7 @@ export const pasteItem = (targetCollectionUid, targetItemUid = null) => (dispatc
           const itemToSave = refreshUidsInItem(transformRequestToSaveToFilesystem(copiedItem));
           set(itemToSave, 'name', trim(newName));
           set(itemToSave, 'filename', trim(filename));
+          set(itemToSave, 'collectionUid', targetCollectionUid);
 
           const fullPathname = path.join(targetParentPathname, filename);
           const requestItems = filter(existingItems, (i) => i.type !== 'folder');
@@ -977,15 +1032,22 @@ export const pasteItem = (targetCollectionUid, targetItemUid = null) => (dispatc
 
           // Use unified storage layer
           console.log('Using unified storage layer for newRequest (pasteItem)');
-          await itemSchema.validate(itemToSave);
-          await storage.newRequest(fullPathname, itemToSave, targetCollection.format);
+          await itemSchema.validate(omit(itemToSave, ['collectionUid']));
+          const createdItem = await storage.newRequest(fullPathname, itemToSave, targetCollection.format);
 
-          dispatch(insertTaskIntoQueue({
-            uid: uuid(),
-            type: 'OPEN_REQUEST',
-            collectionUid: targetCollectionUid,
-            itemPathname: fullPathname
-          }));
+          if (createdItem?.uid) {
+            // Cloud mode: update Redux state + open tab
+            dispatch(_newItem({ collectionUid: targetCollectionUid, currentItemUid: targetItemUid || null, item: createdItem }));
+            dispatch(addTab({ uid: createdItem.uid, collectionUid: targetCollectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: true }));
+          } else {
+            // Local mode: use task middleware
+            dispatch(insertTaskIntoQueue({
+              uid: uuid(),
+              type: 'OPEN_REQUEST',
+              collectionUid: targetCollectionUid,
+              itemPathname: fullPathname
+            }));
+          }
         }
       }
 
@@ -1014,6 +1076,11 @@ export const deleteItem = (itemUid, collectionUid) => async (dispatch, getState)
   try {
     // Use unified storage layer
     await storage.deleteItem(itemUid, collectionUid);
+
+    // Cloud mode: manually update Redux state (no filesystem watcher in cloud)
+    if (storage.isCloudMode()) {
+      dispatch(_deleteItem({ collectionUid, itemUid }));
+    }
 
     // Reorder items in parent directory after deletion
     const parentDirectoryItem = findParentItemInCollection(collection, itemUid) || collection;
@@ -1074,7 +1141,7 @@ export const handleCollectionItemDrop
         const { pathname: draggedItemPathname, uid: draggedItemUid } = draggedItem;
 
         // Determine if cloud mode or local mode
-        const isCloudMode = !draggedItemPathname && draggedItemUid;
+        const isCloudMode = storage.isCloudMode();
 
         if (isCloudMode) {
           // Cloud mode: pass itemUid and targetParentItemId
@@ -1082,6 +1149,9 @@ export const handleCollectionItemDrop
             itemUid: draggedItemUid,
             targetParentItemId: newPathname // In cloud mode, newPathname is actually the parent uid
           }));
+          // Cloud mode: manually update Redux tree (no filesystem watcher)
+          dispatch(_deleteItem({ collectionUid: sourceCollectionUid || collectionUid, itemUid: draggedItemUid }));
+          dispatch(_newItem({ collectionUid, currentItemUid: newPathname || null, item: draggedItem }));
         } else {
           // Local mode: pass targetDirname and sourcePathname
           const newDirname = path.dirname(newPathname);
@@ -1148,7 +1218,8 @@ export const handleCollectionItemDrop
             draggedItem,
             targetItem,
             dropType,
-            collectionPathname: collection.pathname
+            collectionPathname: collection.pathname,
+            isCloudMode: storage.isCloudMode()
           });
           if (!newPathname) return;
           if (targetItemPathname?.startsWith(draggedItemPathname)) return;
@@ -1244,6 +1315,7 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
       type: requestType,
       name: requestName,
       filename,
+      collectionUid,
       isTransient: isTransient,
       request: {
         method: requestMethod,
@@ -1278,8 +1350,8 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
     // For transient requests, itemUid is always null
     const resolvedFilename = resolveRequestFilename(filename, collection.format);
 
-    if (isTransient) {
-      // Transient requests are always created in temp directory
+    if (isTransient && !storage.isCloudMode()) {
+      // Transient requests are always created in temp directory (local mode only)
       // Check for duplicates only among other transient requests
       const allItems = flattenItems(collection.items);
       const transientRequests = filter(
@@ -1296,23 +1368,35 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
         // Use unified storage layer
         console.log('Using unified storage layer for newRequest (newHttpRequest - transient)');
         storage.newRequest(fullName, item)
-          .then(() => {
-            // task middleware will track this and open the new request in a new tab once request is created
-            dispatch(
-              insertTaskIntoQueue({
-                uid: uuid(),
-                type: 'OPEN_REQUEST',
-                collectionUid,
-                itemPathname: fullName,
-                preview: false
-              })
-            );
+          .then((createdItem) => {
+            if (createdItem?.uid) {
+              // Cloud mode: update Redux state + open tab
+              dispatch(_newItem({ collectionUid, currentItemUid: null, item: { ...createdItem, isTransient: true } }));
+              dispatch(addTab({ uid: createdItem.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
+            } else {
+              // Local mode: task middleware opens the tab once file is created
+              dispatch(insertTaskIntoQueue({ uid: uuid(), type: 'OPEN_REQUEST', collectionUid, itemPathname: fullName, preview: false }));
+            }
             resolve();
           })
           .catch(reject);
       } else {
         return reject(new Error('Duplicate request names are not allowed under the same folder'));
       }
+    } else if (isTransient && storage.isCloudMode()) {
+      // Cloud mode: drafts are stored in Redux + localStorage only (no API call).
+      // The actual API request is created only when the user explicitly saves.
+      const items = filter(collection.items, (i) => isItemAFolder(i) || isItemARequest(i));
+      item.seq = items.length + 1;
+      item.isTransient = true;
+      item.pathname = `draft://${item.uid}`; // draft:// prefix marks cloud drafts
+
+      const draftToSave = { ...item, collectionUid };
+      saveCloudDraft(draftToSave);
+
+      dispatch(_newItem({ collectionUid, currentItemUid: null, item }));
+      dispatch(addTab({ uid: item.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(item), preview: false }));
+      resolve();
     } else if (!itemUid) {
       // Regular request at root level
       const reqWithSameNameExists = find(
@@ -1323,21 +1407,20 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
       item.seq = items.length + 1;
 
       if (!reqWithSameNameExists) {
-        const fullName = path.join(collection.pathname, resolvedFilename);
+        const fullName = storage.isCloudMode()
+          ? collection.pathname
+          : path.join(collection.pathname, resolvedFilename);
 
         // Use unified storage layer
         console.log('Using unified storage layer for newRequest (newHttpRequest - root)');
         storage.newRequest(fullName, item)
-          .then(() => {
-            // task middleware will track this and open the new request in a new tab once request is created
-            dispatch(
-              insertTaskIntoQueue({
-                uid: uuid(),
-                type: 'OPEN_REQUEST',
-                collectionUid,
-                itemPathname: fullName
-              })
-            );
+          .then((createdItem) => {
+            if (createdItem?.uid) {
+              dispatch(_newItem({ collectionUid, currentItemUid: null, item: createdItem }));
+              dispatch(addTab({ uid: createdItem.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
+            } else {
+              dispatch(insertTaskIntoQueue({ uid: uuid(), type: 'OPEN_REQUEST', collectionUid, itemPathname: fullName }));
+            }
             resolve();
           })
           .catch(reject);
@@ -1354,21 +1437,20 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
         const items = filter(currentItem.items, (i) => isItemAFolder(i) || isItemARequest(i));
         item.seq = items.length + 1;
         if (!reqWithSameNameExists) {
-          const fullName = path.join(currentItem.pathname, resolvedFilename);
+          const fullName = storage.isCloudMode()
+            ? currentItem.pathname
+            : path.join(currentItem.pathname, resolvedFilename);
 
           // Use unified storage layer
           console.log('Using unified storage layer for newRequest (newHttpRequest - in folder)');
           storage.newRequest(fullName, item)
-            .then(() => {
-              // task middleware will track this and open the new request in a new tab once request is created
-              dispatch(
-                insertTaskIntoQueue({
-                  uid: uuid(),
-                  type: 'OPEN_REQUEST',
-                  collectionUid,
-                  itemPathname: fullName
-                })
-              );
+            .then((createdItem) => {
+              if (createdItem?.uid) {
+                dispatch(_newItem({ collectionUid, currentItemUid: currentItem.uid, item: createdItem }));
+                dispatch(addTab({ uid: createdItem.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
+              } else {
+                dispatch(insertTaskIntoQueue({ uid: uuid(), type: 'OPEN_REQUEST', collectionUid, itemPathname: fullName }));
+              }
               resolve();
             })
             .catch(reject);
@@ -1400,6 +1482,7 @@ export const newGrpcRequest = (params) => (dispatch, getState) => {
       uid: uuid(),
       name: requestName,
       filename,
+      collectionUid,
       type: 'grpc-request',
       isTransient: isTransient,
       headers: headers ?? [],
@@ -1434,8 +1517,8 @@ export const newGrpcRequest = (params) => (dispatch, getState) => {
     // For transient requests, itemUid is always null
     const resolvedFilename = resolveRequestFilename(filename, collection.format);
 
-    if (isTransient) {
-      // Transient requests are always created in temp directory
+    if (isTransient && !storage.isCloudMode()) {
+      // Transient requests are always created in temp directory (local mode only)
       // Check for duplicates only among other transient requests
       const allItems = flattenItems(collection.items);
       const transientRequests = filter(
@@ -1455,20 +1538,26 @@ export const newGrpcRequest = (params) => (dispatch, getState) => {
       // Use unified storage layer
       console.log('Using unified storage layer for newRequest (newGrpcRequest - transient)');
       storage.newRequest(fullName, item)
-        .then(() => {
-          // task middleware will track this and open the new request in a new tab once request is created
-          dispatch(
-            insertTaskIntoQueue({
-              uid: uuid(),
-              type: 'OPEN_REQUEST',
-              collectionUid,
-              itemPathname: fullName,
-              preview: false
-            })
-          );
+        .then((createdItem) => {
+          if (createdItem?.uid) {
+            dispatch(_newItem({ collectionUid, currentItemUid: null, item: { ...createdItem, isTransient: true } }));
+            dispatch(addTab({ uid: createdItem.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
+          } else {
+            dispatch(insertTaskIntoQueue({ uid: uuid(), type: 'OPEN_REQUEST', collectionUid, itemPathname: fullName, preview: false }));
+          }
           resolve();
         })
         .catch(reject);
+    } else if (isTransient && storage.isCloudMode()) {
+      // Cloud mode: draft stored in Redux + localStorage only (no API call)
+      const items = filter(collection.items, (i) => isItemAFolder(i) || isItemARequest(i));
+      item.seq = items.length + 1;
+      item.isTransient = true;
+      item.pathname = `draft://${item.uid}`;
+      saveCloudDraft({ ...item, collectionUid });
+      dispatch(_newItem({ collectionUid, currentItemUid: null, item }));
+      dispatch(addTab({ uid: item.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(item), preview: false }));
+      resolve();
     } else {
       // Regular request (can be at root or in a folder)
       const parentItem = itemUid ? findItemInCollection(collection, itemUid) : collection;
@@ -1488,21 +1577,20 @@ export const newGrpcRequest = (params) => (dispatch, getState) => {
 
       const items = filter(parentItem.items, (i) => isItemAFolder(i) || isItemARequest(i));
       item.seq = items.length + 1;
-      const fullName = path.join(parentItem.pathname, resolvedFilename);
+      const fullName = storage.isCloudMode()
+        ? parentItem.pathname
+        : path.join(parentItem.pathname, resolvedFilename);
 
       // Use unified storage layer
       console.log('Using unified storage layer for newRequest (newGrpcRequest - regular)');
       storage.newRequest(fullName, item)
-        .then(() => {
-          // task middleware will track this and open the new request in a new tab once request is created
-          dispatch(
-            insertTaskIntoQueue({
-              uid: uuid(),
-              type: 'OPEN_REQUEST',
-              collectionUid,
-              itemPathname: fullName
-            })
-          );
+        .then((createdItem) => {
+          if (createdItem?.uid) {
+            dispatch(_newItem({ collectionUid, currentItemUid: itemUid || null, item: createdItem }));
+            dispatch(addTab({ uid: createdItem.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
+          } else {
+            dispatch(insertTaskIntoQueue({ uid: uuid(), type: 'OPEN_REQUEST', collectionUid, itemPathname: fullName }));
+          }
           resolve();
         })
         .catch(reject);
@@ -1527,6 +1615,7 @@ export const newWsRequest = (params) => (dispatch, getState) => {
       uid: uuid(),
       name: requestName,
       filename,
+      collectionUid,
       type: 'ws-request',
       isTransient: isTransient,
       headers: headers ?? [],
@@ -1564,8 +1653,8 @@ export const newWsRequest = (params) => (dispatch, getState) => {
     // For transient requests, itemUid is always null
     const resolvedFilename = resolveRequestFilename(filename, collection.format);
 
-    if (isTransient) {
-      // Transient requests are always created in temp directory
+    if (isTransient && !storage.isCloudMode()) {
+      // Transient requests are always created in temp directory (local mode only)
       // Check for duplicates only among other transient requests
       const allItems = flattenItems(collection.items);
       const transientRequests = filter(
@@ -1585,20 +1674,26 @@ export const newWsRequest = (params) => (dispatch, getState) => {
       // Use unified storage layer
       console.log('Using unified storage layer for newRequest (newWsRequest - transient)');
       storage.newRequest(fullName, item)
-        .then(() => {
-          // task middleware will track this and open the new request in a new tab once request is created
-          dispatch(
-            insertTaskIntoQueue({
-              uid: uuid(),
-              type: 'OPEN_REQUEST',
-              collectionUid,
-              itemPathname: fullName,
-              preview: false
-            })
-          );
+        .then((createdItem) => {
+          if (createdItem?.uid) {
+            dispatch(_newItem({ collectionUid, currentItemUid: null, item: { ...createdItem, isTransient: true } }));
+            dispatch(addTab({ uid: createdItem.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
+          } else {
+            dispatch(insertTaskIntoQueue({ uid: uuid(), type: 'OPEN_REQUEST', collectionUid, itemPathname: fullName, preview: false }));
+          }
           resolve();
         })
         .catch(reject);
+    } else if (isTransient && storage.isCloudMode()) {
+      // Cloud mode: draft stored in Redux + localStorage only (no API call)
+      const items = filter(collection.items, (i) => isItemAFolder(i) || isItemARequest(i));
+      item.seq = items.length + 1;
+      item.isTransient = true;
+      item.pathname = `draft://${item.uid}`;
+      saveCloudDraft({ ...item, collectionUid });
+      dispatch(_newItem({ collectionUid, currentItemUid: null, item }));
+      dispatch(addTab({ uid: item.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(item), preview: false }));
+      resolve();
     } else {
       // Regular request (can be at root or in a folder)
       const parentItem = itemUid ? findItemInCollection(collection, itemUid) : collection;
@@ -1618,20 +1713,19 @@ export const newWsRequest = (params) => (dispatch, getState) => {
 
       const items = filter(parentItem.items, (i) => isItemAFolder(i) || isItemARequest(i));
       item.seq = items.length + 1;
-      const fullName = path.join(parentItem.pathname, resolvedFilename);
+      const fullName = storage.isCloudMode()
+        ? parentItem.pathname
+        : path.join(parentItem.pathname, resolvedFilename);
       console.log('Using unified storage layer for newRequestFile');
       storage
         .newRequestFile(fullName, item)
-        .then(() => {
-          // task middleware will track this and open the new request in a new tab once request is created
-          dispatch(
-            insertTaskIntoQueue({
-              uid: uuid(),
-              type: 'OPEN_REQUEST',
-              collectionUid,
-              itemPathname: fullName
-            })
-          );
+        .then((createdItem) => {
+          if (createdItem?.uid) {
+            dispatch(_newItem({ collectionUid, currentItemUid: itemUid || null, item: createdItem }));
+            dispatch(addTab({ uid: createdItem.uid, collectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
+          } else {
+            dispatch(insertTaskIntoQueue({ uid: uuid(), type: 'OPEN_REQUEST', collectionUid, itemPathname: fullName }));
+          }
           resolve();
         })
         .catch(reject);
@@ -1723,20 +1817,19 @@ export const addEnvironment = (name, collectionUid) => (dispatch, getState) => {
       return reject(new Error('Collection not found'));
     }
 
-    console.log('Using unified storage layer for createEnvironment');
+    console.log('Using unified storage layer for createEnvironment', { pathname: collection.pathname, name });
     storage
       .createEnvironment(collection.pathname, name)
-      .then(
-        dispatch(
-          updateLastAction({
-            collectionUid,
-            lastAction: {
-              type: 'ADD_ENVIRONMENT',
-              payload: name
-            }
-          })
-        )
-      )
+      .then((createdEnv) => {
+        console.log('createEnvironment result:', createdEnv);
+        if (createdEnv && createdEnv.uid) {
+          // Cloud mode: no file watcher, update Redux directly
+          dispatch(_collectionAddEnvFileEvent({ environment: createdEnv, collectionUid }));
+        } else {
+          // Local mode: file watcher will fire collectionAddEnvFileEvent
+          dispatch(updateLastAction({ collectionUid, lastAction: { type: 'ADD_ENVIRONMENT', payload: name } }));
+        }
+      })
       .then(resolve)
       .catch(reject);
   });
@@ -1755,17 +1848,13 @@ export const importEnvironment = ({ name, variables, color, collectionUid }) => 
     console.log('Using unified storage layer for createEnvironment');
     storage
       .createEnvironment(collection.pathname, sanitizedName, variables, color)
-      .then(
-        dispatch(
-          updateLastAction({
-            collectionUid,
-            lastAction: {
-              type: 'ADD_ENVIRONMENT',
-              payload: sanitizedName
-            }
-          })
-        )
-      )
+      .then((createdEnv) => {
+        if (createdEnv && createdEnv.uid) {
+          dispatch(_collectionAddEnvFileEvent({ environment: createdEnv, collectionUid }));
+        } else {
+          dispatch(updateLastAction({ collectionUid, lastAction: { type: 'ADD_ENVIRONMENT', payload: sanitizedName } }));
+        }
+      })
       .then(resolve)
       .catch(reject);
   });
@@ -1796,17 +1885,13 @@ export const copyEnvironment = (name, baseEnvUid, collectionUid) => (dispatch, g
     console.log('Using unified storage layer for createEnvironment');
     storage
       .createEnvironment(collection.pathname, sanitizedName, variablesToCopy)
-      .then(
-        dispatch(
-          updateLastAction({
-            collectionUid,
-            lastAction: {
-              type: 'ADD_ENVIRONMENT',
-              payload: sanitizedName
-            }
-          })
-        )
-      )
+      .then((createdEnv) => {
+        if (createdEnv && createdEnv.uid) {
+          dispatch(_collectionAddEnvFileEvent({ environment: createdEnv, collectionUid }));
+        } else {
+          dispatch(updateLastAction({ collectionUid, lastAction: { type: 'ADD_ENVIRONMENT', payload: sanitizedName } }));
+        }
+      })
       .then(resolve)
       .catch(reject);
   });
@@ -1834,7 +1919,13 @@ export const renameEnvironment = (newName, environmentUid, collectionUid) => (di
     console.log('Using unified storage layer for renameEnvironment');
     environmentSchema
       .validate(environment)
-      .then(() => storage.renameEnvironment(collection.pathname, oldName, sanitizedName))
+      .then(() => storage.renameEnvironment(collection.pathname, oldName, sanitizedName, environmentUid))
+      .then(() => {
+        if (storage.isCloudMode()) {
+          // Cloud mode: no file watcher, update Redux directly
+          dispatch(_collectionAddEnvFileEvent({ environment: { ...environment, name: sanitizedName }, collectionUid }));
+        }
+      })
       .then(resolve)
       .catch(reject);
   });
@@ -1857,7 +1948,13 @@ export const deleteEnvironment = (environmentUid, collectionUid) => (dispatch, g
 
     console.log('Using unified storage layer for deleteEnvironment');
     storage
-      .deleteEnvironment(collection.pathname, environment.name)
+      .deleteEnvironment(collection.pathname, environment.name, environment.uid)
+      .then(() => {
+        if (storage.isCloudMode()) {
+          // Cloud mode: no file watcher, update Redux directly
+          dispatch(_collectionUnlinkEnvFileEvent({ data: { uid: environmentUid }, meta: { collectionUid } }));
+        }
+      })
       .then(resolve)
       .catch(reject);
   });
@@ -1922,7 +2019,7 @@ export const updateEnvironmentColor = (environmentUid, color, collectionUid) => 
 
     // Use unified storage layer
     console.log('Using unified storage layer for updateEnvironmentColor');
-    storage.updateEnvironmentColor(collection.pathname, environment.name, color)
+    storage.updateEnvironmentColor(collection.pathname, environment.name, color, environmentUid)
       .then(() => {
         dispatch(_updateEnvironmentColor({ environmentUid, color, collectionUid }));
         resolve();
@@ -2588,9 +2685,37 @@ export const createCollection = (collectionName, options = {}) => async (dispatc
     throw error;
   }
 };
-export const cloneCollection = (collectionName, collectionFolderName, collectionLocation, previousPath) => async () => {
+export const cloneCollection = (collectionName, collectionFolderName, collectionLocation, previousPath) => async (dispatch, getState) => {
   console.log('Using unified storage layer for cloneCollection');
-  return storage.cloneCollection(collectionName, collectionFolderName, collectionLocation, previousPath);
+  const result = await storage.cloneCollection(collectionName, collectionFolderName, collectionLocation, previousPath, undefined, getState);
+
+  // Cloud mode: mount cloned collection into Redux immediately
+  if (storage.isCloudMode() && result?.id) {
+    const state = getState();
+    const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
+    const collection = {
+      version: '1',
+      uid: result.id,
+      name: result.name,
+      pathname: `cloud://${result.id}`,
+      items: result.items || [],
+      environments: result.environments || [],
+      runtimeVariables: {},
+      brunoConfig: result.brunoConfig || result.bruno_config || { name: result.name, version: '1' },
+      root: result.root || {},
+      isCloud: true,
+      mountStatus: 'unmounted'
+    };
+    dispatch(_createCollection(collection));
+    if (activeWorkspace) {
+      dispatch(_addCollectionToWorkspace({
+        workspaceUid: activeWorkspace.uid,
+        collection: { uid: result.id, name: result.name, path: `cloud://${result.id}` }
+      }));
+    }
+  }
+
+  return result;
 };
 export const openCollection = (options = {}) => (dispatch, getState) => {
   return new Promise((resolve, reject) => {

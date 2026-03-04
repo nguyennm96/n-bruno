@@ -174,12 +174,18 @@ impl OpenApiService {
                     // Build request body for methods that have body
                     let request_body = if matches!(method, "POST" | "PUT" | "PATCH") {
                         item.body.as_ref().map(|b| {
-                            let ct = if b.body_type.as_deref() == Some("json") {
+                            let mode = b.get("mode")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("text");
+                            let ct = if mode == "json" {
                                 "application/json"
                             } else {
                                 "text/plain"
                             };
-                            let example = b.content.as_deref()
+                            let content_text = b.get("raw")
+                                .or_else(|| b.get("text"))
+                                .and_then(|v| v.as_str());
+                            let example = content_text
                                 .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
                             let mut content: HashMap<String, OpenApiMediaType> = HashMap::new();
                             content.insert(ct.to_string(), OpenApiMediaType {

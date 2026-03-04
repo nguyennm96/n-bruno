@@ -56,6 +56,10 @@ const ManageWorkspace = () => {
       toast.error('Cannot remove the default workspace');
       return;
     }
+    if (workspace.uid === activeWorkspaceUid) {
+      toast.error('Cannot remove the currently active workspace. Switch to another workspace first.');
+      return;
+    }
     setDeleteWorkspaceModal({ open: true, workspace });
   };
 

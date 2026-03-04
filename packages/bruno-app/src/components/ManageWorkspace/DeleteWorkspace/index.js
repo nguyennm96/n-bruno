@@ -3,12 +3,14 @@ import Portal from 'components/Portal/index';
 import Modal from 'components/Modal/index';
 import toast from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
-import { IconFolder } from '@tabler/icons';
+import { IconFolder, IconCloud } from '@tabler/icons';
 import { closeWorkspaceAction } from 'providers/ReduxStore/slices/workspaces/actions';
 
 const DeleteWorkspace = ({ onClose, workspace }) => {
   const dispatch = useDispatch();
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const isCloud = workspace?.isCloud === true;
 
   const onConfirm = async () => {
     if (isDeleting) return;
@@ -27,26 +29,38 @@ const DeleteWorkspace = ({ onClose, workspace }) => {
     <Portal>
       <Modal
         size="sm"
-        title="Remove Workspace"
-        confirmText={isDeleting ? 'Removing...' : 'Remove'}
+        title={isCloud ? 'Delete Workspace' : 'Remove Workspace'}
+        confirmText={isDeleting ? (isCloud ? 'Deleting...' : 'Removing...') : (isCloud ? 'Delete' : 'Remove')}
         handleConfirm={onConfirm}
         handleCancel={onClose}
         confirmDisabled={isDeleting}
         confirmButtonColor="danger"
       >
         <div className="flex items-center">
-          <IconFolder size={18} strokeWidth={1.5} />
+          {isCloud ? (
+            <IconCloud size={18} strokeWidth={1.5} />
+          ) : (
+            <IconFolder size={18} strokeWidth={1.5} />
+          )}
           <span className="ml-2 mr-4 font-semibold">{workspace?.name}</span>
         </div>
-        {workspace?.pathname && (
-          <div className="break-words text-xs mt-1">{workspace.pathname}</div>
+        <div className="mt-4">
+          Are you sure you want to {isCloud ? 'delete' : 'remove'} workspace <span className="font-semibold">{workspace?.name}</span>?
+        </div>
+        {isCloud ? (
+          <div className="mt-4 text-yellow-600">
+            This will permanently delete the workspace and all its collections from the cloud.
+          </div>
+        ) : (
+          <>
+            {workspace?.pathname && (
+              <div className="break-words text-xs mt-1">{workspace.pathname}</div>
+            )}
+            <div className="mt-4">
+              The workspace will still be available in the file system and can be re-opened later.
+            </div>
+          </>
         )}
-        <div className="mt-4">
-          Are you sure you want to remove workspace <span className="font-semibold">{workspace?.name}</span>?
-        </div>
-        <div className="mt-4">
-          The workspace will still be available in the file system and can be re-opened later.
-        </div>
       </Modal>
     </Portal>
   );

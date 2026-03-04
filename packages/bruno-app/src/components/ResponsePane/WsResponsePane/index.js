@@ -101,7 +101,7 @@ const WSResponsePane = ({ item, collection }) => {
 
   const focusedTab = find(tabs, (t) => t.uid === activeTabUid);
   if (!focusedTab || !focusedTab.uid || !focusedTab.responsePaneTab) {
-    return <div className="pb-4 px-4">An error occurred!</div>;
+    return <div className="pb-4 px-4">An error occurred!12321</div>;
   }
 
   const rightContent = !isLoading ? (

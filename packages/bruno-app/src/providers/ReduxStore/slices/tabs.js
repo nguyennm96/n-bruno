@@ -258,7 +258,8 @@ export const tabsSlice = createSlice({
       tabs.splice(targetIdx, 0, moved);
 
       state.tabs = tabs;
-    }
+    },
+    resetTabs: () => initialState
   }
 });
 
@@ -277,7 +278,8 @@ export const {
   closeTabs,
   closeAllCollectionTabs,
   makeTabPermanent,
-  reorderTabs
+  reorderTabs,
+  resetTabs
 } = tabsSlice.actions;
 
 export default tabsSlice.reducer;

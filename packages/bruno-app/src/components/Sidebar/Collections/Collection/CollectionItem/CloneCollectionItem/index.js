@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import Modal from 'components/Modal';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { isItemAFolder } from 'utils/tabs';
 import { cloneItem } from 'providers/ReduxStore/slices/collections/actions';
 import { IconArrowBackUp, IconEdit, IconCaretDown } from '@tabler/icons';
@@ -18,6 +18,10 @@ import Button from 'ui/Button';
 
 const CloneCollectionItem = ({ collectionUid, item, onClose }) => {
   const dispatch = useDispatch();
+  const workspaces = useSelector((state) => state.workspaces?.workspaces || []);
+  const workspaceUid = useSelector((state) => state.workspaces?.activeWorkspaceUid);
+  const activeWorkspace = workspaces.find((w) => w.uid === workspaceUid);
+  const isCloudMode = activeWorkspace?.isCloud === true;
   const isFolder = isItemAFolder(item);
   const inputRef = useRef();
   const [isEditing, toggleEditing] = useState(false);
@@ -185,18 +189,20 @@ const CloneCollectionItem = ({ collectionUid, item, onClose }) => {
 
             <div className="flex justify-between items-center mt-8 bruno-modal-footer">
               <div className="flex advanced-options">
-                <Dropdown onCreate={onDropdownCreate} icon={<AdvancedOptions />} placement="bottom-start">
-                  <div
-                    className="dropdown-item"
-                    key="show-filesystem-name"
-                    onClick={(e) => {
-                      dropdownTippyRef.current.hide();
-                      toggleShowFilesystemName(!showFilesystemName);
-                    }}
-                  >
-                    {showFilesystemName ? 'Hide Filesystem Name' : 'Show Filesystem Name'}
-                  </div>
-                </Dropdown>
+                {!isCloudMode && (
+                  <Dropdown onCreate={onDropdownCreate} icon={<AdvancedOptions />} placement="bottom-start">
+                    <div
+                      className="dropdown-item"
+                      key="show-filesystem-name"
+                      onClick={(e) => {
+                        dropdownTippyRef.current.hide();
+                        toggleShowFilesystemName(!showFilesystemName);
+                      }}
+                    >
+                      {showFilesystemName ? 'Hide Filesystem Name' : 'Show Filesystem Name'}
+                    </div>
+                  </Dropdown>
+                )}
               </div>
               <div className="flex justify-end">
                 <Button type="button" color="secondary" variant="ghost" onClick={onClose} className="mr-2">

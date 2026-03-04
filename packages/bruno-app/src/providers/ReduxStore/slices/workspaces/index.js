@@ -126,7 +126,8 @@ export const workspacesSlice = createSlice({
         workspace.scratchCollectionUid = scratchCollectionUid;
         workspace.scratchTempDirectory = scratchTempDirectory;
       }
-    }
+    },
+    resetWorkspaces: () => initialState
   }
 });
 
@@ -140,7 +141,8 @@ export const {
   updateWorkspaceLoadingState,
   workspaceDotEnvUpdateEvent,
   setWorkspaceDotEnvVariables,
-  setWorkspaceScratchCollection
+  setWorkspaceScratchCollection,
+  resetWorkspaces
 } = workspacesSlice.actions;
 
 export default workspacesSlice.reducer;

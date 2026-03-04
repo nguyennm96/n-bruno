@@ -258,7 +258,7 @@ const EnvironmentList = ({
         setEnvNameError('');
       })
       .catch(() => {
-        toast.error('An error occurred while creating the environment');
+        toast.error('An error occurred while creating the eđưânvironment');
       });
   };
 

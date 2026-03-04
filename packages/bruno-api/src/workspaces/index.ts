@@ -2,6 +2,7 @@ import { BrunoApiClient } from '../client';
 import type {
   Workspace,
   WorkspaceCreateRequest,
+  WorkspaceUpdateRequest,
   WorkspaceListResponse,
   WorkspaceResponse,
   WorkspaceMember,
@@ -32,6 +33,14 @@ export class WorkspaceService {
    */
   async getById(id: string): Promise<Workspace> {
     const response = await this.client.getClient().get<WorkspaceResponse>(`/api/workspaces/${id}`);
+    return response.data.data;
+  }
+
+  /**
+   * Update a workspace (rename, description)
+   */
+  async update(id: string, data: WorkspaceUpdateRequest): Promise<Workspace> {
+    const response = await this.client.getClient().patch<WorkspaceResponse>(`/api/workspaces/${id}`, data);
     return response.data.data;
   }
 

@@ -18,12 +18,14 @@ use crate::{
 pub struct CreateEnvRequest {
     pub name: String,
     pub variables: Option<Vec<EnvVariable>>,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateEnvRequest {
     pub name: Option<String>,
     pub variables: Option<Vec<EnvVariable>>,
+    pub color: Option<String>,
 }
 
 pub async fn create_environment(
@@ -33,7 +35,7 @@ pub async fn create_environment(
     JsonBody(body): JsonBody<CreateEnvRequest>,
 ) -> AppResult<(StatusCode, Json<Value>)> {
     let user_id = extract_user_id(&claims)?;
-    let env = state.environment_service.create(&workspace_id, user_id, body.name, body.variables.unwrap_or_default()).await?;
+    let env = state.environment_service.create(&workspace_id, user_id, body.name, body.variables.unwrap_or_default(), body.color).await?;
     Ok((StatusCode::CREATED, Json(json!({ "data": env }))))
 }
 
@@ -54,7 +56,7 @@ pub async fn update_environment(
     JsonBody(body): JsonBody<UpdateEnvRequest>,
 ) -> AppResult<Json<Value>> {
     let user_id = extract_user_id(&claims)?;
-    let env = state.environment_service.update(&env_id, user_id, body.name, body.variables).await?;
+    let env = state.environment_service.update(&env_id, user_id, body.name, body.variables, body.color).await?;
     Ok(Json(json!({ "data": env })))
 }
 
@@ -66,4 +68,29 @@ pub async fn delete_environment(
     let user_id = extract_user_id(&claims)?;
     state.environment_service.delete(&env_id, user_id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ========== COLLECTION-LEVEL ENVIRONMENTS ==========
+
+pub async fn create_collection_environment(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(collection_id): Path<String>,
+    JsonBody(body): JsonBody<CreateEnvRequest>,
+) -> AppResult<(StatusCode, Json<Value>)> {
+    let user_id = extract_user_id(&claims)?;
+    let env = state.environment_service
+        .create_for_collection(&collection_id, user_id, body.name, body.variables.unwrap_or_default(), body.color)
+        .await?;
+    Ok((StatusCode::CREATED, Json(json!({ "data": env }))))
+}
+
+pub async fn list_collection_environments(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(collection_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let user_id = extract_user_id(&claims)?;
+    let envs = state.environment_service.list_for_collection(&collection_id, user_id).await?;
+    Ok(Json(json!({ "data": envs })))
 }

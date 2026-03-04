@@ -153,18 +153,30 @@ class StorageManager {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Environment Operations
+  // Environment Operations (Collection-scoped)
   // ──────────────────────────────────────────────────────────────────────────
 
-  async createEnvironment(collectionUid, environmentData) {
+  async createCollectionEnvironment(collectionUid, environmentData) {
     return this.getStorage().createEnvironment(collectionUid, environmentData, this.getState);
+  }
+
+  async createEnvironment(pathname, name, variables, color) {
+    const mode = this.getMode();
+    console.log(`StorageManager.createEnvironment: routing to ${mode} storage`);
+    return this.getStorage().createEnvironment(pathname, name, variables, color);
+  }
+
+  async deleteEnvironment(pathname, name, envUid) {
+    const mode = this.getMode();
+    console.log(`StorageManager.deleteEnvironment: routing to ${mode} storage`);
+    return this.getStorage().deleteEnvironment(pathname, name, envUid);
   }
 
   async updateEnvironment(environmentUid, data) {
     return this.getStorage().updateEnvironment(environmentUid, data, this.getState);
   }
 
-  async deleteEnvironment(environmentUid, collectionUid) {
+  async deleteCollectionEnvironment(environmentUid, collectionUid) {
     return this.getStorage().deleteEnvironment(environmentUid, collectionUid, this.getState);
   }
 
@@ -180,10 +192,10 @@ class StorageManager {
     return this.getStorage().saveEnvironment(collectionPathnameOrUid, environmentData);
   }
 
-  async updateEnvironmentColor(collectionPathnameOrUid, environmentName, color) {
+  async updateEnvironmentColor(collectionPathnameOrUid, environmentName, color, environmentUid) {
     const mode = this.getMode();
     console.log(`StorageManager.updateEnvironmentColor: routing to ${mode} storage`);
-    return this.getStorage().updateEnvironmentColor(collectionPathnameOrUid, environmentName, color);
+    return this.getStorage().updateEnvironmentColor(collectionPathnameOrUid, environmentName, color, environmentUid);
   }
 
   async saveCollectionRoot(collectionPathnameOrUid, collectionRootData, brunoConfig) {
@@ -204,12 +216,6 @@ class StorageManager {
     return this.getStorage().openCollection(options);
   }
 
-  async importCollection(collection, collectionLocation, format) {
-    const mode = this.getMode();
-    console.log(`StorageManager.importCollection: routing to ${mode} storage`);
-    return this.getStorage().importCollection(collection, collectionLocation, format);
-  }
-
   async importCollectionZip(zipFilePath, collectionLocation) {
     const mode = this.getMode();
     console.log(`StorageManager.importCollectionZip: routing to ${mode} storage`);
@@ -223,12 +229,24 @@ class StorageManager {
   }
 
   async getCollectionSecurityConfig(pathnameOrUid) {
+    // Scratch/transient collections are always local-only, regardless of auth state
+    if (this.isLocalOnlyResource(pathnameOrUid)) {
+      console.log('StorageManager.getCollectionSecurityConfig: routing to local storage (scratch/transient)');
+      return this.localStorage.getCollectionSecurityConfig(pathnameOrUid);
+    }
+
     const mode = this.getMode();
     console.log(`StorageManager.getCollectionSecurityConfig: routing to ${mode} storage`);
     return this.getStorage().getCollectionSecurityConfig(pathnameOrUid);
   }
 
   async getCollectionWorkspaces(collectionPathnameOrUid) {
+    // Scratch/transient collections are always local-only
+    if (this.isLocalOnlyResource(collectionPathnameOrUid)) {
+      console.log('StorageManager.getCollectionWorkspaces: routing to local storage (scratch/transient)');
+      return this.localStorage.getCollectionWorkspaces(collectionPathnameOrUid);
+    }
+
     const mode = this.getMode();
     console.log(`StorageManager.getCollectionWorkspaces: routing to ${mode} storage`);
     return this.getStorage().getCollectionWorkspaces(collectionPathnameOrUid);
@@ -323,18 +341,7 @@ class StorageManager {
     return this.getStorage().runCollectionFolder(collectionUid, folderUid, itemsToRun, options);
   }
 
-  // Environment operations
-  async createEnvironment(pathname, name, variables, color) {
-    const mode = this.getMode();
-    console.log(`StorageManager.createEnvironment: routing to ${mode} storage`);
-    return this.getStorage().createEnvironment(pathname, name, variables, color);
-  }
-
-  async deleteEnvironment(pathname, name) {
-    const mode = this.getMode();
-    console.log(`StorageManager.deleteEnvironment: routing to ${mode} storage`);
-    return this.getStorage().deleteEnvironment(pathname, name);
-  }
+  // Legacy environment operations removed - use createCollectionEnvironment or createWorkspaceEnvironment instead
 
   // Variable operations
   async updateVariableInFile(pathname, variable, scopeType, collectionRoot, format) {
@@ -358,6 +365,12 @@ class StorageManager {
   }
 
   async saveCollectionSecurityConfig(pathname, securityConfig) {
+    // Scratch/transient collections are always local-only
+    if (this.isLocalOnlyResource(pathname)) {
+      console.log('StorageManager.saveCollectionSecurityConfig: routing to local storage (scratch/transient)');
+      return this.localStorage.saveCollectionSecurityConfig(pathname, securityConfig);
+    }
+
     const mode = this.getMode();
     console.log(`StorageManager.saveCollectionSecurityConfig: routing to ${mode} storage`);
     return this.getStorage().saveCollectionSecurityConfig(pathname, securityConfig);
@@ -519,9 +532,10 @@ class StorageManager {
   }
 
   // Workspace operations (always local - filesystem operations)
-  async createWorkspace(workspaceName, workspacePath) {
-    console.log('StorageManager.createWorkspace: always local');
-    return this.localStorage.createWorkspace(workspaceName, workspacePath);
+  async createWorkspace(workspaceName, workspaceFolderName, workspaceLocation) {
+    const mode = this.getMode();
+    console.log(`StorageManager.createWorkspace: routing to ${mode} storage`);
+    return this.getStorage().createWorkspace(workspaceName, workspaceFolderName, workspaceLocation);
   }
 
   async openWorkspace(workspacePath) {
@@ -549,9 +563,10 @@ class StorageManager {
     return this.localStorage.openApiSpecFile(apiSpecPath, workspacePath);
   }
 
-  async getGlobalEnvironments(workspacePath) {
-    console.log('StorageManager.getGlobalEnvironments: always local');
-    return this.localStorage.getGlobalEnvironments(workspacePath);
+  async getGlobalEnvironments(params) {
+    const mode = this.getMode();
+    console.log(`StorageManager.getGlobalEnvironments: routing to ${mode} storage`);
+    return this.getStorage().getGlobalEnvironments(params);
   }
 
   async loadWorkspaceCollections(workspacePath) {
@@ -575,13 +590,20 @@ class StorageManager {
   }
 
   async renameWorkspace(...args) {
-    console.log('StorageManager.renameWorkspace: always local');
-    return this.localStorage.renameWorkspace(...args);
+    const mode = this.getMode();
+    console.log(`StorageManager.renameWorkspace: routing to ${mode} storage`);
+    return this.getStorage().renameWorkspace(...args);
   }
 
   async closeWorkspace(workspacePath) {
-    console.log('StorageManager.closeWorkspace: always local');
-    return this.localStorage.closeWorkspace(workspacePath);
+    const mode = this.getMode();
+    console.log(`StorageManager.closeWorkspace: routing to ${mode} storage`);
+    return this.getStorage().closeWorkspace(workspacePath);
+  }
+
+  async deleteCloudWorkspace(workspaceUid) {
+    console.log('StorageManager.deleteCloudWorkspace: routing to cloud storage');
+    return this.cloudStorage.deleteCloudWorkspace(workspaceUid);
   }
 
   async loadWorkspaceEnvironments(workspacePath) {
@@ -670,33 +692,39 @@ class StorageManager {
   }
 
   async createGlobalEnvironment(params) {
-    console.log('StorageManager.createGlobalEnvironment: always local');
-    return this.localStorage.createGlobalEnvironment(params);
+    const mode = this.getMode();
+    console.log(`StorageManager.createGlobalEnvironment: routing to ${mode} storage`);
+    return this.getStorage().createGlobalEnvironment(params);
   }
 
   async renameGlobalEnvironment(params) {
-    console.log('StorageManager.renameGlobalEnvironment: always local');
-    return this.localStorage.renameGlobalEnvironment(params);
+    const mode = this.getMode();
+    console.log(`StorageManager.renameGlobalEnvironment: routing to ${mode} storage`);
+    return this.getStorage().renameGlobalEnvironment(params);
   }
 
   async saveGlobalEnvironment(params) {
-    console.log('StorageManager.saveGlobalEnvironment: always local');
-    return this.localStorage.saveGlobalEnvironment(params);
+    const mode = this.getMode();
+    console.log(`StorageManager.saveGlobalEnvironment: routing to ${mode} storage`);
+    return this.getStorage().saveGlobalEnvironment(params);
   }
 
   async updateGlobalEnvironmentColor(params) {
-    console.log('StorageManager.updateGlobalEnvironmentColor: always local');
-    return this.localStorage.updateGlobalEnvironmentColor(params);
+    const mode = this.getMode();
+    console.log(`StorageManager.updateGlobalEnvironmentColor: routing to ${mode} storage`);
+    return this.getStorage().updateGlobalEnvironmentColor(params);
   }
 
   async selectGlobalEnvironment(params) {
-    console.log('StorageManager.selectGlobalEnvironment: always local');
-    return this.localStorage.selectGlobalEnvironment(params);
+    const mode = this.getMode();
+    console.log(`StorageManager.selectGlobalEnvironment: routing to ${mode} storage`);
+    return this.getStorage().selectGlobalEnvironment(params);
   }
 
   async deleteGlobalEnvironment(params) {
-    console.log('StorageManager.deleteGlobalEnvironment: always local');
-    return this.localStorage.deleteGlobalEnvironment(params);
+    const mode = this.getMode();
+    console.log(`StorageManager.deleteGlobalEnvironment: routing to ${mode} storage`);
+    return this.getStorage().deleteGlobalEnvironment(params);
   }
 
   async updateUiStateSnapshot(params) {
@@ -725,8 +753,9 @@ class StorageManager {
   }
 
   async saveTransientRequest(params) {
-    console.log('StorageManager.saveTransientRequest: always local');
-    return this.localStorage.saveTransientRequest(params);
+    const mode = this.getMode();
+    console.log(`StorageManager.saveTransientRequest: routing to ${mode} storage`);
+    return this.getStorage().saveTransientRequest(params);
   }
 
   async ensureCollectionsFolder(workspacePath) {
@@ -799,6 +828,25 @@ class StorageManager {
    */
   isCloudCollection(collection) {
     return collection?.isCloud === true || collection?.pathname?.startsWith('cloud://');
+  }
+
+  /**
+   * Check if a pathname/uid represents a local-only resource
+   * (e.g., scratch collections, temp directories)
+   */
+  isLocalOnlyResource(pathnameOrUid) {
+    // If it's a filesystem path (not a UUID and not cloud://), it's local-only
+    if (typeof pathnameOrUid === 'string') {
+      // Cloud resources start with 'cloud://'
+      if (pathnameOrUid.startsWith('cloud://')) {
+        return false;
+      }
+      // Paths with slashes or backslashes are filesystem paths
+      if (pathnameOrUid.includes('/') || pathnameOrUid.includes('\\')) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 

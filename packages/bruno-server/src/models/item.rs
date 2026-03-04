@@ -3,6 +3,12 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Generate a 21-character alphanumeric client ID compatible with the frontend's
+/// nanoid-based `uid` format (satisfies `uidSchema` Yup validation).
+pub fn generate_client_id() -> String {
+    uuid::Uuid::new_v4().simple().to_string()[..21].to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum ItemType {
@@ -123,6 +129,9 @@ pub struct Settings {
 pub struct Item {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
+    /// Client-facing UID (21-char alphanumeric, nanoid-compatible). Used by the
+    /// frontend as the item `uid` — avoids any coupling to MongoDB ObjectIDs.
+    pub client_id: String,
     #[serde(rename = "type")]
     pub item_type: ItemType,
     pub name: String,
@@ -160,6 +169,7 @@ impl Item {
         let now = Utc::now();
         Self {
             id: None,
+            client_id: generate_client_id(),
             item_type: ItemType::Folder,
             name,
             collection_id,
@@ -229,6 +239,7 @@ impl Item {
 
         Self {
             id: None,
+            client_id: generate_client_id(),
             item_type: ItemType::Request,
             name,
             collection_id,
@@ -258,6 +269,9 @@ impl Item {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemResponse {
     pub id: String,
+    /// Client-facing UID (21-char alphanumeric). The frontend uses this as the
+    /// item `uid` — it satisfies the Yup `uidSchema` without any special casing.
+    pub client_id: String,
     #[serde(rename = "type")]
     pub item_type: ItemType,
     pub name: String,
@@ -278,6 +292,7 @@ impl From<Item> for ItemResponse {
     fn from(i: Item) -> Self {
         Self {
             id: i.id.unwrap_or_default().to_hex(),
+            client_id: i.client_id,
             item_type: i.item_type,
             name: i.name,
             collection_id: i.collection_id.to_hex(),

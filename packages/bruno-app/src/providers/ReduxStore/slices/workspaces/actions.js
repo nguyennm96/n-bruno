@@ -62,7 +62,8 @@ export const createWorkspaceAction = (workspaceName, workspaceFolderName, worksp
       dispatch(createWorkspace({
         uid: workspaceUid,
         name: workspaceName,
-        pathname: workspacePath,
+        pathname: workspacePath || null,
+        isCloud: workspaceConfig?.isCloud || false,
         ...workspaceConfig
       }));
 
@@ -242,6 +243,85 @@ export const switchWorkspace = (workspaceUid) => {
     const workspace = getState().workspaces.workspaces.find((w) => w.uid === workspaceUid);
 
     if (!workspace) {
+      return;
+    }
+
+    // Cloud workspaces don't use local filesystem — skip scratch collection and local collection loading
+    if (workspace.isCloud) {
+      console.log(`☁️  [switchWorkspace] Cloud workspace "${workspace.name}" — loading cloud data`);
+
+      // Clear collections belonging to other workspaces from Redux
+      dispatch({ type: 'collections/clearAllCollections' });
+
+      // Load global environments for this workspace
+      try {
+        const result = await storage.getGlobalEnvironments({ workspaceUid: workspaceUid });
+        dispatch(updateGlobalEnvironments({
+          globalEnvironments: result?.globalEnvironments || [],
+          activeGlobalEnvironmentUid: result?.activeGlobalEnvironmentUid || null
+        }));
+      } catch (e) {
+        dispatch(updateGlobalEnvironments({ globalEnvironments: [], activeGlobalEnvironmentUid: null }));
+      }
+
+      // Load collections for the new workspace
+      try {
+        const { transformCloudItemToLocal, transformCloudEnvironmentToLocal } = await import('utils/storage/transform');
+        const { createCollection: _createCollection } = await import('../collections');
+        const brunoApi = window.__BRUNO_API__;
+
+        if (brunoApi) {
+          const collections = await brunoApi.collections.getCollectionsTreeByWorkspace(workspaceUid);
+          for (const collection of collections) {
+            const items = (collection.items || []).map((item) => transformCloudItemToLocal(item, collection.id));
+            let environments = [];
+            try {
+              const rawEnvs = await brunoApi.environments.listCollectionEnvironments(collection.id);
+              environments = rawEnvs.map(transformCloudEnvironmentToLocal);
+            } catch {}
+            dispatch(_createCollection({
+              uid: collection.id,
+              name: collection.name,
+              pathname: `cloud://${collection.id}`,
+              items,
+              environments,
+              version: '1',
+              isCloud: true,
+              workspaceId: workspaceUid,
+              brunoConfig: collection.bruno_config || {},
+              root: collection.root || {},
+              runtimeVariables: {},
+              mountStatus: 'unmounted'
+            }));
+            dispatch(addCollectionToWorkspace({
+              workspaceUid,
+              collection: { uid: collection.id, name: collection.name, path: `cloud://${collection.id}` }
+            }));
+          }
+        }
+      } catch (e) {
+        console.error('❌ [switchWorkspace] Failed to load cloud collections:', e?.message);
+      }
+
+      // Restore cloud drafts for this workspace
+      try {
+        const { getAllDrafts } = await import('utils/storage/cloudDrafts');
+        const { newItem: _newItem } = await import('../collections');
+        const drafts = getAllDrafts();
+        for (const draft of drafts) {
+          if (draft.collectionUid) {
+            const state = getState();
+            const collExists = state.collections.collections.find((c) => c.uid === draft.collectionUid);
+            if (collExists) {
+              dispatch(_newItem({ collectionUid: draft.collectionUid, currentItemUid: null, item: draft }));
+            }
+          }
+        }
+      } catch {}
+
+      const overviewTabUid = `${workspaceUid}-overview`;
+      dispatch(addTab({ uid: overviewTabUid, collectionUid: workspaceUid, type: 'workspaceOverview' }));
+      dispatch(focusTab({ uid: overviewTabUid }));
       return;
     }
 
@@ -509,9 +589,13 @@ export const renameWorkspaceAction = (workspaceUid, newName) => {
         throw new Error('Workspace not found');
       }
 
-      await handleWorkspaceAction((...args) => storage.renameWorkspace(...args),
-        workspace.pathname,
-        newName);
+      if (workspace.isCloud) {
+        await storage.renameWorkspace(workspaceUid, newName);
+      } else {
+        await handleWorkspaceAction((...args) => storage.renameWorkspace(...args),
+          workspace.pathname,
+          newName);
+      }
 
       dispatch(updateWorkspace({
         uid: workspaceUid,
@@ -533,7 +617,11 @@ export const closeWorkspaceAction = (workspaceUid) => {
         throw new Error('Workspace not found');
       }
 
-      await storage.closeWorkspace(workspace.pathname);
+      if (workspace.isCloud) {
+        await storage.deleteCloudWorkspace(workspaceUid);
+      } else {
+        await storage.closeWorkspace(workspace.pathname);
+      }
       dispatch(removeWorkspace(workspaceUid));
     } catch (error) {
       toast.error(error.message || 'Failed to close workspace');
@@ -548,6 +636,22 @@ export const importCollectionInWorkspace = (collection, workspaceUid, collection
 
     if (!currentWorkspace) {
       throw new Error('Workspace not found');
+    }
+
+    // Cloud mode: import into cloud workspace (no filesystem paths)
+    if (currentWorkspace.isCloud) {
+      const transformedCollection = await transformCollection(collection, type);
+      const result = await storage.importCollection(transformedCollection, null, {});
+      if (result) {
+        const collectionUid = result.id || result.uid;
+        const collectionName = result.name || transformedCollection.name;
+        dispatch(createCollection(collectionName, { workspaceUid, collectionUid, isCloud: true }));
+        dispatch(addCollectionToWorkspace({
+          workspaceUid,
+          collection: { uid: collectionUid, name: collectionName, path: `cloud://${collectionUid}` }
+        }));
+      }
+      return result;
     }
 
     const location = collectionLocation || path.join(currentWorkspace.pathname, 'collections');

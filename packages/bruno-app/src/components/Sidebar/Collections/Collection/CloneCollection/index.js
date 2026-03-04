@@ -23,6 +23,7 @@ const CloneCollection = ({ onClose, collectionUid }) => {
   const workspaces = useSelector((state) => state.workspaces?.workspaces || []);
   const workspaceUid = useSelector((state) => state.workspaces?.activeWorkspaceUid);
   const activeWorkspace = workspaces.find((w) => w.uid === workspaceUid);
+  const isCloudMode = activeWorkspace?.isCloud === true;
   const isDefaultWorkspace = activeWorkspace?.type === 'default';
 
   const defaultLocation = isDefaultWorkspace
@@ -35,7 +36,7 @@ const CloneCollection = ({ onClose, collectionUid }) => {
     initialValues: {
       collectionName: `${name} copy`,
       collectionFolderName: `${sanitizeName(name)} copy`,
-      collectionLocation: defaultLocation
+      collectionLocation: isCloudMode ? 'cloud' : defaultLocation
     },
     validationSchema: Yup.object({
       collectionName: Yup.string()
@@ -50,7 +51,9 @@ const CloneCollection = ({ onClose, collectionUid }) => {
           return isValid ? true : this.createError({ message: validateNameError(value) });
         })
         .required('folder name is required'),
-      collectionLocation: Yup.string().min(1, 'location is required').required('location is required')
+      collectionLocation: isCloudMode
+        ? Yup.string()
+        : Yup.string().min(1, 'location is required').required('location is required')
     }),
     onSubmit: (values) => {
       dispatch(
@@ -118,88 +121,92 @@ const CloneCollection = ({ onClose, collectionUid }) => {
             <div className="text-red-500">{formik.errors.collectionName}</div>
           ) : null}
 
-          <label htmlFor="collection-location" className="block font-medium mt-3">
-            Location
-          </label>
-          <input
-            id="collection-location"
-            type="text"
-            name="collectionLocation"
-            readOnly={true}
-            className="block textbox mt-2 w-full cursor-pointer"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-            value={formik.values.collectionLocation || ''}
-            onClick={browse}
-          />
-          {formik.touched.collectionLocation && formik.errors.collectionLocation ? (
-            <div className="text-red-500">{formik.errors.collectionLocation}</div>
-          ) : null}
-          <div className="mt-1">
-            <span
-              className="text-link cursor-pointer hover:underline"
-              onClick={browse}
-            >
-              Browse
-            </span>
-          </div>
-
-          <div className="mt-4">
-            <div className="flex items-center justify-between">
-              <label htmlFor="filename" className="flex items-center font-medium">
-                Folder Name
-                <Help width="300">
-                  <p>
-                    The name of the folder used to store the collection.
-                  </p>
-                  <p className="mt-2">
-                    You can choose a folder name different from your collection's name or one compatible with filesystem rules.
-                  </p>
-                </Help>
+          {!isCloudMode && (
+            <>
+              <label htmlFor="collection-location" className="block font-medium mt-3">
+                Location
               </label>
-              {isEditing ? (
-                <IconArrowBackUp
-                  className="cursor-pointer opacity-50 hover:opacity-80"
-                  size={16}
-                  strokeWidth={1.5}
-                  onClick={() => toggleEditing(false)}
-                />
-              ) : (
-                <IconEdit
-                  className="cursor-pointer opacity-50 hover:opacity-80"
-                  size={16}
-                  strokeWidth={1.5}
-                  onClick={() => toggleEditing(true)}
-                />
-              )}
-            </div>
-            {isEditing ? (
               <input
-                id="collection-folder-name"
+                id="collection-location"
                 type="text"
-                name="collectionFolderName"
-                className="block textbox mt-2 w-full"
-                onChange={formik.handleChange}
+                name="collectionLocation"
+                readOnly={true}
+                className="block textbox mt-2 w-full cursor-pointer"
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck="false"
-                value={formik.values.collectionFolderName || ''}
+                value={formik.values.collectionLocation || ''}
+                onClick={browse}
               />
-            ) : (
-              <div className="relative flex flex-row gap-1 items-center justify-between">
-                <PathDisplay
-                  baseName={formik.values.collectionFolderName}
-                />
+              {formik.touched.collectionLocation && formik.errors.collectionLocation ? (
+                <div className="text-red-500">{formik.errors.collectionLocation}</div>
+              ) : null}
+              <div className="mt-1">
+                <span
+                  className="text-link cursor-pointer hover:underline"
+                  onClick={browse}
+                >
+                  Browse
+                </span>
               </div>
-            )}
 
-            {formik.touched.collectionFolderName && formik.errors.collectionFolderName ? (
-              <div className="text-red-500">{formik.errors.collectionFolderName}</div>
-            ) : null}
-          </div>
+              <div className="mt-4">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="filename" className="flex items-center font-medium">
+                    Folder Name
+                    <Help width="300">
+                      <p>
+                        The name of the folder used to store the collection.
+                      </p>
+                      <p className="mt-2">
+                        You can choose a folder name different from your collection's name or one compatible with filesystem rules.
+                      </p>
+                    </Help>
+                  </label>
+                  {isEditing ? (
+                    <IconArrowBackUp
+                      className="cursor-pointer opacity-50 hover:opacity-80"
+                      size={16}
+                      strokeWidth={1.5}
+                      onClick={() => toggleEditing(false)}
+                    />
+                  ) : (
+                    <IconEdit
+                      className="cursor-pointer opacity-50 hover:opacity-80"
+                      size={16}
+                      strokeWidth={1.5}
+                      onClick={() => toggleEditing(true)}
+                    />
+                  )}
+                </div>
+                {isEditing ? (
+                  <input
+                    id="collection-folder-name"
+                    type="text"
+                    name="collectionFolderName"
+                    className="block textbox mt-2 w-full"
+                    onChange={formik.handleChange}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
+                    value={formik.values.collectionFolderName || ''}
+                  />
+                ) : (
+                  <div className="relative flex flex-row gap-1 items-center justify-between">
+                    <PathDisplay
+                      baseName={formik.values.collectionFolderName}
+                    />
+                  </div>
+                )}
+
+                {formik.touched.collectionFolderName && formik.errors.collectionFolderName ? (
+                  <div className="text-red-500">{formik.errors.collectionFolderName}</div>
+                ) : null}
+              </div>
+            </>
+          )}
         </div>
       </form>
     </Modal>

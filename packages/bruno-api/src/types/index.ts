@@ -70,6 +70,11 @@ export interface WorkspaceCreateRequest {
   description?: string;
 }
 
+export interface WorkspaceUpdateRequest {
+  name?: string;
+  description?: string;
+}
+
 export interface WorkspaceListResponse {
   data: Workspace[];
 }
@@ -101,6 +106,30 @@ export interface Collection {
   description?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface CollectionCreateRequest {
+  name: string;
+  description?: string | null;
+}
+
+export interface CollectionUpdateRequest {
+  name?: string;
+  description?: string | null;
+  bruno_config?: any;
+  root?: any;
+}
+
+export interface CloneCollectionRequest {
+  name: string;
+  target_workspace_id?: string;
+}
+
+export interface ResequenceItemsRequest {
+  items: Array<{
+    id: string;
+    sort_order: number;
+  }>;
 }
 
 export interface CollectionItem {
@@ -138,6 +167,35 @@ export interface CollectionItemUpdateRequest {
   headers?: Record<string, string>;
   body?: any;
   seq?: number;
+}
+
+// Environment types
+export interface EnvVariable {
+  key: string;
+  value: string;
+  enabled: boolean;
+}
+
+export interface Environment {
+  id: string;
+  name: string;
+  workspace_id?: string;
+  collection_id?: string;
+  variables: EnvVariable[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EnvironmentCreateRequest {
+  name: string;
+  variables: EnvVariable[];
+  color?: string | null;
+}
+
+export interface EnvironmentUpdateRequest {
+  name?: string;
+  variables?: EnvVariable[];
+  color?: string | null;
 }
 
 // Generic API response wrapper

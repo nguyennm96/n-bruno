@@ -19,4 +19,12 @@ export declare class EnvironmentService {
      * Delete an environment
      */
     deleteEnvironment(environmentId: string): Promise<void>;
+    /**
+     * Create a new environment for a specific collection
+     */
+    createCollectionEnvironment(collectionId: string, data: EnvironmentCreateRequest): Promise<Environment>;
+    /**
+     * List all environments for a collection
+     */
+    listCollectionEnvironments(collectionId: string): Promise<Environment[]>;
 }

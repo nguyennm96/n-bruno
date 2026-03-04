@@ -1314,7 +1314,7 @@ const mergeVars = (collection, requestTreePath = []) => {
   let folderVariables = {};
   let requestVariables = {};
   const collectionRoot = collection?.draft?.root || collection?.root || {};
-  let collectionRequestVars = get(collectionRoot, 'request.vars.req', []);
+  let collectionRequestVars = get(collectionRoot, 'request.vars.req', []) || [];
   collectionRequestVars.forEach((_var) => {
     if (_var.enabled) {
       collectionVariables[_var.name] = _var.value;
@@ -1328,14 +1328,14 @@ const mergeVars = (collection, requestTreePath = []) => {
     if (i.type === 'folder') {
       // Check draft first, then fall back to root
       const folderRoot = i.draft || i.root;
-      let vars = get(folderRoot, 'request.vars.req', []);
+      let vars = get(folderRoot, 'request.vars.req', []) || [];
       vars.forEach((_var) => {
         if (_var.enabled) {
           folderVariables[_var.name] = _var.value;
         }
       });
     } else {
-      let vars = i.draft ? get(i, 'draft.request.vars.req', []) : get(i, 'request.vars.req', []);
+      let vars = i.draft ? get(i, 'draft.request.vars.req', []) || [] : get(i, 'request.vars.req', []) || [];
       vars.forEach((_var) => {
         if (_var.enabled) {
           requestVariables[_var.name] = _var.value;
@@ -1438,10 +1438,7 @@ export const getReorderedItemsInSourceDirectory = ({ items }) => {
   );
 };
 
-export const calculateDraggedItemNewPathname = ({ draggedItem, targetItem, dropType, collectionPathname }) => {
-  // Handle cloud mode - items don't have pathname/filename
-  const isCloudMode = !draggedItem.pathname && draggedItem.uid;
-
+export const calculateDraggedItemNewPathname = ({ draggedItem, targetItem, dropType, collectionPathname, isCloudMode }) => {
   if (isCloudMode) {
     // In cloud mode, we return the target parent's uid or null for root
     const isTargetItemAFolder = isItemAFolder(targetItem);

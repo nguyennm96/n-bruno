@@ -184,12 +184,13 @@ impl PostmanService {
                     }
                 }
 
-                // Map body
+                // Map body (serialize to JSON Value for backward compatibility)
                 if let Some(body) = &req.body {
-                    item.body = Some(crate::models::item::RequestBody {
-                        body_type: Some(body.mode.clone()),
-                        content: body.raw.clone(),
+                    let body_json = serde_json::json!({
+                        "mode": body.mode,
+                        "raw": body.raw,
                     });
+                    item.body = Some(body_json);
                 }
 
                 let res = self.items.insert_one(&item).await.map_err(AppError::from)?;
@@ -310,16 +311,26 @@ impl PostmanService {
                     }).collect())
                     .unwrap_or_default();
 
-                let pm_body = item.body.as_ref().map(|b| PostmanBody {
-                    mode: b.body_type.clone().unwrap_or_else(|| "raw".to_string()),
-                    raw: b.content.clone(),
-                    options: b.body_type.as_deref().map(|t| PostmanBodyOptions {
-                        raw: Some(PostmanBodyRawOptions {
-                            language: Some(if t == "json" { "json" } else { "text" }.to_string()),
+                let pm_body = item.body.as_ref().map(|b| {
+                    let mode = b.get("mode")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("raw")
+                        .to_string();
+                    let raw = b.get("raw")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    PostmanBody {
+                        mode: mode.clone(),
+                        raw,
+                        options: Some(PostmanBodyOptions {
+                            raw: Some(PostmanBodyRawOptions {
+                                language: Some(if mode == "json" { "json" } else { "text" }.to_string()),
+                            }),
                         }),
-                    }),
-                    urlencoded: None,
-                    formdata: None,
+                        urlencoded: None,
+                        formdata: None,
+                    }
                 });
 
                 // Map examples

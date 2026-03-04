@@ -54,6 +54,9 @@ export const initializeBrunoCloudApi = (store) => {
   // Initialize auth slice with API instance
   initializeAuthSlice(brunoApiInstance);
 
+  // Make API instance globally available for cloud.js
+  window.__BRUNO_API__ = brunoApiInstance;
+
   return brunoApiInstance;
 };
 

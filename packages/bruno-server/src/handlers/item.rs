@@ -11,7 +11,7 @@ use crate::{
     errors::AppResult,
     middleware::extract_user_id,
     models::{
-        item::{Request, RequestBody, Settings},
+        item::{Request, Settings},
         token::Claims
     },
     state::AppState,
@@ -43,21 +43,20 @@ pub struct CreateRequestBody {
 #[derive(Debug, Deserialize)]
 pub struct UpdateItemRequest {
     pub name: Option<String>,
-    
-    // NEW: Accept nested request object
     pub request: Option<Request>,
     pub settings: Option<Settings>,
-    
-    // OLD: Keep backward compatibility
-    pub method: Option<String>,
-    pub url: Option<String>,
-    pub body: Option<RequestBody>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct MoveItemRequest {
     pub parent_item_id: Option<String>,
     pub sort_order: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CloneItemRequest {
+    pub name: String,
+    pub parent_item_id: Option<String>,
 }
 
 pub async fn create_folder(
@@ -138,7 +137,7 @@ pub async fn update_item(
     JsonBody(body): JsonBody<UpdateItemRequest>,
 ) -> AppResult<Json<Value>> {
     let user_id = extract_user_id(&claims)?;
-    let item = state.item_service.update(&item_id, user_id, body.name, body.method, body.url, body.body).await?;
+    let item = state.item_service.update(&item_id, user_id, body.name, body.request, body.settings).await?;
     Ok(Json(json!({ "data": item })))
 }
 
@@ -161,4 +160,15 @@ pub async fn move_item(
     let user_id = extract_user_id(&claims)?;
     let item = state.item_service.move_item(&item_id, user_id, body.parent_item_id, body.sort_order).await?;
     Ok(Json(json!({ "data": item })))
+}
+
+pub async fn clone_item(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(item_id): Path<String>,
+    JsonBody(body): JsonBody<CloneItemRequest>,
+) -> AppResult<(StatusCode, Json<Value>)> {
+    let user_id = extract_user_id(&claims)?;
+    let cloned = state.item_service.clone_item(&item_id, user_id, body.name, body.parent_item_id).await?;
+    Ok((StatusCode::CREATED, Json(json!({ "data": cloned }))))
 }
