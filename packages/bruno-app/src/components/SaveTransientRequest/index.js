@@ -8,6 +8,7 @@ import PathDisplay from 'components/PathDisplay/index';
 import Help from 'components/Help';
 import filter from 'lodash/filter';
 import toast from 'react-hot-toast';
+import { storage } from 'utils/storage';
 import StyledWrapper from './StyledWrapper';
 import CollectionListItem from './CollectionListItem';
 import FolderBreadcrumbs from './FolderBreadcrumbs';
@@ -179,8 +180,6 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
     const targetCollection = selectedTargetCollection || collection;
 
     try {
-      const { ipcRenderer } = window;
-
       const selectedFolder = getCurrentSelectedFolder();
       const targetDirname = selectedFolder ? selectedFolder.pathname : targetCollection.pathname;
 
@@ -209,7 +208,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
       const targetFilename = resolveRequestFilename(sanitizedFilename, targetFormat);
       const targetPathname = path.join(targetDirname, targetFilename);
 
-      await ipcRenderer.invoke('renderer:save-transient-request', {
+      await storage.saveTransientRequest({
         sourcePathname: item.pathname,
         targetDirname,
         targetFilename,

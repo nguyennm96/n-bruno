@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { IconFileImport } from '@tabler/icons';
 import { toastError } from 'utils/common/error';
 import jsyaml from 'js-yaml';
+import { storage } from 'utils/storage';
 import { isPostmanCollection } from 'utils/importers/postman-collection';
 import { isInsomniaCollection } from 'utils/importers/insomnia-collection';
 import { isOpenApiSpec } from 'utils/importers/openapi-collection';
@@ -76,7 +77,7 @@ const FileTab = ({
     setIsLoading(true);
     try {
       const filePath = window.ipcRenderer.getFilePath(zipFile);
-      const isBrunoZip = await window.ipcRenderer.invoke('renderer:is-bruno-collection-zip', filePath);
+      const isBrunoZip = await storage.isBrunoCollectionZip(filePath);
 
       if (isBrunoZip) {
         const collectionName = zipFile.name.replace(/\.zip$/i, '');

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import Modal from 'components/Modal';
 import Button from 'ui/Button';
 import { IconCheck, IconAlertTriangle, IconFileExport } from '@tabler/icons';
+import { storage } from 'utils/storage';
 import StyledWrapper from './StyledWrapper';
 import exportPostmanCollection from 'utils/exporters/postman-collection';
 import exportOpenCollection from 'utils/exporters/opencollection';
@@ -47,8 +48,7 @@ const ShareCollection = ({ onClose, collectionUid }) => {
 
   const handleExportZip = async () => {
     try {
-      const { ipcRenderer } = window;
-      const result = await ipcRenderer.invoke('renderer:export-collection-zip', collection.pathname, collection.name);
+      const result = await storage.exportCollectionZip(collection.pathname, collection.name);
       if (result.success) {
         toast.success('Collection exported successfully');
       }

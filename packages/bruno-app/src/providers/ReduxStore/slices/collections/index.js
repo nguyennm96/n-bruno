@@ -24,6 +24,7 @@ import mime from 'mime-types';
 import path from 'utils/common/path';
 import { getUniqueTagsFromItems } from 'utils/collections/index';
 import * as exampleReducers from './exampleReducers';
+import { storage } from 'utils/storage';
 
 // gRPC status code meanings
 const grpcStatusCodes = {
@@ -3137,9 +3138,8 @@ export const collectionsSlice = createSlice({
             if (lastAction.payload === environment.name) {
               collection.activeEnvironmentUid = environment.uid;
               // Persist the selection to the UI state snapshot
-              const { ipcRenderer } = window;
-              if (ipcRenderer) {
-                ipcRenderer.invoke('renderer:update-ui-state-snapshot', {
+              if (storage) {
+                storage.updateUiStateSnapshot({
                   type: 'COLLECTION_ENVIRONMENT',
                   data: { collectionPath: collection?.pathname, environmentName: environment.name }
                 });

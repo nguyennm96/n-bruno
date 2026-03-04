@@ -1439,8 +1439,33 @@ export const getReorderedItemsInSourceDirectory = ({ items }) => {
 };
 
 export const calculateDraggedItemNewPathname = ({ draggedItem, targetItem, dropType, collectionPathname }) => {
+  // Handle cloud mode - items don't have pathname/filename
+  const isCloudMode = !draggedItem.pathname && draggedItem.uid;
+
+  if (isCloudMode) {
+    // In cloud mode, we return the target parent's uid or null for root
+    const isTargetItemAFolder = isItemAFolder(targetItem);
+    const isTargetTheCollection = !targetItem.parent_item_id && !targetItem.pathname;
+
+    if (dropType === 'inside' && (isTargetItemAFolder || isTargetTheCollection)) {
+      // Moving inside a folder - return target uid
+      return targetItem.uid;
+    } else if (dropType === 'adjacent') {
+      // Moving adjacent to an item - return parent uid (or null for root)
+      return targetItem.parent_item_id || null;
+    }
+    return null;
+  }
+
+  // Local mode - use pathname
   const { pathname: targetItemPathname } = targetItem;
   const { filename: draggedItemFilename } = draggedItem;
+
+  if (!targetItemPathname || !draggedItemFilename) {
+    console.error('calculateDraggedItemNewPathname: Missing pathname or filename', { targetItem, draggedItem });
+    return null;
+  }
+
   const targetItemDirname = path.dirname(targetItemPathname);
   const isTargetTheCollection = targetItemPathname === collectionPathname;
   const isTargetItemAFolder = isItemAFolder(targetItem);

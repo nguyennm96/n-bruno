@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import toast from 'react-hot-toast';
+import { storage } from 'utils/storage';
 
 // Note: bruno-api will be imported after package is linked
 // For now, we'll setup the structure and integrate later
@@ -34,8 +35,8 @@ export const register = createAsyncThunk('auth/register', async ({ email, passwo
     const loginResponse = await brunoApi.auth.login({ email, password });
     const { access_token, refresh_token, user } = loginResponse.data;
 
-    // Save tokens to secure storage (via IPC)
-    await window.ipcRenderer.invoke('auth:save-tokens', {
+    // Save tokens to secure storage (via storage layer)
+    await storage.saveAuthTokens({
       accessToken: access_token,
       refreshToken: refresh_token
     });
@@ -77,7 +78,7 @@ export const login = createAsyncThunk('auth/login', async ({ email, password }, 
     const { access_token, refresh_token, user } = response.data;
 
     // Save tokens to secure storage
-    await window.ipcRenderer.invoke('auth:save-tokens', {
+    await storage.saveAuthTokens({
       accessToken: access_token,
       refreshToken: refresh_token
     });
@@ -121,7 +122,7 @@ export const logout = createAsyncThunk('auth/logout', async (_, { getState, disp
     }
 
     // Clear tokens from secure storage
-    await window.ipcRenderer.invoke('auth:clear-tokens');
+    await storage.clearAuthTokens();
 
     // Clear IndexedDB cache
     const { clearAllCache } = await import('utils/cache/indexedDB');
@@ -139,7 +140,7 @@ export const logout = createAsyncThunk('auth/logout', async (_, { getState, disp
     return null;
   } catch (error) {
     // Even if server logout fails, clear local tokens and cache
-    await window.ipcRenderer.invoke('auth:clear-tokens');
+    await storage.clearAuthTokens();
 
     const { clearAllCache } = await import('utils/cache/indexedDB');
     await clearAllCache();
@@ -177,7 +178,7 @@ export const refreshAccessToken = createAsyncThunk('auth/refresh', async (_, { g
     const { access_token, refresh_token } = response.data;
 
     // Save new tokens
-    await window.ipcRenderer.invoke('auth:save-tokens', {
+    await storage.saveAuthTokens({
       accessToken: access_token,
       refreshToken: refresh_token
     });
@@ -237,8 +238,8 @@ export const initializeCloudData = createAsyncThunk(
  */
 export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { dispatch, rejectWithValue }) => {
   try {
-    // Get tokens from secure storage
-    const tokens = await window.ipcRenderer.invoke('auth:get-tokens');
+    // Get tokens from secure storage (via storage layer)
+    const tokens = await storage.getAuthTokens();
 
     if (!tokens || !tokens.accessToken || !tokens.refreshToken) {
       return null; // No saved auth
@@ -265,8 +266,8 @@ export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { disp
       refreshToken: tokens.refreshToken
     };
   } catch (error) {
-    // Invalid tokens - clear them from storage AND API client
-    await window.ipcRenderer.invoke('auth:clear-tokens');
+    // Invalid tokens - clear them from storage AND API client (via storage layer)
+    await storage.clearAuthTokens();
     if (brunoApi?.client) {
       brunoApi.client.clearTokens();
     }

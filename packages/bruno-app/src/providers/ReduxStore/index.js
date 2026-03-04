@@ -20,6 +20,7 @@ import networkReducer from './slices/network';
 import syncQueueReducer from './slices/syncQueue';
 import { draftDetectMiddleware } from './middlewares/draft/middleware';
 import { autosaveMiddleware } from './middlewares/autosave/middleware';
+import { storage } from 'utils/storage';
 
 const isDevEnv = () => {
   return import.meta.env.MODE === 'development';
@@ -56,5 +57,19 @@ export const store = configureStore({
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(middleware)
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INITIALIZE STORAGE LAYER
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Inject Redux getState into storage manager for auth detection
+storage.setGetState(() => store.getState());
+
+// Make store globally accessible (for storage and debugging)
+if (typeof window !== 'undefined') {
+  window.__REDUX_STORE__ = store;
+  console.log('✅ Redux store initialized and exposed globally');
+  console.log(`📦 Storage mode: ${storage.getMode()}`);
+}
 
 export default store;

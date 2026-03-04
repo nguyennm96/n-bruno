@@ -2,6 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 import filter from 'lodash/filter';
 import brunoClipboard from 'utils/bruno-clipboard';
 import { addTab, focusTab } from './tabs';
+import { storage } from 'utils/storage';
 
 const initialState = {
   isDragging: false,
@@ -205,10 +206,8 @@ export const {
 
 export const savePreferences = (preferences) => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
-    ipcRenderer
-      .invoke('renderer:save-preferences', preferences)
+    console.log('Using unified storage layer for savePreferences');
+    storage.savePreferences(preferences)
       .then(() => dispatch(updatePreferences(preferences)))
       .then(resolve)
       .catch(reject);
@@ -217,53 +216,49 @@ export const savePreferences = (preferences) => (dispatch, getState) => {
 
 export const deleteCookiesForDomain = (domain) => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
-    ipcRenderer.invoke('renderer:delete-cookies-for-domain', domain).then(resolve).catch(reject);
+    console.log('Using unified storage layer for deleteCookiesForDomain');
+    storage.deleteCookiesForDomain(domain).then(resolve).catch(reject);
   });
 };
 
 export const deleteCookie = (domain, path, cookieKey) => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
-    ipcRenderer.invoke('renderer:delete-cookie', domain, path, cookieKey).then(resolve).catch(reject);
+    console.log('Using unified storage layer for deleteCookie');
+    storage.deleteCookie(domain, path, cookieKey).then(resolve).catch(reject);
   });
 };
 
 export const addCookie = (domain, cookie) => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
-    ipcRenderer.invoke('renderer:add-cookie', domain, cookie).then(resolve).catch(reject);
+    console.log('Using unified storage layer for addCookie');
+    storage.addCookie(domain, cookie).then(resolve).catch(reject);
   });
 };
 
 export const modifyCookie = (domain, oldCookie, cookie) => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
-    ipcRenderer.invoke('renderer:modify-cookie', domain, oldCookie, cookie).then(resolve).catch(reject);
+    console.log('Using unified storage layer for modifyCookie');
+    storage.modifyCookie(domain, oldCookie, cookie).then(resolve).catch(reject);
   });
 };
 
 export const getParsedCookie = (cookieStr) => () => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:get-parsed-cookie', cookieStr).then(resolve).catch(reject);
+    console.log('Using unified storage layer for getParsedCookie');
+    storage.getParsedCookie(cookieStr).then(resolve).catch(reject);
   });
 };
 
 export const createCookieString = (cookieObj) => () => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:create-cookie-string', cookieObj).then(resolve).catch(reject);
+    console.log('Using unified storage layer for createCookieString');
+    storage.createCookieString(cookieObj).then(resolve).catch(reject);
   });
 };
 
 export const completeQuitFlow = () => (dispatch, getState) => {
-  const { ipcRenderer } = window;
-  return ipcRenderer.invoke('main:complete-quit-flow');
+  console.log('Using unified storage layer for completeQuitFlow');
+  return storage.completeQuitFlow();
 };
 
 export const copyRequest = (item) => (dispatch, getState) => {
@@ -274,8 +269,8 @@ export const copyRequest = (item) => (dispatch, getState) => {
 
 export const getSystemProxyVariables = () => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:get-system-proxy-variables')
+    console.log('Using unified storage layer for getSystemProxyVariables');
+    storage.getSystemProxyVariables()
       .then((variables) => {
         dispatch(updateSystemProxyVariables(variables));
         return variables;
@@ -286,8 +281,8 @@ export const getSystemProxyVariables = () => (dispatch, getState) => {
 
 export const refreshSystemProxy = () => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:refresh-system-proxy')
+    console.log('Using unified storage layer for refreshSystemProxy');
+    storage.refreshSystemProxy()
       .then((variables) => {
         dispatch(updateSystemProxyVariables(variables));
         return variables;

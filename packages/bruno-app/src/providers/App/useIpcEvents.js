@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { storage } from 'utils/storage';
 import {
   updateCookies,
   updatePreferences,
@@ -159,7 +160,7 @@ const useIpcEvents = () => {
       }
     };
 
-    ipcRenderer.invoke('renderer:ready');
+    storage.appReady();
 
     const removeCollectionTreeUpdateListener = ipcRenderer.on('main:collection-tree-updated', _collectionTreeUpdated);
 
@@ -185,7 +186,7 @@ const useIpcEvents = () => {
       if (activeWorkspaceUid === workspaceUid) {
         const workspace = state.workspaces?.workspaces?.find((w) => w.uid === workspaceUid);
         if (workspace) {
-          ipcRenderer.invoke('renderer:get-global-environments', {
+          storage.getGlobalEnvironments({
             workspaceUid,
             workspacePath: workspace.pathname
           }).then((result) => {
@@ -203,7 +204,7 @@ const useIpcEvents = () => {
       if (activeWorkspaceUid === workspaceUid) {
         const workspace = state.workspaces?.workspaces?.find((w) => w.uid === workspaceUid);
         if (workspace) {
-          ipcRenderer.invoke('renderer:get-global-environments', {
+          storage.getGlobalEnvironments({
             workspaceUid,
             workspacePath: workspace.pathname
           }).then((result) => {
@@ -221,7 +222,7 @@ const useIpcEvents = () => {
       if (activeWorkspaceUid === workspaceUid) {
         const workspace = state.workspaces?.workspaces?.find((w) => w.uid === workspaceUid);
         if (workspace) {
-          ipcRenderer.invoke('renderer:get-global-environments', {
+          storage.getGlobalEnvironments({
             workspaceUid,
             workspacePath: workspace.pathname
           }).then((result) => {

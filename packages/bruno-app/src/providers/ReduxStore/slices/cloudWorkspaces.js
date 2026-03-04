@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import toast from 'react-hot-toast';
+import { storage } from 'utils/storage';
 
 // Note: bruno-api will be imported after package is linked
 let brunoApi = null;
@@ -148,8 +149,8 @@ export const linkCollection = createAsyncThunk(
   'workspaces/linkCollection',
   async ({ workspaceId, collectionPath, collectionName }, { rejectWithValue }) => {
     try {
-      // Save mapping to local storage via IPC
-      await window.ipcRenderer.invoke('workspace:save-link', {
+      // Save mapping to local storage via storage layer
+      await storage.saveWorkspaceLink({
         workspaceId,
         collectionPath,
         collectionName,
@@ -178,8 +179,8 @@ export const unlinkCollection = createAsyncThunk(
   'workspaces/unlinkCollection',
   async ({ collectionPath, collectionName }, { rejectWithValue }) => {
     try {
-      // Remove mapping from local storage via IPC
-      await window.ipcRenderer.invoke('workspace:remove-link', {
+      // Remove mapping from local storage via storage layer
+      await storage.removeWorkspaceLink({
         collectionPath
       });
 
@@ -199,8 +200,8 @@ export const unlinkCollection = createAsyncThunk(
  */
 export const loadSavedLinks = createAsyncThunk('workspaces/loadLinks', async (_, { rejectWithValue }) => {
   try {
-    // Get all linked collections from storage via IPC
-    const links = await window.ipcRenderer.invoke('workspace:get-links');
+    // Get all linked collections from storage via storage layer
+    const links = await storage.getWorkspaceLinks();
 
     return links || {};
   } catch (error) {

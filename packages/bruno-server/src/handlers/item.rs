@@ -10,7 +10,10 @@ use serde_json::{json, Value};
 use crate::{
     errors::AppResult,
     middleware::extract_user_id,
-    models::{item::RequestBody, token::Claims},
+    models::{
+        item::{Request, RequestBody, Settings},
+        token::Claims
+    },
     state::AppState,
 };
 
@@ -24,15 +27,28 @@ pub struct CreateFolderRequest {
 #[derive(Debug, Deserialize)]
 pub struct CreateRequestBody {
     pub name: String,
-    pub method: String,
-    pub url: String,
     pub parent_item_id: Option<String>,
     pub sort_order: Option<f64>,
+    
+    // NEW: Accept nested request object (preferred)
+    pub request: Option<Request>,
+    pub settings: Option<Settings>,
+    pub filename: Option<String>,
+    
+    // OLD: Keep backward compatibility
+    pub method: Option<String>,
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateItemRequest {
     pub name: Option<String>,
+    
+    // NEW: Accept nested request object
+    pub request: Option<Request>,
+    pub settings: Option<Settings>,
+    
+    // OLD: Keep backward compatibility
     pub method: Option<String>,
     pub url: Option<String>,
     pub body: Option<RequestBody>,
@@ -62,7 +78,36 @@ pub async fn create_request(
     JsonBody(body): JsonBody<CreateRequestBody>,
 ) -> AppResult<(StatusCode, Json<Value>)> {
     let user_id = extract_user_id(&claims)?;
-    let item = state.item_service.create_request(&collection_id, user_id, body.name, body.parent_item_id, body.sort_order, body.method, body.url).await?;
+    
+    // Support both old (flat) and new (nested) formats
+    let method = body.request.as_ref()
+        .map(|r| r.method.clone())
+        .or(body.method)
+        .unwrap_or_else(|| "GET".to_string());
+    
+    let url = body.request.as_ref()
+        .map(|r| r.url.clone())
+        .or(body.url)
+        .unwrap_or_default();
+    
+    // Create item with nested structure
+    let mut item = state.item_service
+        .create_request(&collection_id, user_id, body.name, body.parent_item_id, body.sort_order, method, url)
+        .await?;
+    
+    // If nested request provided, update with full details
+    if let Some(request) = body.request {
+        item.request = Some(request);
+    }
+    
+    if let Some(settings) = body.settings {
+        item.settings = Some(settings);
+    }
+    
+    if let Some(filename) = body.filename {
+        item.filename = Some(filename);
+    }
+    
     Ok((StatusCode::CREATED, Json(json!({ "data": item }))))
 }
 

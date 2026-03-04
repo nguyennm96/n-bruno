@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
+import { storage } from 'utils/storage';
 import { browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
 import toast from 'react-hot-toast';
 import Modal from 'components/Modal';
@@ -37,8 +38,7 @@ const CreateApiSpec = ({ onClose }) => {
     const getDefaultLocation = async () => {
       if (activeWorkspace && activeWorkspace.pathname && activeWorkspace.type !== 'default') {
         try {
-          const { ipcRenderer } = window;
-          const apiSpecPath = await ipcRenderer.invoke('renderer:ensure-apispec-folder', activeWorkspace.pathname);
+          const apiSpecPath = await storage.ensureApispecFolder(activeWorkspace.pathname);
           setDefaultApiSpecLocation(apiSpecPath);
         } catch (error) {
           console.error('Error getting apispec folder:', error);
@@ -143,9 +143,8 @@ const CreateApiSpec = ({ onClose }) => {
   useEffect(() => {
     const collectionLocation = formik.values.collectionLocation;
     if (collectionLocation) {
-      const { ipcRenderer } = window;
-      ipcRenderer
-        .invoke('renderer:get-collection-json', collectionLocation)
+      storage
+        .getCollectionJson(collectionLocation)
         .then(({ files, name, envVariables, processEnvVariables }) => {
           setCollectionData({ name, files, envVariables, processEnvVariables });
           const environments = envVariables || {};

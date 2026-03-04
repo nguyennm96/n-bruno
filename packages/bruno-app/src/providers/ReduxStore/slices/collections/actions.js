@@ -11,6 +11,7 @@ import path, { normalizePath } from 'utils/common/path';
 import { insertTaskIntoQueue, toggleSidebarCollapse } from 'providers/ReduxStore/slices/app';
 import toast from 'react-hot-toast';
 import IpcErrorModal from 'components/Errors/IpcErrorModal/index';
+import { storage } from 'utils/storage';
 import {
   findCollectionByUid,
   findEnvironmentInCollection,
@@ -26,7 +27,6 @@ import {
 } from 'utils/collections';
 import { uuid, waitForNextTick } from 'utils/common';
 import { cancelNetworkRequest, connectWS, sendGrpcRequest, sendNetworkRequest, sendWsRequest } from 'utils/network/index';
-import { callIpc } from 'utils/common/ipc';
 import brunoClipboard from 'utils/bruno-clipboard';
 
 import {
@@ -127,17 +127,17 @@ const generateUniqueName = (originalName, existingItems, isFolder) => {
   };
 };
 
-export const renameCollection = (newName, collectionUid) => (dispatch, getState) => {
+export const renameCollection = (newName, collectionUid) => async (dispatch, getState) => {
   const state = getState();
   const collection = findCollectionByUid(state.collections.collections, collectionUid);
 
-  return new Promise((resolve, reject) => {
-    if (!collection) {
-      return reject(new Error('Collection not found'));
-    }
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:rename-collection', newName, collection.pathname).then(resolve).catch(reject);
-  });
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
+
+  // Use unified storage layer
+  console.log('Using unified storage layer for renameCollection');
+  return storage.renameCollection(collectionUid, newName);
 };
 
 export const saveRequest = (itemUid, collectionUid, silent = false) => (dispatch, getState) => {
@@ -162,11 +162,12 @@ export const saveRequest = (itemUid, collectionUid, silent = false) => (dispatch
     }
 
     const itemToSave = transformRequestToSaveToFilesystem(item);
-    const { ipcRenderer } = window;
 
+    // Use unified storage layer
+    console.log('Using unified storage layer for saveRequest');
     itemSchema
       .validate(itemToSave)
-      .then(() => ipcRenderer.invoke('renderer:save-request', item.pathname, itemToSave, collection.format))
+      .then(() => storage.saveRequest(item.pathname, itemToSave, collection.format))
       .then(() => {
         if (!silent) {
           toast.success('Request saved successfully');
@@ -207,10 +208,9 @@ export const saveMultipleRequests = (items) => (dispatch, getState) => {
       }
     });
 
-    const { ipcRenderer } = window;
-
-    ipcRenderer
-      .invoke('renderer:save-multiple-requests', itemsToSave)
+    console.log('Using unified storage layer for saveMultipleRequests');
+    storage
+      .saveMultipleRequests(itemsToSave)
       .then(resolve)
       .catch((err) => {
         toast.error('Failed to save requests!');
@@ -232,10 +232,10 @@ export const saveCollectionRoot = (collectionUid) => (dispatch, getState) => {
 
     // Transform collection root (uses draft if exists)
     const collectionRootToSave = transformCollectionRootToSave(collectionCopy);
-    const { ipcRenderer } = window;
 
-    ipcRenderer
-      .invoke('renderer:save-collection-root', collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig)
+    console.log('Using unified storage layer for saveCollectionRoot');
+    storage
+      .saveCollectionRoot(collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig)
       .then(() => {
         toast.success('Collection Settings saved successfully');
         dispatch(saveCollectionDraft({ collectionUid }));
@@ -262,8 +262,6 @@ export const saveFolderRoot = (collectionUid, folderUid, silent = false) => (dis
       return reject(new Error('Folder not found'));
     }
 
-    const { ipcRenderer } = window;
-
     // Use draft if it exists, otherwise use root
     const folderRootToSave = transformFolderRootToSave(folder);
 
@@ -274,8 +272,9 @@ export const saveFolderRoot = (collectionUid, folderUid, silent = false) => (dis
       root: folderRootToSave
     };
 
-    ipcRenderer
-      .invoke('renderer:save-folder-root', folderData)
+    console.log('Using unified storage layer for saveFolderRoot');
+    storage
+      .saveFolderRoot(folderData)
       .then(() => {
         if (!silent) {
           toast.success('Folder Settings saved successfully');
@@ -305,14 +304,16 @@ export const saveMultipleCollections = (collectionDrafts) => (dispatch, getState
       if (collection) {
         const collectionCopy = cloneDeep(collection);
         const collectionRootToSave = transformCollectionRootToSave(collectionCopy);
-        const { ipcRenderer } = window;
 
         let savePromises = [];
 
-        savePromises.push(ipcRenderer.invoke('renderer:save-collection-root', collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig));
+        // Use unified storage layer
+        console.log('Using unified storage layer for saveCollectionRoot');
+        savePromises.push(storage.saveCollectionRoot(collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig));
 
         if (collectionCopy.draft?.brunoConfig) {
-          savePromises.push(ipcRenderer.invoke('renderer:update-bruno-config', collectionCopy.draft.brunoConfig, collectionCopy.pathname, collectionCopy.root));
+          console.log('Using unified storage layer for updateBrunoConfig');
+          savePromises.push(storage.updateBrunoConfig(collectionCopy.draft.brunoConfig, collectionCopy.pathname, collectionCopy.root));
         }
 
         Promise.all(savePromises)
@@ -355,9 +356,9 @@ export const saveMultipleFolders = (folderDrafts) => (dispatch, getState) => {
           root: folderRootToSave
         };
 
-        const { ipcRenderer } = window;
-        const savePromise = ipcRenderer
-          .invoke('renderer:save-folder-root', folderData)
+        console.log('Using unified storage layer for saveFolderRoot');
+        const savePromise = storage
+          .saveFolderRoot(folderData)
           .then(() => {
             if (folder.draft) {
               dispatch(saveFolderDraft({ collectionUid: folderDraft.collectionUid, folderUid: folderDraft.folderUid }));
@@ -687,10 +688,9 @@ export const runCollectionFolder
         })
       );
 
-      const { ipcRenderer } = window;
-      ipcRenderer
-        .invoke(
-          'renderer:run-collection-folder',
+      console.log('Using unified storage layer for runCollectionFolder');
+      storage
+        .runCollectionFolder(
           folder,
           collectionCopy,
           environment,
@@ -708,86 +708,35 @@ export const runCollectionFolder
     });
   };
 
-export const newFolder = (folderName, directoryName, collectionUid, itemUid) => (dispatch, getState) => {
+export const newFolder = (folderName, directoryName, collectionUid, itemUid) => async (dispatch, getState) => {
+  console.log('📁 [newFolder] Using unified storage layer');
+
   const state = getState();
   const collection = findCollectionByUid(state.collections.collections, collectionUid);
   const parentItem = itemUid ? findItemInCollection(collection, itemUid) : collection;
-  const items = filter(parentItem.items, (i) => isItemAFolder(i) || isItemARequest(i));
 
-  return new Promise((resolve, reject) => {
-    if (!collection) {
-      return reject(new Error('Collection not found'));
-    }
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
 
-    if (!itemUid) {
-      const folderWithSameNameExists = find(
-        collection.items,
-        (i) => i.type === 'folder' && trim(i.filename) === trim(directoryName)
-      );
-      if (!folderWithSameNameExists) {
-        const fullName = path.join(collection.pathname, directoryName);
-        const { ipcRenderer } = window;
+  // Check for duplicate folder names
+  const parentItems = parentItem.items || collection.items || [];
+  const folderWithSameNameExists = find(
+    parentItems,
+    (i) => i.type === 'folder' && trim(i.filename) === trim(directoryName)
+  );
 
-        const folderData = {
-          meta: {
-            name: folderName,
-            seq: items?.length + 1
-          },
-          request: {
-            auth: {
-              mode: 'inherit'
-            }
-          }
-        };
+  if (folderWithSameNameExists) {
+    throw new Error('Duplicate folder names under same parent folder are not allowed');
+  }
 
-        ipcRenderer
-          .invoke('renderer:new-folder', { pathname: fullName, folderData, format: collection.format })
-          .then(resolve)
-          .catch((error) => {
-            toast.error('Failed to create a new folder!');
-            reject(error);
-          });
-      } else {
-        return reject(new Error('Duplicate folder names under same parent folder are not allowed'));
-      }
-    } else {
-      const currentItem = findItemInCollection(collection, itemUid);
-      if (currentItem) {
-        const folderWithSameNameExists = find(
-          currentItem.items,
-          (i) => i.type === 'folder' && trim(i.filename) === trim(directoryName)
-        );
-        if (!folderWithSameNameExists) {
-          const fullName = path.join(currentItem.pathname, directoryName);
-          const { ipcRenderer } = window;
-
-          const folderData = {
-            meta: {
-              name: folderName,
-              seq: items?.length + 1
-            },
-            request: {
-              auth: {
-                mode: 'inherit'
-              }
-            }
-          };
-
-          ipcRenderer
-            .invoke('renderer:new-folder', { pathname: fullName, folderData, format: collection.format })
-            .then(resolve)
-            .catch((error) => {
-              toast.error('Failed to create a new folder!');
-              reject(error);
-            });
-        } else {
-          return reject(new Error('Duplicate folder names under same parent folder are not allowed'));
-        }
-      } else {
-        return reject(new Error('unable to find parent folder'));
-      }
-    }
-  });
+  try {
+    const result = await storage.createFolder(collectionUid, folderName, itemUid);
+    return result;
+  } catch (error) {
+    toast.error('Failed to create a new folder!');
+    throw error;
+  }
 };
 
 export const renameItem
@@ -807,10 +756,11 @@ export const renameItem
           return reject(new Error('Unable to locate item'));
         }
 
-        const { ipcRenderer } = window;
+        // Use unified storage layer
+        console.log('Using unified storage layer for renameItem');
 
         const renameName = async () => {
-          return ipcRenderer.invoke('renderer:rename-item-name', { itemPath: item.pathname, newName, collectionPathname: collection.pathname }).catch((err) => {
+          return storage.renameItemName(item.pathname, newName, collection.pathname).catch((err) => {
             toast.error('Failed to rename the item name');
             console.error(err);
             throw new Error('Failed to rename the item name');
@@ -827,8 +777,7 @@ export const renameItem
             newPath = path.join(dirname, filename);
           }
 
-          return ipcRenderer
-            .invoke('renderer:rename-item-filename', { oldPath: item.pathname, newPath, newName, newFilename, collectionPathname: collection.pathname })
+          return storage.renameItemFilename(item.pathname, newPath, newName, newFilename, collection.pathname)
             .catch((err) => {
               console.error(err);
               throw new Error('Duplicate request names are not allowed under the same folder');
@@ -885,8 +834,9 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
 
       const collectionPath = path.join(parentFolder.pathname, newFilename);
 
-      const { ipcRenderer } = window;
-      ipcRenderer.invoke('renderer:clone-folder', item, collectionPath, collection.pathname).then(resolve).catch(reject);
+      // Use unified storage layer
+      console.log('Using unified storage layer for cloneFolder');
+      storage.cloneFolder(item, collectionPath, collection.pathname).then(resolve).catch(reject);
       return;
     }
 
@@ -902,13 +852,14 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
       );
       if (!reqWithSameNameExists) {
         const fullPathname = path.join(collection.pathname, filename);
-        const { ipcRenderer } = window;
         const requestItems = filter(collection.items, (i) => i.type !== 'folder');
         itemToSave.seq = requestItems ? requestItems.length + 1 : 1;
 
+        // Use unified storage layer
+        console.log('Using unified storage layer for newRequest (cloneItem - collection root)');
         itemSchema
           .validate(itemToSave)
-          .then(() => ipcRenderer.invoke('renderer:new-request', fullPathname, itemToSave))
+          .then(() => storage.newRequest(fullPathname, itemToSave))
           .then(resolve)
           .catch(reject);
 
@@ -931,13 +882,14 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
       if (!reqWithSameNameExists) {
         const dirname = path.dirname(item.pathname);
         const fullName = path.join(dirname, filename);
-        const { ipcRenderer } = window;
         const requestItems = filter(parentItem.items, (i) => i.type !== 'folder');
         itemToSave.seq = requestItems ? requestItems.length + 1 : 1;
 
+        // Use unified storage layer
+        console.log('Using unified storage layer for newRequest (cloneItem - in folder)');
         itemSchema
           .validate(itemToSave)
-          .then(() => ipcRenderer.invoke('renderer:new-request', fullName, itemToSave))
+          .then(() => storage.newRequest(fullName, itemToSave))
           .then(resolve)
           .catch(reject);
 
@@ -1005,9 +957,10 @@ export const pasteItem = (targetCollectionUid, targetItemUid = null) => (dispatc
           set(copiedItem, 'root.meta.seq', (existingItems?.length ?? 0) + 1);
 
           const fullPathname = path.join(targetParentPathname, newFilename);
-          const { ipcRenderer } = window;
 
-          await ipcRenderer.invoke('renderer:clone-folder', copiedItem, fullPathname, targetCollection.pathname);
+          // Use unified storage layer
+          console.log('Using unified storage layer for cloneFolder (pasteItem)');
+          await storage.cloneFolder(copiedItem, fullPathname, targetCollection.pathname);
         } else {
           // Handle request pasting
           // Generate unique name for request
@@ -1019,12 +972,13 @@ export const pasteItem = (targetCollectionUid, targetItemUid = null) => (dispatc
           set(itemToSave, 'filename', trim(filename));
 
           const fullPathname = path.join(targetParentPathname, filename);
-          const { ipcRenderer } = window;
           const requestItems = filter(existingItems, (i) => i.type !== 'folder');
           itemToSave.seq = requestItems ? requestItems.length + 1 : 1;
 
+          // Use unified storage layer
+          console.log('Using unified storage layer for newRequest (pasteItem)');
           await itemSchema.validate(itemToSave);
-          await ipcRenderer.invoke('renderer:new-request', fullPathname, itemToSave, targetCollection.format);
+          await storage.newRequest(fullPathname, itemToSave, targetCollection.format);
 
           dispatch(insertTaskIntoQueue({
             uid: uuid(),
@@ -1042,42 +996,42 @@ export const pasteItem = (targetCollectionUid, targetItemUid = null) => (dispatc
   });
 };
 
-export const deleteItem = (itemUid, collectionUid) => (dispatch, getState) => {
+export const deleteItem = (itemUid, collectionUid) => async (dispatch, getState) => {
+  console.log('🗑️  [deleteItem] Using unified storage layer');
+
   const state = getState();
   const collection = findCollectionByUid(state.collections.collections, collectionUid);
 
-  return new Promise((resolve, reject) => {
-    if (!collection) {
-      return reject(new Error('Collection not found'));
-    }
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
 
-    const item = findItemInCollection(collection, itemUid);
-    if (item) {
-      const parentDirectoryItem = findParentItemInCollection(collection, itemUid) || collection;
-      const { ipcRenderer } = window;
+  const item = findItemInCollection(collection, itemUid);
+  if (!item) {
+    throw new Error('Unable to locate item');
+  }
 
-      ipcRenderer
-        .invoke('renderer:delete-item', item.pathname, item.type, collection.pathname)
-        .then(async () => {
-          // Reorder items in parent directory after deletion
-          if (parentDirectoryItem.items) {
-            const requestAndFolderTypes = [...REQUEST_TYPES, 'folder'];
-            const directoryItemsWithOnlyRequestAndFolders = parentDirectoryItem.items.filter((i) => requestAndFolderTypes.includes(i.type));
-            const directoryItemsWithoutDeletedItem = directoryItemsWithOnlyRequestAndFolders.filter((i) => i.uid !== itemUid);
-            const reorderedSourceItems = getReorderedItemsInSourceDirectory({
-              items: directoryItemsWithoutDeletedItem
-            });
-            if (reorderedSourceItems?.length) {
-              await dispatch(updateItemsSequences({ itemsToResequence: reorderedSourceItems, collectionUid }));
-            }
-          }
-          resolve();
-        })
-        .catch((error) => reject(error));
-    } else {
-      return reject(new Error('Unable to locate item'));
+  try {
+    // Use unified storage layer
+    await storage.deleteItem(itemUid, collectionUid);
+
+    // Reorder items in parent directory after deletion
+    const parentDirectoryItem = findParentItemInCollection(collection, itemUid) || collection;
+    if (parentDirectoryItem.items) {
+      const requestAndFolderTypes = [...REQUEST_TYPES, 'folder'];
+      const directoryItemsWithOnlyRequestAndFolders = parentDirectoryItem.items.filter((i) => requestAndFolderTypes.includes(i.type));
+      const directoryItemsWithoutDeletedItem = directoryItemsWithOnlyRequestAndFolders.filter((i) => i.uid !== itemUid);
+      const reorderedSourceItems = getReorderedItemsInSourceDirectory({
+        items: directoryItemsWithoutDeletedItem
+      });
+      if (reorderedSourceItems?.length) {
+        await dispatch(updateItemsSequences({ itemsToResequence: reorderedSourceItems, collectionUid }));
+      }
     }
-  });
+  } catch (error) {
+    console.error('❌ [deleteItem] Failed:', error);
+    throw error;
+  }
 };
 
 export const sortCollections = (payload) => (dispatch) => {
@@ -1086,12 +1040,9 @@ export const sortCollections = (payload) => (dispatch) => {
 
 export const moveItem
   = ({ targetDirname, sourcePathname }) =>
-    (dispatch, getState) => {
-      return new Promise((resolve, reject) => {
-        const { ipcRenderer } = window;
-
-        ipcRenderer.invoke('renderer:move-item', { targetDirname, sourcePathname }).then(resolve).catch(reject);
-      });
+    async (dispatch, getState) => {
+      console.log('📦 [moveItem] Using unified storage layer');
+      return storage.moveItem({ targetDirname, sourcePathname });
     };
 
 export const handleCollectionItemDrop
@@ -1122,11 +1073,23 @@ export const handleCollectionItemDrop
         const { uid: targetItemUid } = targetItem;
         const { pathname: draggedItemPathname, uid: draggedItemUid } = draggedItem;
 
-        const newDirname = path.dirname(newPathname);
-        await dispatch(moveItem({
-          targetDirname: newDirname,
-          sourcePathname: draggedItemPathname
-        }));
+        // Determine if cloud mode or local mode
+        const isCloudMode = !draggedItemPathname && draggedItemUid;
+
+        if (isCloudMode) {
+          // Cloud mode: pass itemUid and targetParentItemId
+          await dispatch(moveItem({
+            itemUid: draggedItemUid,
+            targetParentItemId: newPathname // In cloud mode, newPathname is actually the parent uid
+          }));
+        } else {
+          // Local mode: pass targetDirname and sourcePathname
+          const newDirname = path.dirname(newPathname);
+          await dispatch(moveItem({
+            targetDirname: newDirname,
+            sourcePathname: draggedItemPathname
+          }));
+        }
 
         // Update sequences in the source directory
         if (draggedItemDirectoryItems?.length) {
@@ -1229,9 +1192,9 @@ export const updateItemsSequences
           return reject(new Error('Collection not found'));
         }
 
-        const { ipcRenderer } = window;
-
-        ipcRenderer.invoke('renderer:resequence-items', itemsToResequence, collection.pathname).then(resolve).catch(reject);
+        // Use unified storage layer
+        console.log('Using unified storage layer for resequenceItems');
+        storage.resequenceItems(itemsToResequence, collection.pathname).then(resolve).catch(reject);
       });
     };
 
@@ -1329,10 +1292,10 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
 
       if (!reqWithSameNameExists) {
         const fullName = path.join(tempDirectory, resolvedFilename);
-        const { ipcRenderer } = window;
 
-        ipcRenderer
-          .invoke('renderer:new-request', fullName, item)
+        // Use unified storage layer
+        console.log('Using unified storage layer for newRequest (newHttpRequest - transient)');
+        storage.newRequest(fullName, item)
           .then(() => {
             // task middleware will track this and open the new request in a new tab once request is created
             dispatch(
@@ -1361,10 +1324,10 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
 
       if (!reqWithSameNameExists) {
         const fullName = path.join(collection.pathname, resolvedFilename);
-        const { ipcRenderer } = window;
 
-        ipcRenderer
-          .invoke('renderer:new-request', fullName, item)
+        // Use unified storage layer
+        console.log('Using unified storage layer for newRequest (newHttpRequest - root)');
+        storage.newRequest(fullName, item)
           .then(() => {
             // task middleware will track this and open the new request in a new tab once request is created
             dispatch(
@@ -1392,9 +1355,10 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
         item.seq = items.length + 1;
         if (!reqWithSameNameExists) {
           const fullName = path.join(currentItem.pathname, resolvedFilename);
-          const { ipcRenderer } = window;
-          ipcRenderer
-            .invoke('renderer:new-request', fullName, item)
+
+          // Use unified storage layer
+          console.log('Using unified storage layer for newRequest (newHttpRequest - in folder)');
+          storage.newRequest(fullName, item)
             .then(() => {
               // task middleware will track this and open the new request in a new tab once request is created
               dispatch(
@@ -1487,9 +1451,10 @@ export const newGrpcRequest = (params) => (dispatch, getState) => {
       const items = filter(collection.items, (i) => isItemAFolder(i) || isItemARequest(i));
       item.seq = items.length + 1;
       const fullName = path.join(tempDirectory, resolvedFilename);
-      const { ipcRenderer } = window;
-      ipcRenderer
-        .invoke('renderer:new-request', fullName, item)
+
+      // Use unified storage layer
+      console.log('Using unified storage layer for newRequest (newGrpcRequest - transient)');
+      storage.newRequest(fullName, item)
         .then(() => {
           // task middleware will track this and open the new request in a new tab once request is created
           dispatch(
@@ -1524,9 +1489,10 @@ export const newGrpcRequest = (params) => (dispatch, getState) => {
       const items = filter(parentItem.items, (i) => isItemAFolder(i) || isItemARequest(i));
       item.seq = items.length + 1;
       const fullName = path.join(parentItem.pathname, resolvedFilename);
-      const { ipcRenderer } = window;
-      ipcRenderer
-        .invoke('renderer:new-request', fullName, item)
+
+      // Use unified storage layer
+      console.log('Using unified storage layer for newRequest (newGrpcRequest - regular)');
+      storage.newRequest(fullName, item)
         .then(() => {
           // task middleware will track this and open the new request in a new tab once request is created
           dispatch(
@@ -1615,9 +1581,10 @@ export const newWsRequest = (params) => (dispatch, getState) => {
       const items = filter(collection.items, (i) => isItemAFolder(i) || isItemARequest(i));
       item.seq = items.length + 1;
       const fullName = path.join(tempDirectory, resolvedFilename);
-      const { ipcRenderer } = window;
-      ipcRenderer
-        .invoke('renderer:new-request', fullName, item)
+
+      // Use unified storage layer
+      console.log('Using unified storage layer for newRequest (newWsRequest - transient)');
+      storage.newRequest(fullName, item)
         .then(() => {
           // task middleware will track this and open the new request in a new tab once request is created
           dispatch(
@@ -1652,9 +1619,9 @@ export const newWsRequest = (params) => (dispatch, getState) => {
       const items = filter(parentItem.items, (i) => isItemAFolder(i) || isItemARequest(i));
       item.seq = items.length + 1;
       const fullName = path.join(parentItem.pathname, resolvedFilename);
-      const { ipcRenderer } = window;
-      ipcRenderer
-        .invoke('renderer:new-request', fullName, item)
+      console.log('Using unified storage layer for newRequestFile');
+      storage
+        .newRequestFile(fullName, item)
         .then(() => {
           // task middleware will track this and open the new request in a new tab once request is created
           dispatch(
@@ -1706,9 +1673,9 @@ export const loadGrpcMethodsFromReflection = (item, collectionUid, url) => async
       return reject(error);
     }
 
-    const { ipcRenderer } = window;
-    ipcRenderer
-      .invoke('grpc:load-methods-reflection', {
+    console.log('Using unified storage layer for loadMethodsReflection');
+    storage
+      .loadMethodsReflection({
         request: requestItem,
         collection: collectionCopy,
         environment,
@@ -1740,9 +1707,9 @@ export const generateGrpcurlCommand = (item, collectionUid) => async (dispatch, 
     const environment = findEnvironmentInCollection(collectionCopy, collectionCopy.activeEnvironmentUid);
     const runtimeVariables = collectionCopy.runtimeVariables;
 
-    const { ipcRenderer } = window;
-    ipcRenderer
-      .invoke('grpc:generate-grpcurl', { request: itemCopy, collection: collectionCopy, environment, runtimeVariables })
+    console.log('Using unified storage layer for generateGrpcurl');
+    storage
+      .generateGrpcurl({ request: itemCopy, collection: collectionCopy, environment, runtimeVariables })
       .then(resolve)
       .catch(reject);
   });
@@ -1756,9 +1723,9 @@ export const addEnvironment = (name, collectionUid) => (dispatch, getState) => {
       return reject(new Error('Collection not found'));
     }
 
-    const { ipcRenderer } = window;
-    ipcRenderer
-      .invoke('renderer:create-environment', collection.pathname, name)
+    console.log('Using unified storage layer for createEnvironment');
+    storage
+      .createEnvironment(collection.pathname, name)
       .then(
         dispatch(
           updateLastAction({
@@ -1785,9 +1752,9 @@ export const importEnvironment = ({ name, variables, color, collectionUid }) => 
 
     const sanitizedName = sanitizeName(name);
 
-    const { ipcRenderer } = window;
-    ipcRenderer
-      .invoke('renderer:create-environment', collection.pathname, sanitizedName, variables, color)
+    console.log('Using unified storage layer for createEnvironment');
+    storage
+      .createEnvironment(collection.pathname, sanitizedName, variables, color)
       .then(
         dispatch(
           updateLastAction({
@@ -1819,8 +1786,6 @@ export const copyEnvironment = (name, baseEnvUid, collectionUid) => (dispatch, g
 
     const sanitizedName = sanitizeName(name);
 
-    const { ipcRenderer } = window;
-
     // strip "ephemeral" metadata
     const variablesToCopy = (baseEnv.variables || [])
       .filter((v) => !v.ephemeral)
@@ -1828,8 +1793,9 @@ export const copyEnvironment = (name, baseEnvUid, collectionUid) => (dispatch, g
         return rest;
       });
 
-    ipcRenderer
-      .invoke('renderer:create-environment', collection.pathname, sanitizedName, variablesToCopy)
+    console.log('Using unified storage layer for createEnvironment');
+    storage
+      .createEnvironment(collection.pathname, sanitizedName, variablesToCopy)
       .then(
         dispatch(
           updateLastAction({
@@ -1864,10 +1830,11 @@ export const renameEnvironment = (newName, environmentUid, collectionUid) => (di
     const oldName = environment.name;
     environment.name = sanitizedName;
 
-    const { ipcRenderer } = window;
+    // Use unified storage layer
+    console.log('Using unified storage layer for renameEnvironment');
     environmentSchema
       .validate(environment)
-      .then(() => ipcRenderer.invoke('renderer:rename-environment', collection.pathname, oldName, sanitizedName))
+      .then(() => storage.renameEnvironment(collection.pathname, oldName, sanitizedName))
       .then(resolve)
       .catch(reject);
   });
@@ -1888,9 +1855,9 @@ export const deleteEnvironment = (environmentUid, collectionUid) => (dispatch, g
       return reject(new Error('Environment not found'));
     }
 
-    const { ipcRenderer } = window;
-    ipcRenderer
-      .invoke('renderer:delete-environment', collection.pathname, environment.name)
+    console.log('Using unified storage layer for deleteEnvironment');
+    storage
+      .deleteEnvironment(collection.pathname, environment.name)
       .then(resolve)
       .catch(reject);
   });
@@ -1920,12 +1887,13 @@ export const saveEnvironment = (variables, environmentUid, collectionUid) => (di
     const persisted = buildPersistedEnvVariables(variables, { mode: 'save' });
     environment.variables = persisted;
 
-    const { ipcRenderer } = window;
     const envForValidation = cloneDeep(environment);
 
+    // Use unified storage layer
+    console.log('Using unified storage layer for saveEnvironment (main)');
     environmentSchema
       .validate(environment)
-      .then(() => ipcRenderer.invoke('renderer:save-environment', collection.pathname, envForValidation))
+      .then(() => storage.saveEnvironment(collection.pathname, envForValidation))
       .then(() => {
         // Immediately sync Redux to the saved (persisted) set so old ephemerals
         // aren’t around when the watcher event arrives.
@@ -1951,8 +1919,10 @@ export const updateEnvironmentColor = (environmentUid, color, collectionUid) => 
     }
 
     environment.color = color;
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:update-environment-color', collection.pathname, environment.name, color)
+
+    // Use unified storage layer
+    console.log('Using unified storage layer for updateEnvironmentColor');
+    storage.updateEnvironmentColor(collection.pathname, environment.name, color)
       .then(() => {
         dispatch(_updateEnvironmentColor({ environmentUid, color, collectionUid }));
         resolve();
@@ -1971,8 +1941,6 @@ export const updateEnvironmentColor = (environmentUid, color, collectionUid) => 
  */
 const updateVariableInFile = (pathname, variable, scopeType, collectionUid, itemUid) => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
     const state = getState();
     const collection = findCollectionByUid(state.collections.collections, collectionUid);
     if (!collection) {
@@ -1981,8 +1949,9 @@ const updateVariableInFile = (pathname, variable, scopeType, collectionUid, item
 
     const collectionCopy = cloneDeep(collection);
 
-    ipcRenderer
-      .invoke('renderer:update-variable-in-file', pathname, variable, scopeType, collectionCopy.root, collectionCopy.format)
+    console.log('Using unified storage layer for updateVariableInFile');
+    storage
+      .updateVariableInFile(pathname, variable, scopeType, collectionCopy.root, collectionCopy.format)
       .then(() => {
         // Update Redux state to reflect the change
         if (scopeType === 'request') {
@@ -2287,10 +2256,11 @@ export const mergeAndPersistEnvironment
         const environmentToSave = cloneDeep(environment);
         environmentToSave.variables = buildPersistedEnvVariables(merged, { mode: 'merge', persistedNames });
 
-        const { ipcRenderer } = window;
+        // Use unified storage layer
+        console.log('Using unified storage layer for saveEnvironment (syncVariableFromScript)');
         environmentSchema
           .validate(environmentToSave)
-          .then(() => ipcRenderer.invoke('renderer:save-environment', collection.pathname, environmentToSave))
+          .then(() => storage.saveEnvironment(collection.pathname, environmentToSave))
           .then(resolve)
           .catch(reject);
       });
@@ -2312,8 +2282,8 @@ export const selectEnvironment = (environmentUid, collectionUid) => (dispatch, g
       return reject(new Error('Environment not found'));
     }
 
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:update-ui-state-snapshot', {
+    console.log('Using unified storage layer for updateUiStateSnapshot');
+    storage.updateUiStateSnapshot({
       type: 'COLLECTION_ENVIRONMENT',
       data: { collectionPath: collection?.pathname, environmentName }
     });
@@ -2330,7 +2300,6 @@ export const removeCollection = (collectionUid) => (dispatch, getState) => {
     if (!collection) {
       return reject(new Error('Collection not found'));
     }
-    const { ipcRenderer } = window;
 
     // Get active workspace to determine which workspace we're removing from
     const { workspaces } = state;
@@ -2345,11 +2314,11 @@ export const removeCollection = (collectionUid) => (dispatch, getState) => {
       }
     }
 
-    ipcRenderer
-      .invoke('renderer:remove-collection', collection.pathname, collectionUid, workspaceId)
+    storage.removeCollection(collection.pathname, collectionUid, workspaceId)
       .then(() => {
         // Check if the collection still exists in other workspaces
-        return ipcRenderer.invoke('renderer:get-collection-workspaces', collection.pathname);
+        console.log('Using unified storage layer for getCollectionWorkspaces');
+        return storage.getCollectionWorkspaces(collection.pathname);
       })
       .then((remainingWorkspaces) => {
         // Close tabs for this collection
@@ -2382,18 +2351,16 @@ export const removeCollection = (collectionUid) => (dispatch, getState) => {
 };
 
 export const browseDirectory = () => (dispatch, getState) => {
-  const { ipcRenderer } = window;
-
   return new Promise((resolve, reject) => {
-    ipcRenderer.invoke('renderer:browse-directory').then(resolve).catch(reject);
+    console.log('Using unified storage layer for browseDirectory');
+    storage.browseDirectory().then(resolve).catch(reject);
   });
 };
 
 export const browseFiles = (filters, properties) => (_dispatch, _getState) => {
-  const { ipcRenderer } = window;
-
   return new Promise((resolve, reject) => {
-    ipcRenderer.invoke('renderer:browse-files', filters, properties).then(resolve).catch(reject);
+    console.log('Using unified storage layer for browseFiles');
+    storage.browseFiles(filters, properties).then(resolve).catch(reject);
   });
 };
 
@@ -2410,17 +2377,18 @@ export const saveCollectionSettings = (collectionUid, brunoConfig = null, silent
 
     // Transform collection root (uses draft if exists)
     const collectionRootToSave = transformCollectionRootToSave(collectionCopy);
-    const { ipcRenderer } = window;
 
     const savePromises = [];
 
-    // Save collection.bru file
-    savePromises.push(ipcRenderer.invoke('renderer:save-collection-root', collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig));
+    // Use unified storage layer for save collection.bru file
+    console.log('Using unified storage layer for saveCollectionRoot (saveCollectionSettings)');
+    savePromises.push(storage.saveCollectionRoot(collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig));
 
     // Save bruno.json if brunoConfig is provided or if there's a brunoConfig draft
     const brunoConfigToSave = brunoConfig || (collectionCopy.draft && collectionCopy.draft.brunoConfig);
     if (brunoConfigToSave) {
-      savePromises.push(ipcRenderer.invoke('renderer:update-bruno-config', brunoConfigToSave, collectionCopy.pathname, collectionCopy.root));
+      console.log('Using unified storage layer for updateBrunoConfig (saveCollectionSettings)');
+      savePromises.push(storage.updateBrunoConfig(brunoConfigToSave, collectionCopy.pathname, collectionCopy.root));
     }
 
     Promise.all(savePromises)
@@ -2448,9 +2416,9 @@ export const updateBrunoConfig = (brunoConfig, collectionUid) => (dispatch, getS
       return reject(new Error('Collection not found'));
     }
 
-    const { ipcRenderer } = window;
-    ipcRenderer
-      .invoke('renderer:update-bruno-config', brunoConfig, collection.pathname, collection.root)
+    console.log('Using unified storage layer for updateBrunoConfigStorage');
+    storage
+      .updateBrunoConfigStorage(brunoConfig, collection.pathname, collection.root)
       .then(resolve)
       .catch(reject);
   });
@@ -2467,8 +2435,6 @@ export const updateBrunoConfig = (brunoConfig, collectionUid) => (dispatch, getS
  * @returns {Promise} Resolves when the collection is created, rejects on error
  */
 export const openScratchCollectionEvent = (uid, pathname, brunoConfig) => (dispatch, getState) => {
-  const { ipcRenderer } = window;
-
   return new Promise((resolve, reject) => {
     const state = getState();
     const existingCollection = state.collections.collections.find(
@@ -2490,8 +2456,9 @@ export const openScratchCollectionEvent = (uid, pathname, brunoConfig) => (dispa
       brunoConfig
     };
 
-    ipcRenderer
-      .invoke('renderer:get-collection-security-config', pathname)
+    console.log('Using unified storage layer for getCollectionSecurityConfig');
+    storage
+      .getCollectionSecurityConfig(pathname)
       .then((securityConfig) => {
         collectionSchema
           .validate(collection)
@@ -2504,8 +2471,6 @@ export const openScratchCollectionEvent = (uid, pathname, brunoConfig) => (dispa
 };
 
 export const openCollectionEvent = (uid, pathname, brunoConfig) => (dispatch, getState) => {
-  const { ipcRenderer } = window;
-
   return new Promise((resolve, reject) => {
     const state = getState();
     const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
@@ -2536,8 +2501,9 @@ export const openCollectionEvent = (uid, pathname, brunoConfig) => (dispatch, ge
           path: pathname
         };
 
-        ipcRenderer
-          .invoke('renderer:add-collection-to-workspace', activeWorkspace.pathname, workspaceCollection)
+        console.log('Using unified storage layer for addCollectionToWorkspace');
+        storage
+          .addCollectionToWorkspace(activeWorkspace.pathname, workspaceCollection)
           .then(() => {
             toast.success('Collection added to workspace');
           })
@@ -2564,7 +2530,8 @@ export const openCollectionEvent = (uid, pathname, brunoConfig) => (dispatch, ge
       brunoConfig: brunoConfig
     };
 
-    ipcRenderer.invoke('renderer:get-collection-security-config', pathname).then((securityConfig) => {
+    console.log('Using unified storage layer for getCollectionSecurityConfig');
+    storage.getCollectionSecurityConfig(pathname).then((securityConfig) => {
       collectionSchema
         .validate(collection)
         .then(() => dispatch(_createCollection({ ...collection, securityConfig })))
@@ -2579,7 +2546,8 @@ export const openCollectionEvent = (uid, pathname, brunoConfig) => (dispatch, ge
           );
 
           if (currentWorkspace) {
-            ipcRenderer.invoke('renderer:set-collection-workspace', uid, currentWorkspace.pathname);
+            console.log('Using unified storage layer for setCollectionWorkspace');
+            storage.setCollectionWorkspace(uid, currentWorkspace.pathname);
 
             const alreadyInWorkspace = currentWorkspace.collections?.some(
               (c) => normalizePath(c.path) === normalizePath(pathname)
@@ -2591,8 +2559,8 @@ export const openCollectionEvent = (uid, pathname, brunoConfig) => (dispatch, ge
                 path: pathname
               };
 
-              ipcRenderer
-                .invoke('renderer:add-collection-to-workspace', currentWorkspace.pathname, workspaceCollection)
+              console.log('Using unified storage layer for addCollectionToWorkspace');
+              storage.addCollectionToWorkspace(currentWorkspace.pathname, workspaceCollection)
                 .catch((err) => {
                   console.error('Failed to add collection to workspace', err);
                   toast.error('Failed to add collection to workspace');
@@ -2607,48 +2575,25 @@ export const openCollectionEvent = (uid, pathname, brunoConfig) => (dispatch, ge
   });
 };
 
-export const createCollection = (collectionName, options = {}) => (dispatch, getState) => {
-  const { ipcRenderer } = window;
-  const state = getState();
+export const createCollection = (collectionName, options = {}) => async (dispatch, getState) => {
+  console.log(`📦 [createCollection] Using unified storage layer for "${collectionName || 'auto-generated'}"`);
+  console.log(`📦 [createCollection] Current mode: ${storage.getMode()}`);
 
-  // Get userId from auth state (null if not authenticated)
-  const userId = state.auth?.user?.id || null;
-
-  if (!options.workspaceId) {
-    const { workspaces } = state;
-    const activeWorkspace = workspaces.workspaces.find((w) => w.uid === workspaces.activeWorkspaceUid);
-
-    if (activeWorkspace && activeWorkspace.pathname) {
-      options.workspaceId = activeWorkspace.pathname;
-    } else {
-      options.workspaceId = 'default';
-    }
+  try {
+    const result = await storage.createCollection(collectionName, options);
+    console.log('✅ [createCollection] Success:', result);
+    return result;
+  } catch (error) {
+    console.error('❌ [createCollection] Failed:', error);
+    throw error;
   }
-
-  console.log(`Creating collection "${collectionName || 'auto-generated'}" for user:`, userId || 'anonymous');
-
-  return new Promise((resolve, reject) => {
-    ipcRenderer
-      .invoke('renderer:create-collection', collectionName, userId, options)
-      .then(resolve)
-      .catch(reject);
-  });
 };
-export const cloneCollection = (collectionName, collectionFolderName, collectionLocation, previousPath) => () => {
-  const { ipcRenderer } = window;
-
-  return ipcRenderer.invoke(
-    'renderer:clone-collection',
-    collectionName,
-    collectionFolderName,
-    collectionLocation,
-    previousPath
-  );
+export const cloneCollection = (collectionName, collectionFolderName, collectionLocation, previousPath) => async () => {
+  console.log('Using unified storage layer for cloneCollection');
+  return storage.cloneCollection(collectionName, collectionFolderName, collectionLocation, previousPath);
 };
 export const openCollection = (options = {}) => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
     const state = getState();
     const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
 
@@ -2656,7 +2601,9 @@ export const openCollection = (options = {}) => (dispatch, getState) => {
       options.workspaceId = activeWorkspace?.pathname || 'default';
     }
 
-    ipcRenderer.invoke('renderer:open-collection', options)
+    // Use unified storage layer
+    console.log('Using unified storage layer for openCollection');
+    storage.openCollection(options)
       .then((result) => {
         resolve(result);
       })
@@ -2666,9 +2613,8 @@ export const openCollection = (options = {}) => (dispatch, getState) => {
 
 export const openMultipleCollections = (collectionPaths, options = {}) => () => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-
-    ipcRenderer.invoke('renderer:open-multiple-collections', collectionPaths, options)
+    console.log('Using unified storage layer for openMultipleCollections');
+    storage.openMultipleCollections(collectionPaths, options)
       .then(resolve)
       .catch((err) => {
         reject();
@@ -2703,14 +2649,14 @@ export const collectionAddEnvFileEvent = (payload) => (dispatch, getState) => {
 
 export const importCollection = (collection, collectionLocation, options = {}) => (dispatch, getState) => {
   return new Promise(async (resolve, reject) => {
-    const { ipcRenderer } = window;
-
     try {
       const state = getState();
       const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
       const isMultiple = Array.isArray(collection);
 
-      const result = await ipcRenderer.invoke('renderer:import-collection', collection, collectionLocation, options.format || DEFAULT_COLLECTION_FORMAT);
+      // Use unified storage layer
+      console.log('Using unified storage layer for importCollection');
+      const result = await storage.importCollection(collection, collectionLocation, options.format || DEFAULT_COLLECTION_FORMAT);
       const importedPaths = result.success.items;
 
       if (importedPaths.length > 0 && activeWorkspace && activeWorkspace.pathname && activeWorkspace.type !== 'default') {
@@ -2719,7 +2665,7 @@ export const importCollection = (collection, collectionLocation, options = {}) =
             name: importedItem.name,
             path: importedItem.path
           };
-          await ipcRenderer.invoke('renderer:add-collection-to-workspace', activeWorkspace.pathname, workspaceCollection);
+          await storage.addCollectionToWorkspace(activeWorkspace.pathname, workspaceCollection);
         }
       }
 
@@ -2731,15 +2677,15 @@ export const importCollection = (collection, collectionLocation, options = {}) =
 };
 
 export const importCollectionFromZip = (zipFilePath, collectionLocation) => async (dispatch, getState) => {
-  const { ipcRenderer } = window;
+  console.log('Using unified storage layer for importCollectionFromZip');
   const state = getState();
   const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
 
-  const collectionPath = await ipcRenderer.invoke('renderer:import-collection-zip', zipFilePath, collectionLocation);
+  const collectionPath = await storage.importCollectionZip(zipFilePath, collectionLocation);
 
   if (activeWorkspace && activeWorkspace.pathname && activeWorkspace.type !== 'default') {
     const collectionName = path.basename(collectionPath);
-    await ipcRenderer.invoke('renderer:add-collection-to-workspace', activeWorkspace.pathname, {
+    await storage.addCollectionToWorkspace(activeWorkspace.pathname, {
       name: collectionName,
       path: collectionPath
     });
@@ -2776,8 +2722,9 @@ export const moveCollectionAndPersist
       reordered.splice(targetIndex, 0, draggedItem);
       const collectionPaths = reordered.map((c) => c.pathname);
 
-      return window.ipcRenderer
-        .invoke('renderer:reorder-workspace-collections', activeWorkspace.pathname, collectionPaths)
+      console.log('Using unified storage layer for reorderWorkspaceCollections');
+      return storage
+        .reorderWorkspaceCollections(activeWorkspace.pathname, collectionPaths)
         .then(() => {
           dispatch(moveCollection({ draggedItem, targetItem }));
         })
@@ -2789,12 +2736,12 @@ export const moveCollectionAndPersist
 
 export const saveCollectionSecurityConfig = (collectionUid, securityConfig) => (dispatch, getState) => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
     const state = getState();
     const collection = findCollectionByUid(state.collections.collections, collectionUid);
 
-    ipcRenderer
-      .invoke('renderer:save-collection-security-config', collection?.pathname, securityConfig)
+    console.log('Using unified storage layer for saveCollectionSecurityConfig');
+    storage
+      .saveCollectionSecurityConfig(collection?.pathname, securityConfig)
       .then(async () => {
         await dispatch(setCollectionSecurityConfig({ collectionUid, securityConfig }));
         resolve();
@@ -2838,8 +2785,9 @@ export const fetchOauth2Credentials = (payload) => async (dispatch, getState) =>
   const globalEnvironmentVariables = getGlobalEnvironmentVariables({ globalEnvironments, activeGlobalEnvironmentUid });
   request.globalEnvironmentVariables = globalEnvironmentVariables;
   return new Promise((resolve, reject) => {
-    window.ipcRenderer
-      .invoke('renderer:fetch-oauth2-credentials', { itemUid, request, collection })
+    console.log('Using unified storage layer for fetchOAuth2Credentials');
+    storage
+      .fetchOAuth2Credentials({ itemUid, request, collection })
       .then(({ credentials, url, collectionUid, credentialsId, debugInfo }) => {
         dispatch(
           collectionAddOauth2CredentialsByUrl({
@@ -2865,8 +2813,9 @@ export const refreshOauth2Credentials = (payload) => async (dispatch, getState) 
   const globalEnvironmentVariables = getGlobalEnvironmentVariables({ globalEnvironments, activeGlobalEnvironmentUid });
   request.globalEnvironmentVariables = globalEnvironmentVariables;
   return new Promise((resolve, reject) => {
-    window.ipcRenderer
-      .invoke('renderer:refresh-oauth2-credentials', { itemUid, request, collection })
+    console.log('Using unified storage layer for refreshOAuth2Credentials');
+    storage
+      .refreshOAuth2Credentials({ itemUid, request, collection })
       .then(({ credentials, url, collectionUid, debugInfo, credentialsId }) => {
         dispatch(
           collectionAddOauth2CredentialsByUrl({
@@ -2888,8 +2837,8 @@ export const refreshOauth2Credentials = (payload) => async (dispatch, getState) 
 export const clearOauth2Cache = (payload) => async (dispatch, getState) => {
   const { collectionUid, url, credentialsId } = payload;
   return new Promise((resolve, reject) => {
-    window.ipcRenderer
-      .invoke('clear-oauth2-cache', collectionUid, url, credentialsId)
+    console.log('Using unified storage layer for clearOAuth2Cache');
+    storage.clearOAuth2Cache(collectionUid, url, credentialsId)
       .then(() => {
         dispatch(
           collectionClearOauth2CredentialsByUrlAndCredentialsId({
@@ -2906,8 +2855,9 @@ export const clearOauth2Cache = (payload) => async (dispatch, getState) => {
 
 export const isOauth2AuthorizationRequestInProgress = () => async () => {
   return new Promise((resolve, reject) => {
-    window.ipcRenderer
-      .invoke('renderer:is-oauth2-authorization-request-in-progress')
+    console.log('Using unified storage layer for isOAuth2AuthorizationInProgress');
+    storage
+      .isOAuth2AuthorizationInProgress()
       .then(resolve)
       .catch(reject);
   });
@@ -2915,8 +2865,9 @@ export const isOauth2AuthorizationRequestInProgress = () => async () => {
 
 export const cancelOauth2AuthorizationRequest = () => async () => {
   return new Promise((resolve, reject) => {
-    window.ipcRenderer
-      .invoke('renderer:cancel-oauth2-authorization-request')
+    console.log('Using unified storage layer for cancelOAuth2Authorization');
+    storage
+      .cancelOAuth2Authorization()
       .then(resolve)
       .catch(reject);
   });
@@ -2927,8 +2878,8 @@ export const loadRequestViaWorker
   = ({ collectionUid, pathname }) =>
     (dispatch, getState) => {
       return new Promise(async (resolve, reject) => {
-        const { ipcRenderer } = window;
-        ipcRenderer.invoke('renderer:load-request-via-worker', { collectionUid, pathname }).then(resolve).catch(reject);
+        console.log('Using unified storage layer for loadRequestViaWorker');
+        storage.loadRequestViaWorker({ collectionUid, pathname }).then(resolve).catch(reject);
       });
     };
 
@@ -2937,8 +2888,8 @@ export const loadRequest
   = ({ collectionUid, pathname }) =>
     (dispatch, getState) => {
       return new Promise(async (resolve, reject) => {
-        const { ipcRenderer } = window;
-        ipcRenderer.invoke('renderer:load-request', { collectionUid, pathname }).then(resolve).catch(reject);
+        console.log('Using unified storage layer for loadRequest');
+        storage.loadRequest({ collectionUid, pathname }).then(resolve).catch(reject);
       });
     };
 
@@ -2946,8 +2897,8 @@ export const loadLargeRequest
   = ({ collectionUid, pathname }) =>
     (dispatch, getState) => {
       return new Promise(async (resolve, reject) => {
-        const { ipcRenderer } = window;
-        ipcRenderer.invoke('renderer:load-large-request', { collectionUid, pathname }).then(resolve).catch(reject);
+        console.log('Using unified storage layer for loadLargeRequest');
+        storage.loadLargeRequest({ collectionUid, pathname }).then(resolve).catch(reject);
       });
     };
 
@@ -2956,7 +2907,8 @@ export const mountCollection
     (dispatch, getState) => {
       dispatch(updateCollectionMountStatus({ collectionUid, mountStatus: 'mounting' }));
       return new Promise(async (resolve, reject) => {
-        callIpc('renderer:mount-collection', { collectionUid, collectionPathname, brunoConfig })
+        console.log('Using unified storage layer for mountCollection');
+        storage.mountCollection({ collectionUid, collectionPathname, brunoConfig })
           .then((transientDirPath) => {
             dispatch(updateCollectionMountStatus({ collectionUid, mountStatus: 'mounted' }));
             dispatch(addTransientDirectory({ collectionUid, pathname: transientDirPath }));
@@ -2971,8 +2923,8 @@ export const mountCollection
 
 export const showInFolder = (collectionPath) => () => {
   return new Promise((resolve, reject) => {
-    const { ipcRenderer } = window;
-    ipcRenderer.invoke('renderer:show-in-folder', collectionPath).then(resolve).catch(reject);
+    console.log('Using unified storage layer for showInFolder');
+    storage.showInFolder(collectionPath).then(resolve).catch(reject);
   });
 };
 
@@ -3019,7 +2971,6 @@ export const openCollectionSettings
     };
 
 export const saveDotEnvVariables = (collectionUid, variables, filename = '.env') => (dispatch, getState) => {
-  const { ipcRenderer } = window;
   return new Promise((resolve, reject) => {
     const state = getState();
     const collection = findCollectionByUid(state.collections.collections, collectionUid);
@@ -3028,15 +2979,15 @@ export const saveDotEnvVariables = (collectionUid, variables, filename = '.env')
       return reject(new Error('Collection not found'));
     }
 
-    ipcRenderer
-      .invoke('renderer:save-dotenv-variables', collection.pathname, variables, filename)
+    console.log('Using unified storage layer for saveDotenvVariables');
+    storage
+      .saveDotenvVariables(collection.pathname, variables, filename)
       .then(resolve)
       .catch(reject);
   });
 };
 
 export const saveDotEnvRaw = (collectionUid, content, filename = '.env') => (dispatch, getState) => {
-  const { ipcRenderer } = window;
   return new Promise((resolve, reject) => {
     const state = getState();
     const collection = findCollectionByUid(state.collections.collections, collectionUid);
@@ -3045,15 +2996,15 @@ export const saveDotEnvRaw = (collectionUid, content, filename = '.env') => (dis
       return reject(new Error('Collection not found'));
     }
 
-    ipcRenderer
-      .invoke('renderer:save-dotenv-raw', collection.pathname, content, filename)
+    console.log('Using unified storage layer for saveDotenvRaw');
+    storage
+      .saveDotenvRaw(collection.pathname, content, filename)
       .then(resolve)
       .catch(reject);
   });
 };
 
 export const createDotEnvFile = (collectionUid, filename = '.env') => (dispatch, getState) => {
-  const { ipcRenderer } = window;
   return new Promise((resolve, reject) => {
     const state = getState();
     const collection = findCollectionByUid(state.collections.collections, collectionUid);
@@ -3062,15 +3013,15 @@ export const createDotEnvFile = (collectionUid, filename = '.env') => (dispatch,
       return reject(new Error('Collection not found'));
     }
 
-    ipcRenderer
-      .invoke('renderer:create-dotenv-file', collection.pathname, filename)
+    console.log('Using unified storage layer for createDotenvFile');
+    storage
+      .createDotenvFile(collection.pathname, filename)
       .then(resolve)
       .catch(reject);
   });
 };
 
 export const deleteDotEnvFile = (collectionUid, filename = '.env') => (dispatch, getState) => {
-  const { ipcRenderer } = window;
   return new Promise((resolve, reject) => {
     const state = getState();
     const collection = findCollectionByUid(state.collections.collections, collectionUid);
@@ -3079,18 +3030,19 @@ export const deleteDotEnvFile = (collectionUid, filename = '.env') => (dispatch,
       return reject(new Error('Collection not found'));
     }
 
-    ipcRenderer
-      .invoke('renderer:delete-dotenv-file', collection.pathname, filename)
+    console.log('Using unified storage layer for deleteDotenvFile');
+    storage
+      .deleteDotenvFile(collection.pathname, filename)
       .then(resolve)
       .catch(reject);
   });
 };
 
 export const cloneGitRepository = (data) => (dispatch, getState) => {
-  const { ipcRenderer } = window;
   return new Promise((resolve, reject) => {
-    ipcRenderer
-      .invoke('renderer:clone-git-repository', data)
+    console.log('Using unified storage layer for cloneGitRepository');
+    storage
+      .cloneGitRepository(data)
       .then((res) => {
         console.log('clone done', res);
       })
@@ -3103,10 +3055,10 @@ export const cloneGitRepository = (data) => (dispatch, getState) => {
 };
 
 export const scanForBrunoFiles = (dir) => (dispatch, getState) => {
-  const { ipcRenderer } = window;
   return new Promise((resolve, reject) => {
-    ipcRenderer
-      .invoke('renderer:scan-for-bruno-files', dir)
+    console.log('Using unified storage layer for scanForBrunoFiles');
+    storage
+      .scanForBrunoFiles(dir)
       .then(resolve)
       .catch((err) => {
         reject();
@@ -3138,7 +3090,6 @@ export const ensureActiveTabInCurrentWorkspace = () => (dispatch, getState) => {
  * This thunk wraps the closeTabs reducer to handle transient file cleanup automatically.
  */
 export const closeTabs = ({ tabUids }) => async (dispatch, getState) => {
-  const { ipcRenderer } = window;
   const state = getState();
   const collections = state.collections.collections;
   const tempDirectories = state.collections.tempDirectories || {};
@@ -3171,7 +3122,8 @@ export const closeTabs = ({ tabUids }) => async (dispatch, getState) => {
   // Delete transient files after tabs are closed
   for (const [tempDir, filePaths] of Object.entries(transientByTempDir)) {
     try {
-      const results = await ipcRenderer.invoke('renderer:delete-transient-requests', filePaths, tempDir);
+      console.log('Using unified storage layer for deleteTransientRequests');
+      const results = await storage.deleteTransientRequests(filePaths, tempDir);
       if (results.errors?.length > 0) {
         console.error('Errors deleting transient files:', results.errors);
       }
@@ -3186,14 +3138,14 @@ export const closeTabs = ({ tabUids }) => async (dispatch, getState) => {
  * This removes all collections from the user's directory to start fresh
  */
 export const clearAllUserCollections = () => async (dispatch, getState) => {
-  const { ipcRenderer } = window;
   const state = getState();
 
   // Get userId from auth state (null if not authenticated)
   const userId = state.auth?.user?.id || null;
 
   try {
-    const success = await ipcRenderer.invoke('renderer:clear-user-collections', userId);
+    console.log('Using unified storage layer for clearUserCollections');
+    const success = await storage.clearUserCollections(userId);
 
     if (success) {
       // Close all tabs since all collections are being removed

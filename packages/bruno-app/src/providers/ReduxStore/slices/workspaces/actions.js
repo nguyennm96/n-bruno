@@ -1,4 +1,5 @@
 import path from 'path';
+import { storage } from 'utils/storage';
 import {
   createWorkspace,
   removeWorkspace,
@@ -16,8 +17,6 @@ import { updateGlobalEnvironments } from '../global-environments';
 import { addTab, focusTab } from '../tabs';
 import { normalizePath } from 'utils/common/path';
 import toast from 'react-hot-toast';
-
-const { ipcRenderer } = window;
 
 const transformCollection = async (collection, type) => {
   switch (type) {
@@ -53,7 +52,7 @@ const transformCollection = async (collection, type) => {
 export const createWorkspaceAction = (workspaceName, workspaceFolderName, workspaceLocation) => {
   return async (dispatch) => {
     try {
-      const result = await ipcRenderer.invoke('renderer:create-workspace',
+      const result = await storage.createWorkspace(
         workspaceName,
         workspaceFolderName,
         workspaceLocation);
@@ -79,9 +78,9 @@ export const createWorkspaceAction = (workspaceName, workspaceFolderName, worksp
 export const openWorkspace = () => {
   return async (dispatch) => {
     try {
-      const workspacePath = await ipcRenderer.invoke('renderer:browse-directory');
+      const workspacePath = await storage.browseDirectory();
       if (workspacePath) {
-        const result = await ipcRenderer.invoke('renderer:open-workspace', workspacePath);
+        const result = await storage.openWorkspace(workspacePath);
         const { workspaceConfig, workspaceUid } = result;
 
         dispatch(createWorkspace({
@@ -103,7 +102,7 @@ export const openWorkspace = () => {
 export const openWorkspaceDialog = () => {
   return async (dispatch) => {
     try {
-      const result = await ipcRenderer.invoke('renderer:open-workspace-dialog');
+      const result = await storage.openWorkspaceDialog();
       if (result) {
         const { workspaceConfig, workspaceUid } = result;
 
@@ -141,7 +140,7 @@ export const removeCollectionFromWorkspaceAction = (workspaceUid, collectionPath
         (c) => normalizePath(c.pathname) === normalizedCollectionPath
       );
 
-      await ipcRenderer.invoke('renderer:remove-collection-from-workspace',
+      await storage.removeCollectionFromWorkspace(
         workspaceUid,
         workspace.pathname,
         collectionPath,
@@ -211,7 +210,7 @@ export const loadWorkspaceApiSpecs = (workspaceUid) => {
         return;
       }
 
-      const apiSpecs = await ipcRenderer.invoke('renderer:load-workspace-apispecs', workspace.pathname);
+      const apiSpecs = await storage.loadWorkspaceApiSpecs(workspace.pathname);
 
       dispatch(updateWorkspace({
         uid: workspaceUid,
@@ -224,7 +223,7 @@ export const loadWorkspaceApiSpecs = (workspaceUid) => {
       for (const apiSpec of apiSpecs) {
         if (apiSpec.path && !alreadyOpenApiSpecs.includes(apiSpec.path)) {
           try {
-            await ipcRenderer.invoke('renderer:open-api-spec-file', apiSpec.path, workspace.pathname);
+            await storage.openApiSpecFile(apiSpec.path, workspace.pathname);
           } catch (error) {
             console.error('Error opening API spec:', error);
           }
@@ -247,9 +246,7 @@ export const switchWorkspace = (workspaceUid) => {
     }
 
     try {
-      const { ipcRenderer } = window;
-
-      const result = await ipcRenderer.invoke('renderer:get-global-environments',
+      const result = await storage.getGlobalEnvironments(
         {
           workspaceUid,
           workspacePath: workspace.pathname
@@ -312,7 +309,7 @@ export const loadWorkspaceCollections = (workspaceUid, force = false) => {
       if (!workspace.pathname) {
         collections = [];
       } else {
-        const rawCollections = await ipcRenderer.invoke('renderer:load-workspace-collections', workspace.pathname);
+        const rawCollections = await storage.loadWorkspaceCollections(workspace.pathname);
 
         collections = rawCollections.map((collection) => {
           return {
@@ -345,7 +342,7 @@ export const removeWorkspaceAction = (workspaceUid) => {
 export const loadLastOpenedWorkspaces = () => {
   return async (dispatch, getState) => {
     try {
-      const workspaces = await ipcRenderer.invoke('renderer:get-last-opened-workspaces');
+      const workspaces = await storage.getLastOpenedWorkspaces();
       const currentWorkspaces = getState().workspaces.workspaces;
       const validWorkspaceUids = new Set(workspaces.map((w) => w.uid));
 
@@ -363,7 +360,7 @@ export const loadLastOpenedWorkspaces = () => {
 
           if (workspace.pathname) {
             try {
-              await ipcRenderer.invoke('renderer:start-workspace-watcher', workspace.pathname);
+              await storage.startWorkspaceWatcher(workspace.pathname);
             } catch (error) {
             }
           }
@@ -459,7 +456,7 @@ export const saveWorkspaceDocs = (workspaceUid, docs) => {
         throw new Error('Workspace path not found');
       }
 
-      await ipcRenderer.invoke('renderer:save-workspace-docs', workspace.pathname, docs || '');
+      await storage.saveWorkspaceDocs(workspace.pathname, docs || '');
 
       dispatch(updateWorkspace({
         uid: workspaceUid,
@@ -512,7 +509,7 @@ export const renameWorkspaceAction = (workspaceUid, newName) => {
         throw new Error('Workspace not found');
       }
 
-      await handleWorkspaceAction((...args) => ipcRenderer.invoke('renderer:rename-workspace', ...args),
+      await handleWorkspaceAction((...args) => storage.renameWorkspace(...args),
         workspace.pathname,
         newName);
 
@@ -536,7 +533,7 @@ export const closeWorkspaceAction = (workspaceUid) => {
         throw new Error('Workspace not found');
       }
 
-      await ipcRenderer.invoke('renderer:close-workspace', workspace.pathname);
+      await storage.closeWorkspace(workspace.pathname);
       dispatch(removeWorkspace(workspaceUid));
     } catch (error) {
       toast.error(error.message || 'Failed to close workspace');
@@ -555,14 +552,14 @@ export const importCollectionInWorkspace = (collection, workspaceUid, collection
 
     const location = collectionLocation || path.join(currentWorkspace.pathname, 'collections');
     const transformedCollection = await transformCollection(collection, type);
-    const collectionPath = await ipcRenderer.invoke('renderer:import-collection', transformedCollection, location);
+    const collectionPath = await storage.importCollection(transformedCollection, location);
 
     const workspaceCollection = {
       name: transformedCollection.name,
       path: collectionPath
     };
 
-    await ipcRenderer.invoke('renderer:add-collection-to-workspace', currentWorkspace.pathname, workspaceCollection);
+    await storage.addCollectionToWorkspace(currentWorkspace.pathname, workspaceCollection);
 
     return collectionPath;
   };
@@ -576,7 +573,7 @@ export const loadWorkspaceEnvironments = (workspaceUid) => {
         throw new Error('Workspace not found');
       }
 
-      const environments = await ipcRenderer.invoke('renderer:load-workspace-environments', workspace.pathname);
+      const environments = await storage.loadWorkspaceEnvironments(workspace.pathname);
 
       dispatch(updateWorkspace({
         uid: workspaceUid,
@@ -598,7 +595,7 @@ export const createWorkspaceEnvironment = (workspaceUid, environmentName) => {
         throw new Error('Workspace not found');
       }
 
-      const environment = await ipcRenderer.invoke('renderer:create-workspace-environment', workspace.pathname, environmentName);
+      const environment = await storage.createWorkspaceEnvironment(workspace.pathname, environmentName);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -617,7 +614,7 @@ export const deleteWorkspaceEnvironment = (workspaceUid, environmentUid) => {
         throw new Error('Workspace not found');
       }
 
-      await ipcRenderer.invoke('renderer:delete-workspace-environment', workspace.pathname, environmentUid);
+      await storage.deleteWorkspaceEnvironment(workspace.pathname, environmentUid);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -636,7 +633,7 @@ export const selectWorkspaceEnvironment = (workspaceUid, environmentUid) => {
         throw new Error('Workspace not found');
       }
 
-      await ipcRenderer.invoke('renderer:select-workspace-environment', workspace.pathname, environmentUid);
+      await storage.selectWorkspaceEnvironment(workspace.pathname, environmentUid);
 
       dispatch(updateWorkspace({
         uid: workspaceUid,
@@ -658,7 +655,7 @@ export const importWorkspaceEnvironment = (workspaceUid, environmentData) => {
         throw new Error('Workspace not found');
       }
 
-      const environment = await ipcRenderer.invoke('renderer:import-workspace-environment', workspace.pathname, environmentData);
+      const environment = await storage.importWorkspaceEnvironment(workspace.pathname, environmentData);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -677,7 +674,7 @@ export const updateWorkspaceEnvironment = (workspaceUid, environmentUid, environ
         throw new Error('Workspace not found');
       }
 
-      await ipcRenderer.invoke('renderer:update-workspace-environment', workspace.pathname, environmentUid, environmentData);
+      await storage.updateWorkspaceEnvironment(workspace.pathname, environmentUid, environmentData);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -696,7 +693,7 @@ export const renameWorkspaceEnvironment = (workspaceUid, environmentUid, newName
         throw new Error('Workspace not found');
       }
 
-      await ipcRenderer.invoke('renderer:rename-workspace-environment', workspace.pathname, environmentUid, newName);
+      await storage.renameWorkspaceEnvironment(workspace.pathname, environmentUid, newName);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -715,7 +712,7 @@ export const copyWorkspaceEnvironment = (workspaceUid, environmentUid, newName) 
         throw new Error('Workspace not found');
       }
 
-      const newEnvironment = await ipcRenderer.invoke('renderer:copy-workspace-environment', workspace.pathname, environmentUid, newName);
+      const newEnvironment = await storage.copyWorkspaceEnvironment(workspace.pathname, environmentUid, newName);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -740,7 +737,7 @@ export const exportWorkspaceAction = (workspaceUid) => {
         throw new Error('Workspace path not found');
       }
 
-      const result = await ipcRenderer.invoke('renderer:export-workspace', workspace.pathname, workspace.name);
+      const result = await storage.exportWorkspace(workspace.pathname, workspace.name);
 
       if (result.canceled) {
         return { canceled: true };
@@ -756,7 +753,7 @@ export const exportWorkspaceAction = (workspaceUid) => {
 export const importWorkspaceAction = (zipFilePath, extractLocation) => {
   return async (dispatch) => {
     try {
-      const result = await ipcRenderer.invoke('renderer:import-workspace', zipFilePath, extractLocation);
+      const result = await storage.importWorkspace(zipFilePath, extractLocation);
 
       if (result.success) {
         dispatch(createWorkspace({
@@ -788,8 +785,8 @@ export const saveWorkspaceDotEnvVariables = (workspaceUid, variables, filename =
       return reject(new Error('Workspace path not found'));
     }
 
-    ipcRenderer
-      .invoke('renderer:save-workspace-dotenv-variables', { workspacePath: workspace.pathname, variables, filename })
+    storage
+      .saveWorkspaceDotEnvVariables({ workspacePath: workspace.pathname, variables, filename })
       .then(resolve)
       .catch(reject);
   });
@@ -808,8 +805,8 @@ export const saveWorkspaceDotEnvRaw = (workspaceUid, content, filename = '.env')
       return reject(new Error('Workspace path not found'));
     }
 
-    ipcRenderer
-      .invoke('renderer:save-workspace-dotenv-raw', { workspacePath: workspace.pathname, content, filename })
+    storage
+      .saveWorkspaceDotEnvRaw({ workspacePath: workspace.pathname, content, filename })
       .then(resolve)
       .catch(reject);
   });
@@ -828,8 +825,8 @@ export const createWorkspaceDotEnvFile = (workspaceUid, filename = '.env') => (d
       return reject(new Error('Workspace path not found'));
     }
 
-    ipcRenderer
-      .invoke('renderer:create-workspace-dotenv-file', { workspacePath: workspace.pathname, filename })
+    storage
+      .createWorkspaceDotEnvFile({ workspacePath: workspace.pathname, filename })
       .then(resolve)
       .catch(reject);
   });
@@ -848,8 +845,8 @@ export const deleteWorkspaceDotEnvFile = (workspaceUid, filename = '.env') => (d
       return reject(new Error('Workspace path not found'));
     }
 
-    ipcRenderer
-      .invoke('renderer:delete-workspace-dotenv-file', { workspacePath: workspace.pathname, filename })
+    storage
+      .deleteWorkspaceDotEnvFile({ workspacePath: workspace.pathname, filename })
       .then(resolve)
       .catch(reject);
   });
@@ -893,7 +890,7 @@ export const mountScratchCollection = (workspaceUid) => {
     }
 
     try {
-      const tempDirectoryPath = await ipcRenderer.invoke('renderer:mount-workspace-scratch', {
+      const tempDirectoryPath = await storage.mountWorkspaceScratch({
         workspaceUid,
         workspacePath: workspace.pathname || 'default'
       });
@@ -908,7 +905,7 @@ export const mountScratchCollection = (workspaceUid) => {
         ignore: ['node_modules', '.git']
       };
 
-      await ipcRenderer.invoke('renderer:add-collection-watcher', {
+      await storage.addCollectionWatcher({
         collectionPath: tempDirectoryPath,
         collectionUid: scratchCollectionUid,
         brunoConfig

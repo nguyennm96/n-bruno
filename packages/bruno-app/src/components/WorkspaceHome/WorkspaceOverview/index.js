@@ -8,6 +8,7 @@ import ImportCollection from 'components/Sidebar/ImportCollection';
 import ImportCollectionLocation from 'components/Sidebar/ImportCollectionLocation';
 import BulkImportCollectionLocation from 'components/Sidebar/BulkImportCollectionLocation';
 import CloneGitRepository from 'components/Sidebar/CloneGitRespository';
+import { storage } from 'utils/storage';
 import Button from 'ui/Button';
 import CollectionsList from './CollectionsList';
 import WorkspaceDocs from '../WorkspaceDocs';
@@ -35,8 +36,7 @@ const WorkspaceOverview = ({ workspace }) => {
     }
 
     try {
-      const { ipcRenderer } = window;
-      await ipcRenderer.invoke('renderer:ensure-collections-folder', workspace.pathname);
+      await storage.ensureCollectionsFolder(workspace.pathname);
       setCreateCollectionModalOpen(true);
     } catch (error) {
       console.error('Error ensuring collections folder exists:', error);
