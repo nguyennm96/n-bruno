@@ -3,10 +3,44 @@ import { IconAlertTriangle } from '@tabler/icons';
 import Modal from 'components/Modal';
 import Button from 'ui/Button';
 
-const ConfirmRequestClose = ({ item, example, onCancel, onCloseWithoutSave, onSaveAndClose }) => {
+const ConfirmRequestClose = ({ item, example, isDraft, onCancel, onCloseWithoutSave, onSaveAndClose }) => {
   const isExample = !!example;
   const itemName = isExample ? example.name : item.name;
   const itemType = isExample ? 'example' : 'request';
+
+  if (isDraft) {
+    return (
+      <Modal
+        size="md"
+        title="Discard draft"
+        disableEscapeKey={true}
+        disableCloseOnOutsideClick={true}
+        closeModalFadeTimeout={150}
+        handleCancel={onCancel}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        }}
+        hideFooter={true}
+      >
+        <div className="flex items-center font-normal">
+          <IconAlertTriangle size={32} strokeWidth={1.5} className="text-yellow-600" />
+          <h1 className="ml-2 text-lg font-medium">Discard this draft?</h1>
+        </div>
+        <div className="font-normal mt-4">
+          Request <span className="font-medium">{item.name}</span> hasn&apos;t been saved yet. Discarding will remove it permanently.
+        </div>
+        <div className="flex justify-between mt-6">
+          <Button color="danger" onClick={onCloseWithoutSave}>
+            Discard
+          </Button>
+          <Button size="sm" color="secondary" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal

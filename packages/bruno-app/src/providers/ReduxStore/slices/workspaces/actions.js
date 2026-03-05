@@ -347,6 +347,7 @@ export const switchWorkspace = (workspaceUid) => {
       const overviewTabUid = `${scratchCollection.uid}-overview`;
       const environmentsTabUid = `${scratchCollection.uid}-environments`;
 
+      // Default: open workspace overview tabs
       dispatch(addTab({
         uid: overviewTabUid,
         collectionUid: scratchCollection.uid,

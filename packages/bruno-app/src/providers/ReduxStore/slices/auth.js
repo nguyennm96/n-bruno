@@ -2,7 +2,13 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import toast from 'react-hot-toast';
 import { storage } from 'utils/storage';
 import { transformCloudItemToLocal, transformCloudEnvironmentToLocal } from 'utils/storage/transform';
-import { clearAllDrafts as clearAllCloudDrafts, getAllDrafts as getAllCloudDrafts } from 'utils/storage/cloudDrafts';
+import { getAllDrafts as getAllCloudDrafts } from 'utils/storage/cloudDrafts';
+import {
+  getCollectionUiState,
+  updateSyncMeta,
+  clearAll as clearUserCache
+} from 'utils/workspaceCache';
+import { startSyncPolling, stopSyncPolling } from 'utils/cloudSync';
 
 // Note: bruno-api will be imported after package is linked
 // For now, we'll setup the structure and integrate later
@@ -126,9 +132,17 @@ export const login = createAsyncThunk('auth/login', async ({ email, password }, 
  */
 export const logout = createAsyncThunk('auth/logout', async (_, { getState, dispatch, rejectWithValue }) => {
   const doLogout = async () => {
+    // Capture userId before clearing auth state
+    const userId = getState().auth?.user?.id;
+
     await storage.clearAuthTokens();
 
-    clearAllCloudDrafts();
+    // Clear all user-scoped local cache (tabs, UI state, drafts, sync meta)
+    if (userId) {
+      clearUserCache(userId);
+    }
+
+    stopSyncPolling();
 
     const { clearAllCache } = await import('utils/cache/indexedDB');
     await clearAllCache();
@@ -309,6 +323,12 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
           workspaceUid: activeWorkspaceId,
           collection: { uid: collection.id, name: collection.name, path: `cloud://${collection.id}` }
         }));
+
+        // Update local sync metadata with server version
+        if (collection.updated_at) {
+          updateSyncMeta(userId, collection.id, { server_updated_at: collection.updated_at });
+        }
+
         console.log(`✅ [Step 3] Dispatched collection: "${collection.name}"`);
       }
 
@@ -328,6 +348,24 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
       } catch (draftError) {
         console.warn('⚠️ [Step 3] Failed to restore drafts:', draftError);
       }
+
+      // Restore collection UI state (selected environments)
+      try {
+        const { selectEnvironment } = await import('providers/ReduxStore/slices/collections');
+        const savedUiState = getCollectionUiState(userId);
+        for (const [collectionUid, uiState] of Object.entries(savedUiState)) {
+          if (uiState?.activeEnvironmentUid) {
+            dispatch(selectEnvironment({ collectionUid, environmentUid: uiState.activeEnvironmentUid }));
+          }
+        }
+        console.log(`✅ [Step 4] Restored collection UI state`);
+      } catch (uiError) {
+        console.warn('⚠️ [Step 4] Failed to restore collection UI state:', uiError?.message);
+      }
+
+      // Start background sync polling for team changes
+      startSyncPolling(userId, dispatch, getState);
+      console.log(`✅ [Step 4] Background sync polling started`);
 
       return { success: true, workspaceCount: workspaces.length, collectionCount: collections.length };
     } catch (collectionError) {

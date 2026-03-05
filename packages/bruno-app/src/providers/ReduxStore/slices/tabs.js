@@ -54,7 +54,10 @@ export const tabsSlice = createSlice({
       }
 
       const lastTab = state.tabs[state.tabs.length - 1];
-      if (state.tabs.length > 0 && lastTab.preview) {
+      const newTabPreview = preview !== undefined ? preview : !nonReplaceableTabTypes.includes(type);
+      // Only replace a preview tab when the incoming tab is also preview (VS Code-style).
+      // Permanent tabs (e.g. new-draft requests) always open as additional tabs.
+      if (state.tabs.length > 0 && lastTab.preview && newTabPreview) {
         state.tabs[state.tabs.length - 1] = {
           uid,
           collectionUid,
@@ -65,9 +68,7 @@ export const tabsSlice = createSlice({
           responseViewTab: null,
           scriptPaneTab: null,
           type: type || 'request',
-          preview: preview !== undefined
-            ? preview
-            : !nonReplaceableTabTypes.includes(type),
+          preview: newTabPreview,
           ...(uid ? { folderUid: uid } : {}),
           ...(exampleUid ? { exampleUid } : {}),
           ...(itemUid ? { itemUid } : {})
@@ -89,9 +90,7 @@ export const tabsSlice = createSlice({
         scriptPaneTab: null,
         type: type || 'request',
         ...(uid ? { folderUid: uid } : {}),
-        preview: preview !== undefined
-          ? preview
-          : !nonReplaceableTabTypes.includes(type),
+        preview: newTabPreview,
         ...(exampleUid ? { exampleUid } : {}),
         ...(itemUid ? { itemUid } : {})
       });
@@ -184,10 +183,7 @@ export const tabsSlice = createSlice({
       const activeTab = find(state.tabs, (t) => t.uid === state.activeTabUid);
       const tabUids = action.payload.tabUids || [];
 
-      const nonClosableTypes = ['workspaceOverview', 'workspaceEnvironments'];
-      state.tabs = filter(state.tabs, (t) =>
-        !tabUids.includes(t.uid) || nonClosableTypes.includes(t.type)
-      );
+      state.tabs = filter(state.tabs, (t) => !tabUids.includes(t.uid));
 
       if (activeTab && state.tabs.length) {
         const { collectionUid } = activeTab;
@@ -211,6 +207,16 @@ export const tabsSlice = createSlice({
 
       if (!state.tabs || !state.tabs.length) {
         state.activeTabUid = null;
+      }
+    },
+    closeWorkspaceTabs: (state) => {
+      const workspaceTabTypes = new Set(['workspaceOverview', 'workspaceEnvironments']);
+      const prevActiveTabUid = state.activeTabUid;
+      state.tabs = filter(state.tabs, (t) => !workspaceTabTypes.has(t.type));
+
+      const activeTabStillExists = state.tabs.some((t) => t.uid === prevActiveTabUid);
+      if (!activeTabStillExists) {
+        state.activeTabUid = state.tabs.length > 0 ? last(state.tabs).uid : null;
       }
     },
     closeAllCollectionTabs: (state, action) => {
@@ -277,6 +283,7 @@ export const {
   updateScriptPaneTab,
   closeTabs,
   closeAllCollectionTabs,
+  closeWorkspaceTabs,
   makeTabPermanent,
   reorderTabs,
   resetTabs

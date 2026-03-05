@@ -35,7 +35,8 @@ const initialState = {
       codeFont: 'default'
     },
     general: {
-      defaultLocation: ''
+      defaultLocation: '',
+      previewTabMode: false
     },
     onboarding: {
       hasLaunchedBefore: false,

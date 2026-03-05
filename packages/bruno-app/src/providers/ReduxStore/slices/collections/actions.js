@@ -1105,6 +1105,29 @@ export const sortCollections = (payload) => (dispatch) => {
   dispatch(_sortCollections(payload));
 };
 
+/**
+ * Discard a transient (unsaved draft) request.
+ * Removes the item from Redux and cleans up localStorage in cloud mode.
+ * Does NOT call the server API (the item was never persisted).
+ */
+export const discardDraftRequest = (itemUid, collectionUid) => async (dispatch, getState) => {
+  const state = getState();
+  const collection = findCollectionByUid(state.collections.collections, collectionUid);
+  if (!collection) return;
+
+  // Remove from Redux collections
+  dispatch(_deleteItem({ collectionUid, itemUid }));
+
+  // Remove from cloud draft localStorage cache
+  if (storage.isCloudMode()) {
+    const userId = state.auth?.user?.id;
+    if (userId) {
+      const { removeDraft } = await import('utils/workspaceCache');
+      removeDraft(userId, itemUid);
+    }
+  }
+};
+
 export const moveItem
   = ({ targetDirname, sourcePathname }) =>
     async (dispatch, getState) => {
@@ -2386,6 +2409,15 @@ export const selectEnvironment = (environmentUid, collectionUid) => (dispatch, g
     });
 
     dispatch(_selectEnvironment({ environmentUid, collectionUid }));
+
+    // Persist selected environment per collection for cloud mode (user-scoped cache)
+    const userId = state.auth?.user?.id;
+    if (userId && collection.isCloud) {
+      import('utils/workspaceCache').then(({ updateCollectionEnvironment }) => {
+        updateCollectionEnvironment(userId, collectionUid, environmentUid);
+      });
+    }
+
     resolve();
   });
 };

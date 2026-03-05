@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useRef, Fragment, useMemo, useEffect } from 'react';
 import get from 'lodash/get';
 import { makeTabPermanent } from 'providers/ReduxStore/slices/tabs';
-import { saveRequest, saveCollectionRoot, saveFolderRoot, saveEnvironment, closeTabs } from 'providers/ReduxStore/slices/collections/actions';
+import { saveRequest, saveCollectionRoot, saveFolderRoot, saveEnvironment, closeTabs, discardDraftRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { deleteRequestDraft, deleteCollectionDraft, deleteFolderDraft, clearEnvironmentsDraft } from 'providers/ReduxStore/slices/collections';
 import { clearGlobalEnvironmentDraft } from 'providers/ReduxStore/slices/global-environments';
 import { saveGlobalEnvironment } from 'providers/ReduxStore/slices/global-environments';
@@ -382,15 +382,20 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
       {showConfirmClose && (
         <ConfirmRequestClose
           item={item}
+          isDraft={!!item?.isTransient}
           onCancel={() => setShowConfirmClose(false)}
           onCloseWithoutSave={() => {
             isWS && closeWsConnection(item.uid);
-            dispatch(
-              deleteRequestDraft({
-                itemUid: item.uid,
-                collectionUid: collection.uid
-              })
-            );
+            if (item?.isTransient) {
+              dispatch(discardDraftRequest(item.uid, collection.uid));
+            } else {
+              dispatch(
+                deleteRequestDraft({
+                  itemUid: item.uid,
+                  collectionUid: collection.uid
+                })
+              );
+            }
             dispatch(
               closeTabs({
                 tabUids: [tab.uid]
@@ -420,7 +425,7 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
         onContextMenu={handleRightClick}
         onDoubleClick={() => dispatch(makeTabPermanent({ uid: tab.uid }))}
         onMouseUp={(e) => {
-          if (!hasChanges) return handleMouseUp(e);
+          if (!hasChanges && !item?.isTransient) return handleMouseUp(e);
 
           if (e.button === 1) {
             e.stopPropagation();
@@ -446,9 +451,9 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
         />
       </div>
       <GradientCloseButton
-        hasChanges={hasChanges}
+        hasChanges={hasChanges || !!item?.isTransient}
         onClick={(e) => {
-          if (!hasChanges) {
+          if (!hasChanges && !item?.isTransient) {
             isWS && closeWsConnection(item.uid);
             return handleCloseClick(e);
           }

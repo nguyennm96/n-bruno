@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import find from 'lodash/find';
-import filter from 'lodash/filter';
 import classnames from 'classnames';
 import { IconChevronRight, IconChevronLeft } from '@tabler/icons';
 import { useSelector, useDispatch } from 'react-redux';
@@ -45,7 +44,8 @@ const RequestTabs = () => {
 
   const activeTab = find(tabs, (t) => t.uid === activeTabUid);
   const activeCollection = find(collections, (c) => c?.uid === activeTab?.collectionUid);
-  const collectionRequestTabs = filter(tabs, (t) => t.collectionUid === activeTab?.collectionUid);
+  // Show tabs from all collections — switching collections no longer hides open tabs
+  const collectionRequestTabs = tabs;
 
   const isScratchCollection = useMemo(() => {
     return activeCollection ? workspaces.some((w) => w.scratchCollectionUid === activeCollection.uid) : false;
@@ -91,7 +91,8 @@ const RequestTabs = () => {
   }
 
   const effectiveSidebarWidth = sidebarCollapsed ? 0 : leftSidebarWidth;
-  const maxTablistWidth = screenWidth - effectiveSidebarWidth - 150;
+  // tabs area gets remaining width minus action icons (~220px) and chevrons/padding
+  const maxTablistWidth = screenWidth - effectiveSidebarWidth - 240;
 
   const leftSlide = () => {
     scrollContainerRef.current?.scrollBy({
@@ -114,29 +115,19 @@ const RequestTabs = () => {
         <NewRequest collectionUid={activeCollection?.uid} onClose={() => setNewRequestModalOpen(false)} />
       )}
       {collectionRequestTabs && collectionRequestTabs.length ? (
-        <>
-          {activeCollection && (
-            <CollectionHeader
-              collection={activeCollection}
-              isScratchCollection={isScratchCollection}
-            />
-          )}
-          <div className="flex items-center gap-2 pl-2" ref={collectionTabsRef}>
+        <div className="flex items-end pl-2" ref={collectionTabsRef}>
+          {/* Tabs area — scrollable, takes remaining space */}
+          <div className="flex items-end gap-2 min-w-0 flex-1">
             <div className={classnames('scroll-chevrons', { hidden: !showChevrons })}>
               <ActionIcon size="lg" onClick={leftSlide} aria-label="Left Chevron" style={{ marginBottom: '3px' }}>
                 <IconChevronLeft size={18} strokeWidth={1.5} />
               </ActionIcon>
             </div>
-            {/* Moved to post mvp */}
-            {/* <li className="select-none new-tab mr-1" onClick={createNewTab}>
-              <div className="flex items-center home-icon-container">
-                <IconHome2 size={18} strokeWidth={1.5}/>
-              </div>
-            </li> */}
             <div className="tabs-scroll-container" style={{ maxWidth: maxTablistWidth }} ref={scrollContainerRef}>
               <ul role="tablist" ref={tabsRef}>
                 {collectionRequestTabs && collectionRequestTabs.length
                   ? collectionRequestTabs.map((tab, index) => {
+                      const tabCollection = find(collections, (c) => c?.uid === tab.collectionUid);
                       return (
                         <DraggableTab
                           key={tab.uid}
@@ -156,7 +147,7 @@ const RequestTabs = () => {
                             tabIndex={index}
                             key={tab.uid}
                             tab={tab}
-                            collection={activeCollection}
+                            collection={tabCollection}
                             folderUid={tab.folderUid}
                             hasOverflow={tabOverflowStates[tab.uid]}
                             setHasOverflow={createSetHasOverflow(tab.uid)}
@@ -178,16 +169,16 @@ const RequestTabs = () => {
                 <IconChevronRight size={18} strokeWidth={1.5} />
               </ActionIcon>
             </div>
-            {/* Moved to post mvp */}
-            {/* <li className="select-none new-tab choose-request">
-                <div className="flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
-                  </svg>
-                </div>
-              </li> */}
           </div>
-        </>
+
+          {/* Action icons — always pinned to the right */}
+          {activeCollection && (
+            <CollectionHeader
+              collection={activeCollection}
+              isScratchCollection={isScratchCollection}
+            />
+          )}
+        </div>
       ) : null}
     </StyledWrapper>
   );

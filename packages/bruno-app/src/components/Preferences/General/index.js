@@ -83,7 +83,8 @@ const General = () => {
       oauth2: {
         useSystemBrowser: get(preferences, 'request.oauth2.useSystemBrowser', false)
       },
-      defaultLocation: get(preferences, 'general.defaultLocation', '')
+      defaultLocation: get(preferences, 'general.defaultLocation', ''),
+      previewTabMode: get(preferences, 'general.previewTabMode', false)
     },
     validationSchema: preferencesSchema,
     onSubmit: async (values) => {
@@ -121,7 +122,8 @@ const General = () => {
           interval: newPreferences.autoSave.interval
         },
         general: {
-          defaultLocation: newPreferences.defaultLocation
+          defaultLocation: newPreferences.defaultLocation,
+          previewTabMode: newPreferences.previewTabMode
         }
       }))
       .catch((err) => console.log(err) && toast.error('Failed to update preferences'));
@@ -355,6 +357,23 @@ const General = () => {
         {formik.touched.autoSave?.interval && formik.errors.autoSave?.interval && (
           <div className="text-red-500">{formik.errors.autoSave.interval}</div>
         )}
+        <div className="flex items-center mt-6">
+          <input
+            id="previewTabMode"
+            type="checkbox"
+            name="previewTabMode"
+            checked={formik.values.previewTabMode}
+            onChange={formik.handleChange}
+            className="mousetrap mr-0"
+          />
+          <label className="block ml-2 select-none" htmlFor="previewTabMode">
+            Preview Tab Mode
+          </label>
+        </div>
+        <p className="text-muted mt-1 text-xs pl-5">
+          When enabled, single-clicking a request opens it in a temporary preview tab that gets replaced by the next click.
+          Double-click to make it permanent. Disable for always-permanent tabs.
+        </p>
         <div className="flex flex-col mt-6">
           <label className="block select-none default-location-label" htmlFor="defaultLocation">
             Default Location

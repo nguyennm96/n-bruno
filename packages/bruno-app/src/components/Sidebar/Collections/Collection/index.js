@@ -27,7 +27,7 @@ import {
 import { toggleCollection, collapseFullCollection } from 'providers/ReduxStore/slices/collections';
 import { mountCollection, moveCollectionAndPersist, handleCollectionItemDrop, pasteItem, saveCollectionSecurityConfig } from 'providers/ReduxStore/slices/collections/actions';
 import { useDispatch, useSelector } from 'react-redux';
-import { addTab, makeTabPermanent } from 'providers/ReduxStore/slices/tabs';
+import { addTab, makeTabPermanent, closeWorkspaceTabs } from 'providers/ReduxStore/slices/tabs';
 import toast from 'react-hot-toast';
 import NewRequest from 'components/Sidebar/NewRequest';
 import NewFolder from 'components/Sidebar/NewFolder';
@@ -71,6 +71,7 @@ const Collection = ({ collection, searchText }) => {
 
   const isCollectionFocused = useSelector(isTabForItemActive({ itemUid: collection.uid }));
   const { hasCopiedItems } = useSelector((state) => state.app.clipboard);
+  const previewTabMode = useSelector((state) => state.app.preferences?.general?.previewTabMode ?? false);
   const menuDropdownRef = useRef(null);
 
   // Cloud workspace integration
@@ -128,9 +129,11 @@ const Collection = ({ collection, searchText }) => {
         addTab({
           uid: collection.uid,
           collectionUid: collection.uid,
-          type: 'collection-settings'
+          type: 'collection-settings',
+          preview: previewTabMode
         })
       );
+      dispatch(closeWorkspaceTabs());
     }
   };
 
