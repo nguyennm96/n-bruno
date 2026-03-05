@@ -1,24 +1,17 @@
 import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import get from 'lodash/get';
-import toast from 'react-hot-toast';
+import { useDispatch } from 'react-redux';
 import Bruno from 'components/Bruno';
 import Button from 'ui/Button';
 import { useTheme } from 'providers/Theme';
-import { browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
-import { savePreferences } from 'providers/ReduxStore/slices/app';
 import WelcomeStep from './WelcomeStep';
 import ThemeStep from './ThemeStep';
-import StorageStep from './StorageStep';
 import GetStartedStep from './GetStartedStep';
 import StyledWrapper from './StyledWrapper';
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
-const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpenCollection }) => {
+const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection }) => {
   const dispatch = useDispatch();
-  const preferences = useSelector((state) => state.app.preferences);
-  const defaultLocation = get(preferences, 'general.defaultLocation', '');
   const {
     storedTheme,
     setStoredTheme,
@@ -29,45 +22,10 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpe
   } = useTheme();
 
   const [step, setStep] = useState(1);
-  const [collectionLocation, setCollectionLocation] = useState(defaultLocation);
-
-  const handleBrowse = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string') {
-          setCollectionLocation(dirPath);
-        }
-      })
-      .catch(() => { });
-  };
-
-  const persistPreferences = () => {
-    if (collectionLocation && collectionLocation !== defaultLocation) {
-      const updatedPreferences = {
-        ...preferences,
-        general: {
-          ...preferences.general,
-          defaultLocation: collectionLocation
-        }
-      };
-      return dispatch(savePreferences(updatedPreferences)).catch(() => {
-        toast.error('Failed to save preferences');
-      });
-    }
-    return Promise.resolve();
-  };
-
-  const handleSaveAndDismiss = () => {
-    persistPreferences().finally(() => {
-      onDismiss();
-    });
-  };
 
   const handleActionAndDismiss = (action) => () => {
-    persistPreferences().finally(() => {
-      onDismiss();
-      action();
-    });
+    onDismiss();
+    if (action) action();
   };
 
   const goTo = (s) => setStep(s);
@@ -83,16 +41,10 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpe
       themeVariantDark={themeVariantDark}
       setThemeVariantDark={setThemeVariantDark}
     />,
-    <StorageStep
-      key="storage"
-      collectionLocation={collectionLocation}
-      onBrowse={handleBrowse}
-    />,
     <GetStartedStep
       key="getstarted"
       onCreateCollection={handleActionAndDismiss(onCreateCollection)}
       onImportCollection={handleActionAndDismiss(onImportCollection)}
-      onOpenCollection={handleActionAndDismiss(onOpenCollection)}
     />
   ];
 
@@ -106,7 +58,7 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpe
             <Bruno width={48} />
           </div>
           <h1 className="welcome-heading">
-            {step === 1 ? 'Welcome to AhaMan' : step === 4 ? 'Ready to go!' : 'Set up AhaMan'}
+            {step === 1 ? 'Welcome to AhaMan' : step === TOTAL_STEPS ? 'Ready to go!' : 'Set up AhaMan'}
           </h1>
           {step === 1 && (
             <p className="welcome-tagline">
@@ -132,7 +84,7 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpe
           </div>
 
           <div className="footer-buttons">
-            <Button type="button" color="secondary" variant="ghost" onClick={handleSaveAndDismiss}>
+            <Button type="button" color="secondary" variant="ghost" onClick={onDismiss}>
               Skip
             </Button>
             {step > 1 && (
@@ -146,7 +98,7 @@ const WelcomeModal = ({ onDismiss, onImportCollection, onCreateCollection, onOpe
               </Button>
             )}
             {isLastStep && (
-              <Button type="button" color="secondary" onClick={handleSaveAndDismiss}>
+              <Button type="button" color="secondary" onClick={onDismiss}>
                 I'll explore on my own
               </Button>
             )}

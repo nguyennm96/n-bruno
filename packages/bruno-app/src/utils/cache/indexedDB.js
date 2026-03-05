@@ -4,14 +4,15 @@
  */
 
 const DB_NAME = 'bruno-cloud-cache';
-const DB_VERSION = 2; // Incremented for sync queue
+const DB_VERSION = 3; // v3: added cloud_collections full tree cache
 
 // Store names
 const STORES = {
   WORKSPACES: 'workspaces',
   COLLECTIONS: 'collections',
   METADATA: 'metadata',
-  SYNC_QUEUE: 'sync_queue'
+  SYNC_QUEUE: 'sync_queue',
+  CLOUD_COLLECTIONS: 'cloud_collections'
 };
 
 /**
@@ -54,6 +55,12 @@ const initDB = () => {
         const syncQueueStore = db.createObjectStore(STORES.SYNC_QUEUE, { keyPath: 'id', autoIncrement: true });
         syncQueueStore.createIndex('timestamp', 'timestamp', { unique: false });
         syncQueueStore.createIndex('status', 'status', { unique: false });
+      }
+
+      // Create cloud_collections store — full collection trees for instant load
+      if (!db.objectStoreNames.contains(STORES.CLOUD_COLLECTIONS)) {
+        const cloudColStore = db.createObjectStore(STORES.CLOUD_COLLECTIONS, { keyPath: 'uid' });
+        cloudColStore.createIndex('workspaceId', 'workspaceId', { unique: false });
       }
     };
   });
@@ -485,5 +492,105 @@ export const getSyncQueueCount = async () => {
   } catch (error) {
     console.error('Failed to count sync queue:', error);
     return 0;
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Cloud Collections — Full Tree Cache
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Cache a full collection tree (items + environments) keyed by uid.
+ * @param {Object} collection — Redux-compatible collection object (uid, workspaceId, items, environments, ...)
+ */
+export const cacheCloudCollection = async (collection) => {
+  try {
+    const store = await getStore(STORES.CLOUD_COLLECTIONS, 'readwrite');
+    return new Promise((resolve, reject) => {
+      const request = store.put({ ...collection, cachedAt: Date.now() });
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error('Failed to cache cloud collection'));
+    });
+  } catch (error) {
+    console.error('[CloudCache] Failed to cache collection:', error);
+  }
+};
+
+/**
+ * Load all cached collections for a workspace.
+ * @param {string} workspaceId
+ * @returns {Promise<Array>}
+ */
+export const loadCachedCloudCollections = async (workspaceId) => {
+  try {
+    const store = await getStore(STORES.CLOUD_COLLECTIONS, 'readonly');
+    const index = store.index('workspaceId');
+    return new Promise((resolve, reject) => {
+      const request = index.getAll(IDBKeyRange.only(workspaceId));
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(new Error('Failed to load cached cloud collections'));
+    });
+  } catch (error) {
+    console.error('[CloudCache] Failed to load collections:', error);
+    return [];
+  }
+};
+
+/**
+ * Get a single cached collection by uid.
+ * @param {string} collectionUid
+ * @returns {Promise<Object|null>}
+ */
+export const getCachedCloudCollection = async (collectionUid) => {
+  try {
+    const store = await getStore(STORES.CLOUD_COLLECTIONS, 'readonly');
+    return new Promise((resolve, reject) => {
+      const request = store.get(collectionUid);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(new Error('Failed to get cached cloud collection'));
+    });
+  } catch (error) {
+    console.error('[CloudCache] Failed to get collection:', error);
+    return null;
+  }
+};
+
+/**
+ * Remove a single collection from the cache.
+ * @param {string} collectionUid
+ */
+export const removeCachedCloudCollection = async (collectionUid) => {
+  try {
+    const store = await getStore(STORES.CLOUD_COLLECTIONS, 'readwrite');
+    return new Promise((resolve, reject) => {
+      const request = store.delete(collectionUid);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error('Failed to remove cached cloud collection'));
+    });
+  } catch (error) {
+    console.error('[CloudCache] Failed to remove collection:', error);
+  }
+};
+
+/**
+ * Clear all cached collections for a workspace.
+ * @param {string} workspaceId
+ */
+export const clearCloudCollectionCache = async (workspaceId) => {
+  try {
+    const store = await getStore(STORES.CLOUD_COLLECTIONS, 'readwrite');
+    const index = store.index('workspaceId');
+    await new Promise((resolve, reject) => {
+      const request = index.openCursor(IDBKeyRange.only(workspaceId));
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          cursor.delete(); cursor.continue();
+        } else resolve();
+      };
+      request.onerror = () => reject(new Error('Failed to clear cloud collection cache'));
+    });
+  } catch (error) {
+    console.error('[CloudCache] Failed to clear cache:', error);
   }
 };

@@ -23,7 +23,7 @@ const DeleteCollection = ({ onClose, collectionUid, workspaceUid }) => {
     }
 
     try {
-      await dispatch(removeCollectionFromWorkspaceAction(workspace.uid, collection.pathname, { deleteFiles: true }));
+      await dispatch(removeCollectionFromWorkspaceAction(workspace.uid, collection.uid ?? collection.pathname, { deleteFiles: true }));
       toast.success(`Deleted "${collection.name}" collection`);
       onClose();
     } catch (error) {
@@ -61,7 +61,7 @@ const DeleteCollection = ({ onClose, collectionUid, workspaceUid }) => {
         </p>
         <div className="collection-info-card">
           <div className="collection-name">{collection.name}</div>
-          <div className="collection-path">{collection.pathname}</div>
+          <div className="collection-path">{collection.uid}</div>
         </div>
         <p className="warning-text">
           This action cannot be undone. The collection files will be permanently deleted from disk.

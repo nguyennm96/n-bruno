@@ -12,7 +12,7 @@ import {
 } from '../workspaces';
 import { showHomePage } from '../app';
 import { createCollection, openCollection, openMultipleCollections, openScratchCollectionEvent } from '../collections/actions';
-import { removeCollection, addTransientDirectory, updateCollectionMountStatus } from '../collections';
+import { removeCollection, addTransientDirectory, updateCollectionMountStatus, toggleCollection, toggleCollectionItem } from '../collections';
 import { updateGlobalEnvironments } from '../global-environments';
 import { addTab, focusTab } from '../tabs';
 import { normalizePath } from 'utils/common/path';
@@ -170,6 +170,30 @@ export const removeCollectionFromWorkspaceAction = (workspaceUid, collectionPath
 };
 
 const loadWorkspaceCollectionsForSwitch = async (dispatch, workspace) => {
+  // IDB mode: load collections directly from IndexedDB
+  if (!storage.isCloudMode()) {
+    try {
+      const { loadWorkspaceCollectionsFromIdb } = await import('utils/idb/collectionTree');
+      const { createCollection: _createCollection } = await import('../collections');
+      const collections = await loadWorkspaceCollectionsFromIdb(workspace.uid);
+
+      for (const collection of collections) {
+        dispatch(_createCollection(collection));
+        dispatch(addCollectionToWorkspace({
+          workspaceUid: workspace.uid,
+          collection: { uid: collection.uid, name: collection.name, path: collection.uid }
+        }));
+      }
+
+      dispatch(updateWorkspaceLoadingState({ workspaceUid: workspace.uid, loadingState: 'loaded' }));
+    } catch (error) {
+      console.error('[IDB] Failed to load workspace collections:', error);
+      dispatch(updateWorkspaceLoadingState({ workspaceUid: workspace.uid, loadingState: 'error' }));
+    }
+    return;
+  }
+
+  // Legacy filesystem mode (kept for backward compat)
   const openCollectionsFunction = (collectionPaths, workspacePath) => {
     return dispatch(openMultipleCollections(collectionPaths, { workspacePath }));
   };
@@ -236,6 +260,114 @@ export const loadWorkspaceApiSpecs = (workspaceUid) => {
   };
 };
 
+/**
+ * Background refresh of a cloud workspace from the API.
+ * Fetches fresh collection data, updates Redux and IDB cache.
+ */
+async function refreshCloudWorkspace(workspaceUid, dispatch, getState, _createCollection) {
+  const brunoApi = window.__BRUNO_API__;
+  if (!brunoApi) return;
+
+  try {
+    const { transformCloudItemToLocal, transformCloudEnvironmentToLocal } = await import('utils/storage/transform');
+    const { cacheCloudCollection, clearCloudCollectionCache } = await import('utils/cache/indexedDB');
+    const { removeCollection } = await import('../collections');
+
+    const collections = await brunoApi.collections.getCollectionsTreeByWorkspace(workspaceUid);
+
+    // Clear stale cache for this workspace before writing fresh data
+    await clearCloudCollectionCache(workspaceUid).catch(() => {});
+
+    // Get current Redux collections for this workspace to detect removals
+    const currentCollectionUids = new Set(
+      getState().collections.collections
+        .filter((c) => c.workspaceId === workspaceUid)
+        .map((c) => c.uid)
+    );
+
+    const freshUids = new Set();
+    for (const collection of collections) {
+      const items = (collection.items || []).map((item) => transformCloudItemToLocal(item, collection.id));
+      let environments = [];
+      try {
+        const rawEnvs = await brunoApi.environments.listCollectionEnvironments(collection.id);
+        environments = rawEnvs.map(transformCloudEnvironmentToLocal);
+      } catch {}
+
+      const collectionData = {
+        uid: collection.id,
+        name: collection.name,
+        pathname: `cloud://${collection.id}`,
+        items,
+        environments,
+        version: '1',
+        isCloud: true,
+        workspaceId: workspaceUid,
+        brunoConfig: collection.bruno_config || {},
+        root: collection.root || {},
+        runtimeVariables: {},
+        mountStatus: 'unmounted'
+      };
+
+      freshUids.add(collection.id);
+
+      // Replace in Redux (remove stale + add fresh)
+      if (currentCollectionUids.has(collection.id)) {
+        dispatch(removeCollection(collection.id));
+      }
+      dispatch(_createCollection(collectionData));
+      dispatch(addCollectionToWorkspace({
+        workspaceUid,
+        collection: { uid: collection.id, name: collection.name, path: collection.id }
+      }));
+
+      // Update IDB cache
+      await cacheCloudCollection(collectionData).catch(() => {});
+    }
+
+    // Remove collections that no longer exist on server
+    for (const uid of currentCollectionUids) {
+      if (!freshUids.has(uid)) {
+        dispatch(removeCollection(uid));
+      }
+    }
+
+    console.log(`✅ [CloudSync] Refreshed ${collections.length} collections for workspace ${workspaceUid}`);
+
+    // If the active tab is still the workspace overview (Phase-1 had no cache),
+    // attempt session tab restore now that we have fresh collections.
+    const stateAfterRefresh = getState();
+    const activeTabs = stateAfterRefresh.tabs?.tabs || [];
+    const hasOnlyOverview = activeTabs.length === 1 && activeTabs[0].type === 'workspaceOverview';
+    if (hasOnlyOverview) {
+      try {
+        const userId = stateAfterRefresh.auth?.user?.id;
+        const { getAppState } = await import('utils/workspaceCache');
+        const savedState = getAppState(userId);
+        if (savedState?.activeWorkspaceUid === workspaceUid && savedState.tabs?.length > 0) {
+          const allCollections = stateAfterRefresh.collections.collections;
+          const { findItemInCollection } = await import('utils/collections');
+          const { addTab, focusTab } = await import('../tabs');
+          let restoredCount = 0;
+          for (const tab of savedState.tabs) {
+            const col = allCollections.find((c) => c.uid === tab.collectionUid);
+            if (!col) continue;
+            const isSpecialTab = ['workspaceOverview', 'workspaceEnvironments', 'collectionOverview', 'collectionEnvironments', 'preferences'].includes(tab.type);
+            if (!isSpecialTab && !findItemInCollection(col, tab.uid)) continue;
+            dispatch(addTab({ uid: tab.uid, collectionUid: tab.collectionUid, type: tab.type, requestPaneTab: tab.requestPaneTab }));
+            restoredCount++;
+          }
+          if (restoredCount > 0 && savedState.activeTabUid) {
+            dispatch(focusTab({ uid: savedState.activeTabUid }));
+          }
+        }
+      } catch (_) {}
+    }
+  } catch (e) {
+    console.warn('⚠️  [CloudSync] Background refresh failed:', e?.message);
+  }
+}
+
 export const switchWorkspace = (workspaceUid) => {
   return async (dispatch, getState) => {
     dispatch(setActiveWorkspace(workspaceUid));
@@ -264,43 +396,24 @@ export const switchWorkspace = (workspaceUid) => {
         dispatch(updateGlobalEnvironments({ globalEnvironments: [], activeGlobalEnvironmentUid: null }));
       }
 
-      // Load collections for the new workspace
-      try {
-        const { transformCloudItemToLocal, transformCloudEnvironmentToLocal } = await import('utils/storage/transform');
-        const { createCollection: _createCollection } = await import('../collections');
-        const brunoApi = window.__BRUNO_API__;
+      const { createCollection: _createCollection } = await import('../collections');
 
-        if (brunoApi) {
-          const collections = await brunoApi.collections.getCollectionsTreeByWorkspace(workspaceUid);
-          for (const collection of collections) {
-            const items = (collection.items || []).map((item) => transformCloudItemToLocal(item, collection.id));
-            let environments = [];
-            try {
-              const rawEnvs = await brunoApi.environments.listCollectionEnvironments(collection.id);
-              environments = rawEnvs.map(transformCloudEnvironmentToLocal);
-            } catch {}
-            dispatch(_createCollection({
-              uid: collection.id,
-              name: collection.name,
-              pathname: `cloud://${collection.id}`,
-              items,
-              environments,
-              version: '1',
-              isCloud: true,
-              workspaceId: workspaceUid,
-              brunoConfig: collection.bruno_config || {},
-              root: collection.root || {},
-              runtimeVariables: {},
-              mountStatus: 'unmounted'
-            }));
-            dispatch(addCollectionToWorkspace({
-              workspaceUid,
-              collection: { uid: collection.id, name: collection.name, path: `cloud://${collection.id}` }
-            }));
-          }
+      // ── Phase 1: Serve from IDB cache immediately (instant UI) ──────────────
+      try {
+        const { loadCachedCloudCollections } = await import('utils/cache/indexedDB');
+        const cachedCollections = await loadCachedCloudCollections(workspaceUid);
+        for (const col of cachedCollections) {
+          dispatch(_createCollection(col));
+          dispatch(addCollectionToWorkspace({
+            workspaceUid,
+            collection: { uid: col.uid, name: col.name, path: col.uid }
+          }));
+        }
+        if (cachedCollections.length > 0) {
+          console.log(`⚡ [switchWorkspace] Loaded ${cachedCollections.length} collections from cache`);
         }
       } catch (e) {
-        console.error('❌ [switchWorkspace] Failed to load cloud collections:', e?.message);
+        console.warn('[switchWorkspace] Failed to load from cache:', e?.message);
       }
 
       // Restore cloud drafts for this workspace
@@ -319,9 +432,49 @@ export const switchWorkspace = (workspaceUid) => {
         }
       } catch {}
 
-      const overviewTabUid = `${workspaceUid}-overview`;
-      dispatch(addTab({ uid: overviewTabUid, collectionUid: workspaceUid, type: 'workspaceOverview' }));
-      dispatch(focusTab({ uid: overviewTabUid }));
+      // Restore tabs from cloud session (workspaceCache localStorage)
+      const userId = getState().auth?.user?.id;
+      try {
+        const { getAppState } = await import('utils/workspaceCache');
+        const savedState = getAppState(userId);
+        if (savedState?.activeWorkspaceUid === workspaceUid && savedState.tabs?.length > 0) {
+          const state = getState();
+          const allCollections = state.collections.collections;
+          const { findItemInCollection } = await import('utils/collections');
+          let restoredCount = 0;
+          for (const tab of savedState.tabs) {
+            const col = allCollections.find((c) => c.uid === tab.collectionUid);
+            if (!col) continue;
+            const isSpecialTab = ['workspaceOverview', 'workspaceEnvironments', 'collectionOverview', 'collectionEnvironments', 'preferences'].includes(tab.type);
+            if (!isSpecialTab) {
+              const item = findItemInCollection(col, tab.uid);
+              if (!item) continue;
+            }
+            dispatch(addTab({ uid: tab.uid, collectionUid: tab.collectionUid, type: tab.type, requestPaneTab: tab.requestPaneTab }));
+            restoredCount++;
+          }
+          if (restoredCount > 0 && savedState.activeTabUid) {
+            dispatch(focusTab({ uid: savedState.activeTabUid }));
+            console.log(`✅ [Cloud RestoreTabs] Restored ${restoredCount} tabs`);
+          } else if (restoredCount === 0) {
+            const overviewTabUid = `${workspaceUid}-overview`;
+            dispatch(addTab({ uid: overviewTabUid, collectionUid: workspaceUid, type: 'workspaceOverview' }));
+            dispatch(focusTab({ uid: overviewTabUid }));
+          }
+        } else {
+          const overviewTabUid = `${workspaceUid}-overview`;
+          dispatch(addTab({ uid: overviewTabUid, collectionUid: workspaceUid, type: 'workspaceOverview' }));
+          dispatch(focusTab({ uid: overviewTabUid }));
+        }
+      } catch {
+        const overviewTabUid = `${workspaceUid}-overview`;
+        dispatch(addTab({ uid: overviewTabUid, collectionUid: workspaceUid, type: 'workspaceOverview' }));
+        dispatch(focusTab({ uid: overviewTabUid }));
+      }
+
+      // ── Phase 2: Background refresh from API ────────────────────────────────
+      refreshCloudWorkspace(workspaceUid, dispatch, getState, _createCollection).catch(() => {});
+
       return;
     }
 
@@ -343,26 +496,128 @@ export const switchWorkspace = (workspaceUid) => {
     const scratchCollection = await dispatch(mountScratchCollection(workspaceUid));
     await loadWorkspaceCollectionsForSwitch(dispatch, workspace);
 
-    if (scratchCollection?.uid) {
-      const overviewTabUid = `${scratchCollection.uid}-overview`;
-      const environmentsTabUid = `${scratchCollection.uid}-environments`;
+    // Restore session tabs from IDB (local mode only, stable UIDs)
+    if (!storage.isCloudMode()) {
+      try {
+        const { getUiState } = await import('utils/idb/localStore');
+        const { findItemInCollection } = await import('utils/collections/index');
+        const savedState = await getUiState(`session_${workspaceUid}`);
+        const state = getState();
 
-      // Default: open workspace overview tabs
-      dispatch(addTab({
-        uid: overviewTabUid,
-        collectionUid: scratchCollection.uid,
-        type: 'workspaceOverview'
-      }));
+        console.log(`[Session Restore] workspace=${workspaceUid} savedState=`, savedState);
+        console.log(`[Session Restore] collections in Redux:`, state.collections.collections.map((c) => ({ uid: c.uid, name: c.name, itemCount: c.items?.length })));
+        console.log(`[Session Restore] scratchCollection:`, scratchCollection?.uid);
 
-      dispatch(addTab({
-        uid: environmentsTabUid,
-        collectionUid: scratchCollection.uid,
-        type: 'workspaceEnvironments'
-      }));
+        if (savedState) {
+          // 1. Restore expanded collection / folder state
+          const expandedSet = new Set(savedState.expandedCollections || []);
+          for (const col of state.collections.collections) {
+            const shouldBeExpanded = expandedSet.has(col.uid);
+            const isCurrentlyCollapsed = !!col.collapsed; // folders default to collapsed: true
+            if (shouldBeExpanded && isCurrentlyCollapsed) {
+              dispatch(toggleCollection(col.uid));
+            } else if (!shouldBeExpanded && !isCurrentlyCollapsed) {
+              // Only collapse non-scratch collections that were saved as collapsed
+              if (scratchCollection?.uid !== col.uid) {
+                dispatch(toggleCollection(col.uid));
+              }
+            }
+          }
+          if (savedState.expandedFolders) {
+            for (const [colUid, folderUids] of Object.entries(savedState.expandedFolders)) {
+              for (const folderUid of folderUids) {
+                dispatch(toggleCollectionItem({ collectionUid: colUid, itemUid: folderUid }));
+              }
+            }
+          }
 
-      dispatch(focusTab({
-        uid: overviewTabUid
-      }));
+          // 2. Restore regular collection tabs (request, folder, etc.)
+          let restoredCollectionActiveUid = null;
+          if (savedState.tabs?.length > 0) {
+            console.log(`[Session Restore] restoring ${savedState.tabs.length} collection tabs`);
+            for (const tab of savedState.tabs) {
+              const collection = state.collections.collections.find((c) => c.uid === tab.collectionUid);
+              if (!collection) {
+                console.warn(`[Session Restore] skipping tab ${tab.uid}: collection ${tab.collectionUid} not found`);
+                continue;
+              }
+
+              const SPECIAL_TAB_TYPES = new Set([
+                'variables', 'collection-runner', 'environment-settings',
+                'collection-settings', 'preferences', 'response-example'
+              ]);
+              if (!SPECIAL_TAB_TYPES.has(tab.type)) {
+                const itemExists = findItemInCollection(collection, tab.uid);
+                if (!itemExists) {
+                  console.warn(`[Session Restore] skipping tab ${tab.uid} (type=${tab.type}): item not found in collection`);
+                  continue;
+                }
+              }
+
+              dispatch(addTab({
+                uid: tab.uid,
+                collectionUid: tab.collectionUid,
+                type: tab.type,
+                requestPaneTab: tab.requestPaneTab,
+                preview: false
+              }));
+
+              if (tab.uid === savedState.activeTabUid) {
+                restoredCollectionActiveUid = tab.uid;
+              }
+            }
+          }
+
+          // 3. Always restore workspace-level tabs with current scratchCollection uid
+          const newScratchUid = scratchCollection?.uid;
+          if (newScratchUid) {
+            const workspaceTabs = savedState.workspaceTabs?.length
+              ? savedState.workspaceTabs
+              : [{ type: 'workspaceOverview' }, { type: 'workspaceEnvironments' }];
+
+            console.log(`[Session Restore] restoring ${workspaceTabs.length} workspace tabs with scratchUid=${newScratchUid}`);
+            for (const wt of workspaceTabs) {
+              const uid = `${newScratchUid}-${wt.type}`;
+              dispatch(addTab({
+                uid,
+                collectionUid: newScratchUid,
+                type: wt.type,
+                requestPaneTab: wt.requestPaneTab,
+                preview: false
+              }));
+            }
+
+            // Set active tab: prefer the saved collection tab, then the active workspace tab type
+            if (restoredCollectionActiveUid) {
+              dispatch(focusTab({ uid: restoredCollectionActiveUid }));
+            } else if (savedState.activeWorkspaceTabType) {
+              dispatch(focusTab({ uid: `${newScratchUid}-${savedState.activeWorkspaceTabType}` }));
+            } else {
+              dispatch(focusTab({ uid: `${newScratchUid}-workspaceOverview` }));
+            }
+          } else if (restoredCollectionActiveUid) {
+            dispatch(focusTab({ uid: restoredCollectionActiveUid }));
+          }
+        } else {
+          console.log(`[Session Restore] no saved state for workspace ${workspaceUid}, opening defaults`);
+          // No saved state — open default workspace tabs
+          if (scratchCollection?.uid) {
+            const overviewTabUid = `${scratchCollection.uid}-workspaceOverview`;
+            const environmentsTabUid = `${scratchCollection.uid}-workspaceEnvironments`;
+            dispatch(addTab({ uid: overviewTabUid, collectionUid: scratchCollection.uid, type: 'workspaceOverview' }));
+            dispatch(addTab({ uid: environmentsTabUid, collectionUid: scratchCollection.uid, type: 'workspaceEnvironments' }));
+            dispatch(focusTab({ uid: overviewTabUid }));
+          }
+        }
+      } catch (e) {
+        console.warn('[Session Restore] Failed to restore session:', e);
+        // Fallback: open default workspace tabs
+        if (scratchCollection?.uid) {
+          const overviewTabUid = `${scratchCollection.uid}-workspaceOverview`;
+          dispatch(addTab({ uid: overviewTabUid, collectionUid: scratchCollection.uid, type: 'workspaceOverview' }));
+          dispatch(focusTab({ uid: overviewTabUid }));
+        }
+      }
     }
   };
 };
@@ -377,7 +632,7 @@ export const loadWorkspaceCollections = (workspaceUid, force = false) => {
 
       const hasProcessedCollections = workspace.collections
         && workspace.collections.length > 0
-        && workspace.collections.some((c) => c.path && path.isAbsolute(c.path));
+        && workspace.collections.some((c) => c.uid || (c.path && path.isAbsolute(c.path)));
 
       if (!force && hasProcessedCollections) {
         return workspace.collections;
@@ -387,10 +642,12 @@ export const loadWorkspaceCollections = (workspaceUid, force = false) => {
 
       let collections = [];
 
-      if (!workspace.pathname) {
+      // In local (IDB) mode, query by uid; legacy filesystem mode uses pathname
+      const storageKey = !storage.isCloudMode() ? workspace.uid : workspace.pathname;
+      if (!storageKey) {
         collections = [];
       } else {
-        const rawCollections = await storage.loadWorkspaceCollections(workspace.pathname);
+        const rawCollections = await storage.loadWorkspaceCollections(storageKey);
 
         collections = rawCollections.map((collection) => {
           return {
@@ -462,6 +719,22 @@ export const workspaceOpenedEvent = (workspacePath, workspaceUid, workspaceConfi
       pathname: workspacePath,
       ...workspaceConfig
     }));
+
+    // Ensure this workspace exists in IDB (handles first launch + restarts)
+    if (!storage.isCloudMode()) {
+      try {
+        const { idbGet, idbPut, STORES } = await import('utils/idb/localStore');
+        const existing = await idbGet(STORES.WORKSPACES, workspaceUid);
+        if (!existing) {
+          await idbPut(STORES.WORKSPACES, {
+            uid: workspaceUid,
+            name: workspaceConfig?.name || 'My Workspace',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          });
+        }
+      } catch (_) {}
+    }
 
     try {
       await dispatch(loadWorkspaceCollections(workspaceUid));
@@ -565,10 +838,6 @@ export const createCollectionInWorkspace = (collectionName, workspaceUid) => {
   };
 };
 
-export const openCollectionInWorkspace = () => {
-  return (dispatch) => dispatch(openCollection());
-};
-
 const handleWorkspaceAction = async (action, workspaceUid, ...args) => {
   try {
     await action(workspaceUid, ...args);
@@ -590,13 +859,7 @@ export const renameWorkspaceAction = (workspaceUid, newName) => {
         throw new Error('Workspace not found');
       }
 
-      if (workspace.isCloud) {
-        await storage.renameWorkspace(workspaceUid, newName);
-      } else {
-        await handleWorkspaceAction((...args) => storage.renameWorkspace(...args),
-          workspace.pathname,
-          newName);
-      }
+      await storage.renameWorkspace(workspaceUid, newName);
 
       dispatch(updateWorkspace({
         uid: workspaceUid,
@@ -621,7 +884,7 @@ export const closeWorkspaceAction = (workspaceUid) => {
       if (workspace.isCloud) {
         await storage.deleteCloudWorkspace(workspaceUid);
       } else {
-        await storage.closeWorkspace(workspace.pathname);
+        await storage.closeWorkspace(workspaceUid);
       }
       dispatch(removeWorkspace(workspaceUid));
     } catch (error) {
@@ -678,7 +941,7 @@ export const loadWorkspaceEnvironments = (workspaceUid) => {
         throw new Error('Workspace not found');
       }
 
-      const environments = await storage.loadWorkspaceEnvironments(workspace.pathname);
+      const environments = await storage.loadWorkspaceEnvironments(workspaceUid);
 
       dispatch(updateWorkspace({
         uid: workspaceUid,
@@ -700,7 +963,7 @@ export const createWorkspaceEnvironment = (workspaceUid, environmentName) => {
         throw new Error('Workspace not found');
       }
 
-      const environment = await storage.createWorkspaceEnvironment(workspace.pathname, environmentName);
+      const environment = await storage.createWorkspaceEnvironment(workspaceUid, environmentName);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -719,7 +982,7 @@ export const deleteWorkspaceEnvironment = (workspaceUid, environmentUid) => {
         throw new Error('Workspace not found');
       }
 
-      await storage.deleteWorkspaceEnvironment(workspace.pathname, environmentUid);
+      await storage.deleteWorkspaceEnvironment(workspaceUid, environmentUid);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -738,7 +1001,7 @@ export const selectWorkspaceEnvironment = (workspaceUid, environmentUid) => {
         throw new Error('Workspace not found');
       }
 
-      await storage.selectWorkspaceEnvironment(workspace.pathname, environmentUid);
+      await storage.selectWorkspaceEnvironment(workspaceUid, environmentUid);
 
       dispatch(updateWorkspace({
         uid: workspaceUid,
@@ -760,7 +1023,7 @@ export const importWorkspaceEnvironment = (workspaceUid, environmentData) => {
         throw new Error('Workspace not found');
       }
 
-      const environment = await storage.importWorkspaceEnvironment(workspace.pathname, environmentData);
+      const environment = await storage.importWorkspaceEnvironment(workspaceUid, environmentData);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -779,7 +1042,7 @@ export const updateWorkspaceEnvironment = (workspaceUid, environmentUid, environ
         throw new Error('Workspace not found');
       }
 
-      await storage.updateWorkspaceEnvironment(workspace.pathname, environmentUid, environmentData);
+      await storage.updateWorkspaceEnvironment(workspaceUid, environmentUid, environmentData);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -798,7 +1061,7 @@ export const renameWorkspaceEnvironment = (workspaceUid, environmentUid, newName
         throw new Error('Workspace not found');
       }
 
-      await storage.renameWorkspaceEnvironment(workspace.pathname, environmentUid, newName);
+      await storage.renameWorkspaceEnvironment(workspaceUid, environmentUid, newName);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 
@@ -817,7 +1080,7 @@ export const copyWorkspaceEnvironment = (workspaceUid, environmentUid, newName) 
         throw new Error('Workspace not found');
       }
 
-      const newEnvironment = await storage.copyWorkspaceEnvironment(workspace.pathname, environmentUid, newName);
+      const newEnvironment = await storage.copyWorkspaceEnvironment(workspaceUid, environmentUid, newName);
 
       await dispatch(loadWorkspaceEnvironments(workspaceUid));
 

@@ -1454,21 +1454,21 @@ export const calculateDraggedItemNewPathname = ({ draggedItem, targetItem, dropT
     return null;
   }
 
-  // Local mode - use pathname
-  const { pathname: targetItemPathname } = targetItem;
+  // Local mode - use pathname (fall back to uid in IDB mode where pathname is not set)
+  const targetItemId = targetItem.pathname ?? targetItem.uid;
   const { filename: draggedItemFilename } = draggedItem;
 
-  if (!targetItemPathname || !draggedItemFilename) {
+  if (!targetItemId || !draggedItemFilename) {
     console.error('calculateDraggedItemNewPathname: Missing pathname or filename', { targetItem, draggedItem });
     return null;
   }
 
-  const targetItemDirname = path.dirname(targetItemPathname);
-  const isTargetTheCollection = targetItemPathname === collectionPathname;
+  const targetItemDirname = path.dirname(targetItemId);
+  const isTargetTheCollection = targetItemId === collectionPathname;
   const isTargetItemAFolder = isItemAFolder(targetItem);
 
   if (dropType === 'inside' && (isTargetItemAFolder || isTargetTheCollection)) {
-    return path.join(targetItemPathname, draggedItemFilename);
+    return path.join(targetItemId, draggedItemFilename);
   } else if (dropType === 'adjacent') {
     return path.join(targetItemDirname, draggedItemFilename);
   }

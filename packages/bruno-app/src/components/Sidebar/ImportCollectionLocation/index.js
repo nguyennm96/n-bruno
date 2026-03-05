@@ -1,10 +1,5 @@
 import React, { useRef, useEffect, useState, forwardRef } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useFormik } from 'formik';
-import * as Yup from 'yup';
-import get from 'lodash/get';
 import { IconCaretDown } from '@tabler/icons';
-import { browseDirectory } from 'providers/ReduxStore/slices/collections/actions';
 import { postmanToBruno } from 'utils/importers/postman-collection';
 import { convertInsomniaToBruno } from 'utils/importers/insomnia-collection';
 import { convertOpenapiToBruno } from 'utils/importers/openapi-collection';
@@ -13,7 +8,6 @@ import { processOpenCollection } from 'utils/importers/opencollection';
 import { wsdlToBruno } from '@usebruno/converters';
 import { toastError } from 'utils/common/error';
 import Modal from 'components/Modal';
-import Help from 'components/Help';
 import Dropdown from 'components/Dropdown';
 import StyledWrapper from './StyledWrapper';
 import { DEFAULT_COLLECTION_FORMAT } from 'utils/common/constants';
@@ -97,40 +91,13 @@ const groupingOptions = [
 
 const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format }) => {
   const inputRef = useRef();
-  const dispatch = useDispatch();
   const [groupingType, setGroupingType] = useState('tags');
   const [collectionFormat, setCollectionFormat] = useState(DEFAULT_COLLECTION_FORMAT);
   const dropdownTippyRef = useRef();
   const isOpenApi = format === 'openapi';
   const isZipImport = format === 'bruno-zip';
 
-  const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
-  const preferences = useSelector((state) => state.app.preferences);
-  const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
-  const isDefaultWorkspace = !activeWorkspace || activeWorkspace.type === 'default';
-
-  const defaultLocation = isDefaultWorkspace
-    ? get(preferences, 'general.defaultLocation', '')
-    : (activeWorkspace?.pathname ? `${activeWorkspace.pathname}/collections` : '');
-
   const collectionName = getCollectionName(format, rawData);
-
-  const formik = useFormik({
-    enableReinitialize: true,
-    initialValues: {
-      collectionLocation: defaultLocation
-    },
-    validationSchema: Yup.object({
-      collectionLocation: Yup.string()
-        .min(1, 'must be at least 1 character')
-        .max(500, 'must be 500 characters or less')
-        .required('Location is required')
-    }),
-    onSubmit: async (values) => {
-      const convertedCollection = await convertCollection(format, rawData, groupingType, collectionFormat);
-      handleSubmit(convertedCollection, values.collectionLocation, { format: collectionFormat });
-    }
-  });
 
   const onDropdownCreate = (ref) => {
     dropdownTippyRef.current = ref;
@@ -147,18 +114,6 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format }) =>
       </div>
     );
   });
-  const browse = () => {
-    dispatch(browseDirectory())
-      .then((dirPath) => {
-        if (typeof dirPath === 'string' && dirPath.length > 0) {
-          formik.setFieldValue('collectionLocation', dirPath);
-        }
-      })
-      .catch((error) => {
-        formik.setFieldValue('collectionLocation', '');
-        console.error(error);
-      });
-  };
 
   useEffect(() => {
     if (inputRef && inputRef.current) {
@@ -167,16 +122,15 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format }) =>
   }, [inputRef]);
 
   const onSubmit = async () => {
-    if (isZipImport) {
-      const errors = await formik.validateForm();
-      if (Object.keys(errors).length > 0) {
-        formik.setTouched({ collectionLocation: true });
-        return;
+    try {
+      if (isZipImport) {
+        handleSubmit(rawData, null, { format: collectionFormat, isZipImport: true });
+      } else {
+        const convertedCollection = await convertCollection(format, rawData, groupingType, collectionFormat);
+        handleSubmit(convertedCollection, null, { format: collectionFormat });
       }
-      const collectionLocation = formik.values.collectionLocation;
-      handleSubmit(rawData, collectionLocation, { format: collectionFormat, isZipImport: true });
-    } else {
-      formik.handleSubmit();
+    } catch (err) {
+      toastError(err, 'Import failed');
     }
   };
 
@@ -197,53 +151,10 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format }) =>
             </label>
             <div className="mt-2">{collectionName}</div>
 
-            <>
-              <label htmlFor="collectionLocation" className="font-medium mt-4 flex items-center">
-                Location
-                <Help>
-                  <p>Bruno stores your collections on your computer's filesystem.</p>
-                  <p className="mt-2">Choose the location where you want to store this collection.</p>
-                </Help>
-              </label>
-              <input
-                id="collection-location"
-                type="text"
-                name="collectionLocation"
-                className="block textbox mt-2 w-full cursor-pointer"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck="false"
-                value={formik.values.collectionLocation || ''}
-                onClick={browse}
-                onChange={(e) => {
-                  formik.setFieldValue('collectionLocation', e.target.value);
-                }}
-              />
-            </>
-            {formik.touched.collectionLocation && formik.errors.collectionLocation ? (
-              <div className="text-red-500">{formik.errors.collectionLocation}</div>
-            ) : null}
-
-            <div className="mt-1">
-              <span className="text-link cursor-pointer hover:underline" onClick={browse}>
-                Browse
-              </span>
-            </div>
-
             {!isZipImport && (
               <div className="mt-4">
-                <label htmlFor="format" className="flex items-center font-medium">
+                <label htmlFor="format" className="block font-medium">
                   File Format
-                  <Help width="300">
-                    <p>Choose the file format for storing requests in this collection.</p>
-                    <p className="mt-2">
-                      <strong>OpenCollection (YAML):</strong> Industry-standard YAML format (.yml files)
-                    </p>
-                    <p className="mt-1">
-                      <strong>BRU:</strong> AhaMan's native file format (.bru files)
-                    </p>
-                  </Help>
                 </label>
                 <select
                   id="format"

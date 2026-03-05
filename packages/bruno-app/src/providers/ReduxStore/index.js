@@ -19,6 +19,7 @@ import networkReducer from './slices/network';
 import syncQueueReducer from './slices/syncQueue';
 import { draftDetectMiddleware } from './middlewares/draft/middleware';
 import { autosaveMiddleware } from './middlewares/autosave/middleware';
+import { sessionPersistMiddleware } from './middlewares/sessionPersist/middleware';
 import { storage } from 'utils/storage';
 
 const isDevEnv = () => {
@@ -29,6 +30,7 @@ let middleware = [
   tasksMiddleware.middleware,
   draftDetectMiddleware,
   autosaveMiddleware,
+  sessionPersistMiddleware,
   globalLoadingMiddleware.middleware,
   syncQueueMiddleware.middleware
 ];

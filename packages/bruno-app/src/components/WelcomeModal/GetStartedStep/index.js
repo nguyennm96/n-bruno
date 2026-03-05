@@ -1,8 +1,8 @@
 import React from 'react';
-import { IconPlus, IconDownload, IconFileImport } from '@tabler/icons';
+import { IconPlus, IconDownload } from '@tabler/icons';
 import StyledWrapper from './StyledWrapper';
 
-const GetStartedStep = ({ onCreateCollection, onImportCollection, onOpenCollection }) => (
+const GetStartedStep = ({ onCreateCollection, onImportCollection }) => (
   <StyledWrapper className="step-body">
     <div className="step-label">Your first collection</div>
     <div className="step-title">You're all set! What's next?</div>
@@ -25,18 +25,6 @@ const GetStartedStep = ({ onCreateCollection, onImportCollection, onOpenCollecti
         </div>
         <div className="card-title">Import Collection</div>
         <div className="card-desc">Bring in Postman, OpenAPI, or Insomnia</div>
-      </button>
-    </div>
-
-    <div className="secondary-actions">
-      <button className="secondary-action" onClick={onOpenCollection}>
-        <span className="secondary-icon">
-          <IconFileImport size={16} stroke={1.5} />
-        </span>
-        <div>
-          <div className="secondary-label">Open existing collection</div>
-          <div className="secondary-desc">Open a Bruno collection from your filesystem</div>
-        </div>
       </button>
     </div>
   </StyledWrapper>

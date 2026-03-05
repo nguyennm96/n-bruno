@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { get } from 'lodash';
 import { useDispatch, useSelector } from 'react-redux';
-import { refreshScreenWidth } from 'providers/ReduxStore/slices/app';
+import { refreshScreenWidth, updatePreferences } from 'providers/ReduxStore/slices/app';
 import { loadSavedAuth, selectIsAuthInitializing } from 'providers/ReduxStore/slices/auth';
 import { setupNetworkListeners } from 'providers/ReduxStore/slices/network';
 import { initializeBrunoCloudApi } from 'services/brunoApi';
@@ -47,6 +47,63 @@ export const AppProvider = (props) => {
 
   useEffect(() => {
     dispatch(refreshScreenWidth());
+  }, []);
+
+  // Load preferences from IDB in local mode (replaces main:load-preferences IPC)
+  useEffect(() => {
+    const isAuthenticated = store.getState().auth?.isAuthenticated;
+    if (!isAuthenticated) {
+      import('utils/idb/localStore').then(({ getPreferences }) =>
+        getPreferences().then((prefs) => {
+          if (prefs) dispatch(updatePreferences(prefs));
+        })
+      ).catch(() => {});
+    }
+  }, []);
+
+  // Bootstrap IDB workspaces in local mode.
+  // Electron sends main:workspace-opened for its known workspaces (default).
+  // Any workspace created via the app UI is only in IDB — we need to add those to Redux too.
+  // We wait briefly to let the Electron workspace-opened events arrive first, then add any IDB-only workspaces.
+  useEffect(() => {
+    const isAuthenticated = store.getState().auth?.isAuthenticated;
+    if (isAuthenticated) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const { loadWorkspacesFromIdb } = await import('utils/idb/collectionTree');
+        const { createWorkspace: createWorkspaceSlice } = await import('providers/ReduxStore/slices/workspaces');
+        const { switchWorkspace, loadWorkspaceCollections } = await import('providers/ReduxStore/slices/workspaces/actions');
+        const { getUiState } = await import('utils/idb/localStore');
+
+        const idbWorkspaces = await loadWorkspacesFromIdb();
+        const currentState = store.getState();
+        const reduxWorkspaceUids = new Set(currentState.workspaces.workspaces.map((w) => w.uid));
+
+        // Add any IDB workspaces not already in Redux (i.e. user-created, not Electron default)
+        for (const ws of idbWorkspaces) {
+          if (!reduxWorkspaceUids.has(ws.uid)) {
+            store.dispatch(createWorkspaceSlice({ uid: ws.uid, name: ws.name, pathname: null }));
+            await store.dispatch(loadWorkspaceCollections(ws.uid));
+          }
+        }
+
+        // Restore the last active workspace (if saved and different from current)
+        const savedActiveUid = await getUiState('active_workspace');
+        const finalState = store.getState();
+        const allUids = new Set(finalState.workspaces.workspaces.map((w) => w.uid));
+        if (savedActiveUid && allUids.has(savedActiveUid)) {
+          const currentActive = finalState.workspaces.activeWorkspaceUid;
+          if (currentActive !== savedActiveUid) {
+            store.dispatch(switchWorkspace(savedActiveUid));
+          }
+        }
+      } catch (e) {
+        console.warn('[IDB Bootstrap] Failed:', e?.message);
+      }
+    }, 800); // Wait for Electron workspace-opened events to settle
+
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

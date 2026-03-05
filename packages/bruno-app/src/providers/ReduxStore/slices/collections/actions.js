@@ -67,7 +67,8 @@ import {
   updatePathParam,
   newItem as _newItem,
   deleteItem as _deleteItem,
-  renameItem as _renameItem
+  renameItem as _renameItem,
+  renameCollection as _renameCollection
 } from './index';
 
 import { each } from 'lodash';
@@ -144,7 +145,9 @@ export const renameCollection = (newName, collectionUid) => async (dispatch, get
 
   // Use unified storage layer
   console.log('Using unified storage layer for renameCollection');
-  return storage.renameCollection(collectionUid, newName);
+  return storage.renameCollection(collectionUid, newName).then(() => {
+    dispatch(_renameCollection({ collectionUid, newName }));
+  });
 };
 
 export const saveRequest = (itemUid, collectionUid, silent = false) => (dispatch, getState) => {
@@ -162,7 +165,7 @@ export const saveRequest = (itemUid, collectionUid, silent = false) => (dispatch
       return reject(new Error('Not able to locate item'));
     }
 
-    const isTransient = (tempDirectory && item.pathname.startsWith(tempDirectory))
+    const isTransient = (tempDirectory && (item.uid ?? item.pathname)?.startsWith(tempDirectory))
       || (storage.isCloudMode() && item.pathname?.startsWith('draft://'));
     if (isTransient) {
       dispatch(addSaveTransientRequestModal({ item, collection }));
@@ -175,7 +178,7 @@ export const saveRequest = (itemUid, collectionUid, silent = false) => (dispatch
     console.log('Using unified storage layer for saveRequest');
     itemSchema
       .validate(itemToSave)
-      .then(() => storage.saveRequest(item.pathname, itemToSave, collection.format))
+      .then(() => storage.saveRequest(item.uid ?? item.pathname, itemToSave, collection.format))
       .then(() => {
         if (!silent) {
           toast.success('Request saved successfully');
@@ -209,7 +212,7 @@ export const saveMultipleRequests = (items) => (dispatch, getState) => {
         if (itemIsValid) {
           itemsToSave.push({
             item: itemToSave,
-            pathname: item.pathname,
+            pathname: item.uid ?? item.pathname,
             format: collection.format
           });
         }
@@ -243,7 +246,7 @@ export const saveCollectionRoot = (collectionUid) => (dispatch, getState) => {
 
     console.log('Using unified storage layer for saveCollectionRoot');
     storage
-      .saveCollectionRoot(collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig)
+      .saveCollectionRoot(collectionCopy.uid ?? collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig)
       .then(() => {
         toast.success('Collection Settings saved successfully');
         dispatch(saveCollectionDraft({ collectionUid }));
@@ -275,8 +278,8 @@ export const saveFolderRoot = (collectionUid, folderUid, silent = false) => (dis
 
     const folderData = {
       name: folder.name,
-      folderPathname: folder.pathname,
-      collectionPathname: collection.pathname,
+      folderPathname: folder.uid ?? folder.pathname,
+      collectionPathname: collection.uid ?? collection.pathname,
       root: folderRootToSave
     };
 
@@ -317,11 +320,11 @@ export const saveMultipleCollections = (collectionDrafts) => (dispatch, getState
 
         // Use unified storage layer
         console.log('Using unified storage layer for saveCollectionRoot');
-        savePromises.push(storage.saveCollectionRoot(collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig));
+        savePromises.push(storage.saveCollectionRoot(collectionCopy.uid ?? collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig));
 
         if (collectionCopy.draft?.brunoConfig) {
           console.log('Using unified storage layer for updateBrunoConfig');
-          savePromises.push(storage.updateBrunoConfig(collectionCopy.draft.brunoConfig, collectionCopy.pathname, collectionCopy.root));
+          savePromises.push(storage.updateBrunoConfig(collectionCopy.draft.brunoConfig, collectionCopy.uid ?? collectionCopy.pathname, collectionCopy.root));
         }
 
         Promise.all(savePromises)
@@ -359,8 +362,8 @@ export const saveMultipleFolders = (folderDrafts) => (dispatch, getState) => {
         const folderRootToSave = transformFolderRootToSave(folder);
         const folderData = {
           name: folder.name,
-          folderPathname: folder.pathname,
-          collectionPathname: collection.pathname,
+          folderPathname: folder.uid ?? folder.pathname,
+          collectionPathname: collection.uid ?? collection.pathname,
           root: folderRootToSave
         };
 
@@ -785,7 +788,7 @@ export const renameItem
         console.log('Using unified storage layer for renameItem');
 
         const renameName = async () => {
-          return storage.renameItemName(item.pathname, newName, collection.pathname).catch((err) => {
+          return storage.renameItemName(item.uid ?? item.pathname, newName, collection.uid ?? collection.pathname).catch((err) => {
             toast.error('Failed to rename the item name');
             console.error(err);
             throw new Error('Failed to rename the item name');
@@ -793,7 +796,7 @@ export const renameItem
         };
 
         const renameFile = async () => {
-          const dirname = path.dirname(item.pathname);
+          const dirname = path.dirname(item.uid ?? item.pathname);
           let newPath = '';
           if (item.type === 'folder') {
             newPath = path.join(dirname, trim(newFilename));
@@ -802,7 +805,7 @@ export const renameItem
             newPath = path.join(dirname, filename);
           }
 
-          return storage.renameItemFilename(item.pathname, newPath, newName, newFilename, collection.pathname)
+          return storage.renameItemFilename(item.uid ?? item.pathname, newPath, newName, newFilename, collection.uid ?? collection.pathname)
             .catch((err) => {
               console.error(err);
               throw new Error('Duplicate request names are not allowed under the same folder');
@@ -820,10 +823,8 @@ export const renameItem
         renameOperation()
           .then(() => {
             toast.success('Item renamed successfully');
-            // Cloud mode: manually update Redux state (no filesystem watcher in cloud)
-            if (storage.isCloudMode()) {
-              dispatch(_renameItem({ collectionUid, itemUid, newName: newName || item.name }));
-            }
+            // No file watcher in IDB/cloud mode: update Redux directly
+            dispatch(_renameItem({ collectionUid, itemUid, newName: newName || item.name }));
             resolve();
           })
           .catch((err) => reject(err));
@@ -861,11 +862,11 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
       set(item, 'root.meta.name', newName);
       set(item, 'root.meta.seq', parentFolder?.items?.length + 1);
 
-      const collectionPath = path.join(parentFolder.pathname, newFilename);
+      const collectionPath = parentFolder.uid ?? parentFolder.pathname;
 
       // Use unified storage layer
       console.log('Using unified storage layer for cloneFolder');
-      storage.cloneFolder(item, collectionPath, collection.pathname)
+      storage.cloneFolder(item, collectionPath, collection.uid ?? collection.pathname)
         .then((clonedFolder) => {
           if (clonedFolder?.uid) {
             dispatch(_newItem({ collectionUid, currentItemUid: parentFolder?.uid || null, item: clonedFolder }));
@@ -888,22 +889,11 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
         (i) => i.type !== 'folder' && trim(i.filename) === trim(filename)
       );
       if (!reqWithSameNameExists) {
-        const fullPathname = path.join(collection.pathname, filename);
+        const fullPathname = collection.uid ?? collection.pathname;
         const requestItems = filter(collection.items, (i) => i.type !== 'folder');
         itemToSave.seq = requestItems ? requestItems.length + 1 : 1;
 
         // Use unified storage layer
-        console.log('Using unified storage layer for newRequest (cloneItem - collection root)');
-        if (!storage.isCloudMode()) {
-          dispatch(
-            insertTaskIntoQueue({
-              uid: uuid(),
-              type: 'OPEN_REQUEST',
-              collectionUid,
-              itemPathname: fullPathname
-            })
-          );
-        }
         itemSchema
           .validate(omit(itemToSave, ['collectionUid']))
           .then(() => storage.newRequest(fullPathname, itemToSave))
@@ -924,23 +914,11 @@ export const cloneItem = (newName, newFilename, itemUid, collectionUid) => (disp
         (i) => i.type !== 'folder' && trim(i.filename) === trim(filename)
       );
       if (!reqWithSameNameExists) {
-        const dirname = path.dirname(item.pathname);
-        const fullName = path.join(dirname, filename);
+        const fullName = parentItem.uid ?? parentItem.pathname;
         const requestItems = filter(parentItem.items, (i) => i.type !== 'folder');
         itemToSave.seq = requestItems ? requestItems.length + 1 : 1;
 
         // Use unified storage layer
-        console.log('Using unified storage layer for newRequest (cloneItem - in folder)');
-        if (!storage.isCloudMode()) {
-          dispatch(
-            insertTaskIntoQueue({
-              uid: uuid(),
-              type: 'OPEN_REQUEST',
-              collectionUid,
-              itemPathname: fullName
-            })
-          );
-        }
         itemSchema
           .validate(omit(itemToSave, ['collectionUid']))
           .then(() => storage.newRequest(fullName, itemToSave))
@@ -981,7 +959,7 @@ export const pasteItem = (targetCollectionUid, targetItemUid = null) => (dispatc
 
         const targetCollectionCopy = cloneDeep(targetCollection);
         let targetItem = null;
-        let targetParentPathname = targetCollection.pathname;
+        let targetParentPathname = targetCollection.uid ?? targetCollection.pathname;
 
         // If targetItemUid is provided, we're pasting into a folder
         if (targetItemUid) {
@@ -992,7 +970,7 @@ export const pasteItem = (targetCollectionUid, targetItemUid = null) => (dispatc
           if (!isItemAFolder(targetItem)) {
             return reject(new Error('Target must be a folder or collection'));
           }
-          targetParentPathname = targetItem.pathname;
+          targetParentPathname = targetItem.uid ?? targetItem.pathname;
         }
 
         const existingItems = targetItem ? targetItem.items : targetCollection.items;
@@ -1007,11 +985,10 @@ export const pasteItem = (targetCollectionUid, targetItemUid = null) => (dispatc
           set(copiedItem, 'root.meta.name', newName);
           set(copiedItem, 'root.meta.seq', (existingItems?.length ?? 0) + 1);
 
-          const fullPathname = path.join(targetParentPathname, newFilename);
+          const fullPathname = targetParentPathname;
 
           // Use unified storage layer
-          console.log('Using unified storage layer for cloneFolder (pasteItem)');
-          const clonedFolder = await storage.cloneFolder(copiedItem, fullPathname, targetCollection.pathname);
+          const clonedFolder = await storage.cloneFolder(copiedItem, fullPathname, targetCollection.uid ?? targetCollection.pathname);
           if (clonedFolder?.uid) {
             dispatch(_newItem({ collectionUid: targetCollection.uid, currentItemUid: targetItem?.uid || null, item: clonedFolder }));
           }
@@ -1026,21 +1003,19 @@ export const pasteItem = (targetCollectionUid, targetItemUid = null) => (dispatc
           set(itemToSave, 'filename', trim(filename));
           set(itemToSave, 'collectionUid', targetCollectionUid);
 
-          const fullPathname = path.join(targetParentPathname, filename);
+          const fullPathname = targetParentPathname;
           const requestItems = filter(existingItems, (i) => i.type !== 'folder');
           itemToSave.seq = requestItems ? requestItems.length + 1 : 1;
 
           // Use unified storage layer
-          console.log('Using unified storage layer for newRequest (pasteItem)');
           await itemSchema.validate(omit(itemToSave, ['collectionUid']));
           const createdItem = await storage.newRequest(fullPathname, itemToSave, targetCollection.format);
 
           if (createdItem?.uid) {
-            // Cloud mode: update Redux state + open tab
             dispatch(_newItem({ collectionUid: targetCollectionUid, currentItemUid: targetItemUid || null, item: createdItem }));
             dispatch(addTab({ uid: createdItem.uid, collectionUid: targetCollectionUid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: true }));
           } else {
-            // Local mode: use task middleware
+            // Legacy filesystem mode: use task middleware
             dispatch(insertTaskIntoQueue({
               uid: uuid(),
               type: 'OPEN_REQUEST',
@@ -1077,10 +1052,8 @@ export const deleteItem = (itemUid, collectionUid) => async (dispatch, getState)
     // Use unified storage layer
     await storage.deleteItem(itemUid, collectionUid);
 
-    // Cloud mode: manually update Redux state (no filesystem watcher in cloud)
-    if (storage.isCloudMode()) {
-      dispatch(_deleteItem({ collectionUid, itemUid }));
-    }
+    // Always update Redux state (no filesystem watcher in IDB or cloud mode)
+    dispatch(_deleteItem({ collectionUid, itemUid }));
 
     // Reorder items in parent directory after deletion
     const parentDirectoryItem = findParentItemInCollection(collection, itemUid) || collection;
@@ -1161,7 +1134,8 @@ export const handleCollectionItemDrop
         dropType
       }) => {
         const { uid: targetItemUid } = targetItem;
-        const { pathname: draggedItemPathname, uid: draggedItemUid } = draggedItem;
+        const { uid: draggedItemUid } = draggedItem;
+        const draggedItemPathname = draggedItem.pathname ?? draggedItem.uid;
 
         // Determine if cloud mode or local mode
         const isCloudMode = storage.isCloudMode();
@@ -1241,14 +1215,14 @@ export const handleCollectionItemDrop
             draggedItem,
             targetItem,
             dropType,
-            collectionPathname: collection.pathname,
+            collectionPathname: collection.uid ?? collection.pathname,
             isCloudMode: storage.isCloudMode()
           });
           if (!newPathname) return;
           if (targetItemPathname?.startsWith(draggedItemPathname)) return;
 
           // Discard operation if dragging a root item to the collection name (same location)
-          const isTargetTheCollection = targetItemPathname === collection.pathname;
+          const isTargetTheCollection = targetItemUid === collection.uid;
           const isDraggedItemAtRoot = draggedItemDirectory === sourceCollection;
           if (isTargetTheCollection && isDraggedItemAtRoot && !isCrossCollectionMove) {
             return;
@@ -1288,7 +1262,7 @@ export const updateItemsSequences
 
         // Use unified storage layer
         console.log('Using unified storage layer for resequenceItems');
-        storage.resequenceItems(itemsToResequence, collection.pathname).then(resolve).catch(reject);
+        storage.resequenceItems(itemsToResequence, collection.uid ?? collection.pathname).then(resolve).catch(reject);
       });
     };
 
@@ -1379,7 +1353,7 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
       const allItems = flattenItems(collection.items);
       const transientRequests = filter(
         allItems,
-        (i) => isItemARequest(i) && i.pathname && i.pathname.startsWith(tempDirectory)
+        (i) => isItemARequest(i) && (i.uid ?? i.pathname)?.startsWith(tempDirectory)
       );
       const reqWithSameNameExists = find(transientRequests, (i) => trim(i.filename) === trim(resolvedFilename));
       const items = filter(collection.items, (i) => isItemAFolder(i) || isItemARequest(i));
@@ -1430,9 +1404,7 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
       item.seq = items.length + 1;
 
       if (!reqWithSameNameExists) {
-        const fullName = storage.isCloudMode()
-          ? collection.pathname
-          : path.join(collection.pathname, resolvedFilename);
+        const fullName = collection.uid ?? collection.pathname;
 
         // Use unified storage layer
         console.log('Using unified storage layer for newRequest (newHttpRequest - root)');
@@ -1460,9 +1432,7 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
         const items = filter(currentItem.items, (i) => isItemAFolder(i) || isItemARequest(i));
         item.seq = items.length + 1;
         if (!reqWithSameNameExists) {
-          const fullName = storage.isCloudMode()
-            ? currentItem.pathname
-            : path.join(currentItem.pathname, resolvedFilename);
+          const fullName = currentItem.uid ?? currentItem.pathname;
 
           // Use unified storage layer
           console.log('Using unified storage layer for newRequest (newHttpRequest - in folder)');
@@ -1546,7 +1516,7 @@ export const newGrpcRequest = (params) => (dispatch, getState) => {
       const allItems = flattenItems(collection.items);
       const transientRequests = filter(
         allItems,
-        (i) => isItemARequest(i) && i.pathname && i.pathname.startsWith(tempDirectory)
+        (i) => isItemARequest(i) && (i.uid ?? i.pathname)?.startsWith(tempDirectory)
       );
       const reqWithSameNameExists = find(transientRequests, (i) => trim(i.filename) === trim(resolvedFilename));
 
@@ -1600,9 +1570,7 @@ export const newGrpcRequest = (params) => (dispatch, getState) => {
 
       const items = filter(parentItem.items, (i) => isItemAFolder(i) || isItemARequest(i));
       item.seq = items.length + 1;
-      const fullName = storage.isCloudMode()
-        ? parentItem.pathname
-        : path.join(parentItem.pathname, resolvedFilename);
+      const fullName = parentItem.uid ?? parentItem.pathname;
 
       // Use unified storage layer
       console.log('Using unified storage layer for newRequest (newGrpcRequest - regular)');
@@ -1682,7 +1650,7 @@ export const newWsRequest = (params) => (dispatch, getState) => {
       const allItems = flattenItems(collection.items);
       const transientRequests = filter(
         allItems,
-        (i) => isItemARequest(i) && i.pathname && i.pathname.startsWith(tempDirectory)
+        (i) => isItemARequest(i) && (i.uid ?? i.pathname)?.startsWith(tempDirectory)
       );
       const reqWithSameNameExists = find(transientRequests, (i) => trim(i.filename) === trim(resolvedFilename));
 
@@ -1736,10 +1704,7 @@ export const newWsRequest = (params) => (dispatch, getState) => {
 
       const items = filter(parentItem.items, (i) => isItemAFolder(i) || isItemARequest(i));
       item.seq = items.length + 1;
-      const fullName = storage.isCloudMode()
-        ? parentItem.pathname
-        : path.join(parentItem.pathname, resolvedFilename);
-      console.log('Using unified storage layer for newRequestFile');
+      const fullName = parentItem.uid ?? parentItem.pathname;
       storage
         .newRequestFile(fullName, item)
         .then((createdItem) => {
@@ -1840,9 +1805,9 @@ export const addEnvironment = (name, collectionUid) => (dispatch, getState) => {
       return reject(new Error('Collection not found'));
     }
 
-    console.log('Using unified storage layer for createEnvironment', { pathname: collection.pathname, name });
+    console.log('Using unified storage layer for createEnvironment', { pathname: collection.uid ?? collection.pathname, name });
     storage
-      .createEnvironment(collection.pathname, name)
+      .createEnvironment(collection.uid ?? collection.pathname, name)
       .then((createdEnv) => {
         console.log('createEnvironment result:', createdEnv);
         if (createdEnv && createdEnv.uid) {
@@ -1870,7 +1835,7 @@ export const importEnvironment = ({ name, variables, color, collectionUid }) => 
 
     console.log('Using unified storage layer for createEnvironment');
     storage
-      .createEnvironment(collection.pathname, sanitizedName, variables, color)
+      .createEnvironment(collection.uid ?? collection.pathname, sanitizedName, variables, color)
       .then((createdEnv) => {
         if (createdEnv && createdEnv.uid) {
           dispatch(_collectionAddEnvFileEvent({ environment: createdEnv, collectionUid }));
@@ -1907,7 +1872,7 @@ export const copyEnvironment = (name, baseEnvUid, collectionUid) => (dispatch, g
 
     console.log('Using unified storage layer for createEnvironment');
     storage
-      .createEnvironment(collection.pathname, sanitizedName, variablesToCopy)
+      .createEnvironment(collection.uid ?? collection.pathname, sanitizedName, variablesToCopy)
       .then((createdEnv) => {
         if (createdEnv && createdEnv.uid) {
           dispatch(_collectionAddEnvFileEvent({ environment: createdEnv, collectionUid }));
@@ -1942,12 +1907,10 @@ export const renameEnvironment = (newName, environmentUid, collectionUid) => (di
     console.log('Using unified storage layer for renameEnvironment');
     environmentSchema
       .validate(environment)
-      .then(() => storage.renameEnvironment(collection.pathname, oldName, sanitizedName, environmentUid))
+      .then(() => storage.renameEnvironment(collection.uid ?? collection.pathname, oldName, sanitizedName, environmentUid))
       .then(() => {
-        if (storage.isCloudMode()) {
-          // Cloud mode: no file watcher, update Redux directly
-          dispatch(_collectionAddEnvFileEvent({ environment: { ...environment, name: sanitizedName }, collectionUid }));
-        }
+        // No file watcher in IDB/cloud mode: update Redux directly
+        dispatch(_collectionAddEnvFileEvent({ environment: { ...environment, name: sanitizedName }, collectionUid }));
       })
       .then(resolve)
       .catch(reject);
@@ -1971,12 +1934,10 @@ export const deleteEnvironment = (environmentUid, collectionUid) => (dispatch, g
 
     console.log('Using unified storage layer for deleteEnvironment');
     storage
-      .deleteEnvironment(collection.pathname, environment.name, environment.uid)
+      .deleteEnvironment(collection.uid ?? collection.pathname, environment.name, environment.uid)
       .then(() => {
-        if (storage.isCloudMode()) {
-          // Cloud mode: no file watcher, update Redux directly
-          dispatch(_collectionUnlinkEnvFileEvent({ data: { uid: environmentUid }, meta: { collectionUid } }));
-        }
+        // No file watcher in IDB/cloud mode: update Redux directly
+        dispatch(_collectionUnlinkEnvFileEvent({ data: { uid: environmentUid }, meta: { collectionUid } }));
       })
       .then(resolve)
       .catch(reject);
@@ -2013,7 +1974,7 @@ export const saveEnvironment = (variables, environmentUid, collectionUid) => (di
     console.log('Using unified storage layer for saveEnvironment (main)');
     environmentSchema
       .validate(environment)
-      .then(() => storage.saveEnvironment(collection.pathname, envForValidation))
+      .then(() => storage.saveEnvironment(collection.uid ?? collection.pathname, envForValidation))
       .then(() => {
         // Immediately sync Redux to the saved (persisted) set so old ephemerals
         // aren’t around when the watcher event arrives.
@@ -2042,7 +2003,7 @@ export const updateEnvironmentColor = (environmentUid, color, collectionUid) => 
 
     // Use unified storage layer
     console.log('Using unified storage layer for updateEnvironmentColor');
-    storage.updateEnvironmentColor(collection.pathname, environment.name, color, environmentUid)
+    storage.updateEnvironmentColor(collection.uid ?? collection.pathname, environment.name, color, environmentUid)
       .then(() => {
         dispatch(_updateEnvironmentColor({ environmentUid, color, collectionUid }));
         resolve();
@@ -2380,7 +2341,7 @@ export const mergeAndPersistEnvironment
         console.log('Using unified storage layer for saveEnvironment (syncVariableFromScript)');
         environmentSchema
           .validate(environmentToSave)
-          .then(() => storage.saveEnvironment(collection.pathname, environmentToSave))
+          .then(() => storage.saveEnvironment(collection.uid ?? collection.pathname, environmentToSave))
           .then(resolve)
           .catch(reject);
       });
@@ -2405,7 +2366,7 @@ export const selectEnvironment = (environmentUid, collectionUid) => (dispatch, g
     console.log('Using unified storage layer for updateUiStateSnapshot');
     storage.updateUiStateSnapshot({
       type: 'COLLECTION_ENVIRONMENT',
-      data: { collectionPath: collection?.pathname, environmentName }
+      data: { collectionPath: collection?.uid ?? collection?.pathname, environmentName }
     });
 
     dispatch(_selectEnvironment({ environmentUid, collectionUid }));
@@ -2443,11 +2404,11 @@ export const removeCollection = (collectionUid) => (dispatch, getState) => {
       }
     }
 
-    storage.removeCollection(collection.pathname, collectionUid, workspaceId)
+    storage.removeCollection(collection.uid ?? collection.pathname, collectionUid, workspaceId)
       .then(() => {
         // Check if the collection still exists in other workspaces
         console.log('Using unified storage layer for getCollectionWorkspaces');
-        return storage.getCollectionWorkspaces(collection.pathname);
+        return storage.getCollectionWorkspaces(collection.uid ?? collection.pathname);
       })
       .then((remainingWorkspaces) => {
         // Close tabs for this collection
@@ -2457,7 +2418,7 @@ export const removeCollection = (collectionUid) => (dispatch, getState) => {
         if (activeWorkspace) {
           dispatch(removeCollectionFromWorkspace({
             workspaceUid: activeWorkspace.uid,
-            collectionLocation: collection.pathname
+            collectionLocation: collection.uid ?? collection.pathname
           }));
         }
 
@@ -2511,13 +2472,13 @@ export const saveCollectionSettings = (collectionUid, brunoConfig = null, silent
 
     // Use unified storage layer for save collection.bru file
     console.log('Using unified storage layer for saveCollectionRoot (saveCollectionSettings)');
-    savePromises.push(storage.saveCollectionRoot(collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig));
+    savePromises.push(storage.saveCollectionRoot(collectionCopy.uid ?? collectionCopy.pathname, collectionRootToSave, collectionCopy.brunoConfig));
 
     // Save bruno.json if brunoConfig is provided or if there's a brunoConfig draft
     const brunoConfigToSave = brunoConfig || (collectionCopy.draft && collectionCopy.draft.brunoConfig);
     if (brunoConfigToSave) {
       console.log('Using unified storage layer for updateBrunoConfig (saveCollectionSettings)');
-      savePromises.push(storage.updateBrunoConfig(brunoConfigToSave, collectionCopy.pathname, collectionCopy.root));
+      savePromises.push(storage.updateBrunoConfig(brunoConfigToSave, collectionCopy.uid ?? collectionCopy.pathname, collectionCopy.root));
     }
 
     Promise.all(savePromises)
@@ -2547,7 +2508,7 @@ export const updateBrunoConfig = (brunoConfig, collectionUid) => (dispatch, getS
 
     console.log('Using unified storage layer for updateBrunoConfigStorage');
     storage
-      .updateBrunoConfigStorage(brunoConfig, collection.pathname, collection.root)
+      .updateBrunoConfigStorage(brunoConfig, collection.uid ?? collection.pathname, collection.root)
       .then(resolve)
       .catch(reject);
   });
@@ -2721,29 +2682,46 @@ export const cloneCollection = (collectionName, collectionFolderName, collection
   console.log('Using unified storage layer for cloneCollection');
   const result = await storage.cloneCollection(collectionName, collectionFolderName, collectionLocation, previousPath, undefined, getState);
 
-  // Cloud mode: mount cloned collection into Redux immediately
-  if (storage.isCloudMode() && result?.id) {
-    const state = getState();
-    const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
-    const collection = {
-      version: '1',
-      uid: result.id,
-      name: result.name,
-      pathname: `cloud://${result.id}`,
-      items: result.items || [],
-      environments: result.environments || [],
-      runtimeVariables: {},
-      brunoConfig: result.brunoConfig || result.bruno_config || { name: result.name, version: '1' },
-      root: result.root || {},
-      isCloud: true,
-      mountStatus: 'unmounted'
-    };
-    dispatch(_createCollection(collection));
-    if (activeWorkspace) {
-      dispatch(_addCollectionToWorkspace({
-        workspaceUid: activeWorkspace.uid,
-        collection: { uid: result.id, name: result.name, path: `cloud://${result.id}` }
-      }));
+  // Mount cloned collection into Redux immediately (no file watcher in IDB/cloud mode)
+  if (result?.id) {
+    if (storage.isCloudMode()) {
+      const state = getState();
+      const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
+      const collection = {
+        version: '1',
+        uid: result.id,
+        name: result.name,
+        pathname: `cloud://${result.id}`,
+        items: result.items || [],
+        environments: result.environments || [],
+        runtimeVariables: {},
+        brunoConfig: result.brunoConfig || result.bruno_config || { name: result.name, version: '1' },
+        root: result.root || {},
+        isCloud: true,
+        mountStatus: 'unmounted'
+      };
+      dispatch(_createCollection(collection));
+      if (activeWorkspace) {
+        dispatch(_addCollectionToWorkspace({
+          workspaceUid: activeWorkspace.uid,
+          collection: { uid: result.id, name: result.name, path: `cloud://${result.id}` }
+        }));
+      }
+    } else {
+      // Local IDB mode: load full collection tree and dispatch
+      const { loadCollectionFromIdb } = await import('utils/idb/collectionTree');
+      const col = await loadCollectionFromIdb(result.id);
+      if (col) {
+        const state = getState();
+        const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
+        dispatch(_createCollection(col));
+        if (activeWorkspace) {
+          dispatch(_addCollectionToWorkspace({
+            workspaceUid: activeWorkspace.uid,
+            collection: { uid: result.id, name: result.name, path: result.id }
+          }));
+        }
+      }
     }
   }
 
@@ -2811,22 +2789,24 @@ export const importCollection = (collection, collectionLocation, options = {}) =
       const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
       const isMultiple = Array.isArray(collection);
 
-      // Use unified storage layer
-      console.log('Using unified storage layer for importCollection');
-      const result = await storage.importCollection(collection, collectionLocation, options.format || DEFAULT_COLLECTION_FORMAT);
-      const importedPaths = result.success.items;
+      const result = await storage.importCollection(collection, collectionLocation, options, getState);
 
-      if (importedPaths.length > 0 && activeWorkspace && activeWorkspace.pathname && activeWorkspace.type !== 'default') {
-        for (const importedItem of importedPaths) {
-          const workspaceCollection = {
-            name: importedItem.name,
-            path: importedItem.path
-          };
-          await storage.addCollectionToWorkspace(activeWorkspace.pathname, workspaceCollection);
+      // IDB mode: result is the imported item(s) directly; dispatch Redux for each
+      const importedItems = Array.isArray(result) ? result : (result ? [result] : []);
+
+      if (importedItems.length > 0) {
+        const { loadCollectionFromIdb } = await import('utils/idb/collectionTree');
+        const workspaceUid = activeWorkspace?.uid || 'default';
+        for (const item of importedItems) {
+          const col = await loadCollectionFromIdb(item.uid);
+          if (col) {
+            dispatch(_createCollection(col));
+            dispatch(_addCollectionToWorkspace({ workspaceUid, collection: { uid: col.uid, name: col.name, path: col.uid } }));
+          }
         }
       }
 
-      resolve(isMultiple ? importedPaths : importedPaths[0]);
+      resolve(isMultiple ? importedItems : importedItems[0]);
     } catch (error) {
       reject(error);
     }
@@ -2861,10 +2841,11 @@ export const moveCollectionAndPersist
       const activeWorkspace = state.workspaces.workspaces.find(
         (w) => w.uid === state.workspaces.activeWorkspaceUid
       );
-      if (!activeWorkspace?.pathname || !activeWorkspace.collections?.length) {
+      if ((!activeWorkspace?.pathname && !activeWorkspace?.uid) || !activeWorkspace.collections?.length) {
         return Promise.resolve();
       }
 
+      const workspaceId = activeWorkspace.uid || activeWorkspace.pathname;
       const workspacePathSet = new Set(
         activeWorkspace.collections.map((wc) => normalizePath(wc.path))
       );
@@ -2881,7 +2862,7 @@ export const moveCollectionAndPersist
 
       console.log('Using unified storage layer for reorderWorkspaceCollections');
       return storage
-        .reorderWorkspaceCollections(activeWorkspace.pathname, collectionPaths)
+        .reorderWorkspaceCollections(workspaceId, collectionPaths)
         .then(() => {
           dispatch(moveCollection({ draggedItem, targetItem }));
         })
@@ -2898,7 +2879,7 @@ export const saveCollectionSecurityConfig = (collectionUid, securityConfig) => (
 
     console.log('Using unified storage layer for saveCollectionSecurityConfig');
     storage
-      .saveCollectionSecurityConfig(collection?.pathname, securityConfig)
+      .saveCollectionSecurityConfig(collection?.uid ?? collection?.pathname, securityConfig)
       .then(async () => {
         await dispatch(setCollectionSecurityConfig({ collectionUid, securityConfig }));
         resolve();
@@ -3138,7 +3119,7 @@ export const saveDotEnvVariables = (collectionUid, variables, filename = '.env')
 
     console.log('Using unified storage layer for saveDotenvVariables');
     storage
-      .saveDotenvVariables(collection.pathname, variables, filename)
+      .saveDotenvVariables(collection.uid ?? collection.pathname, variables, filename)
       .then(resolve)
       .catch(reject);
   });
@@ -3155,7 +3136,7 @@ export const saveDotEnvRaw = (collectionUid, content, filename = '.env') => (dis
 
     console.log('Using unified storage layer for saveDotenvRaw');
     storage
-      .saveDotenvRaw(collection.pathname, content, filename)
+      .saveDotenvRaw(collection.uid ?? collection.pathname, content, filename)
       .then(resolve)
       .catch(reject);
   });
@@ -3172,7 +3153,7 @@ export const createDotEnvFile = (collectionUid, filename = '.env') => (dispatch,
 
     console.log('Using unified storage layer for createDotenvFile');
     storage
-      .createDotenvFile(collection.pathname, filename)
+      .createDotenvFile(collection.uid ?? collection.pathname, filename)
       .then(resolve)
       .catch(reject);
   });
@@ -3189,7 +3170,7 @@ export const deleteDotEnvFile = (collectionUid, filename = '.env') => (dispatch,
 
     console.log('Using unified storage layer for deleteDotenvFile');
     storage
-      .deleteDotenvFile(collection.pathname, filename)
+      .deleteDotenvFile(collection.uid ?? collection.pathname, filename)
       .then(resolve)
       .catch(reject);
   });

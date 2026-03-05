@@ -403,7 +403,7 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
           leftSection: IconTerminal2,
           label: 'Open in Terminal',
           onClick: async () => {
-            const folderCwd = item.pathname || collectionPathname;
+            const folderCwd = item.uid ?? collectionPathname;
             await openDevtoolsAndSwitchToTerminal(dispatch, folderCwd);
           }
         }

@@ -1,574 +1,680 @@
 /**
- * Local Storage Implementation
+ * Local Storage Implementation — IndexedDB Edition
  *
- * Handles data operations using Electron IPC for local filesystem storage.
- * This is used when the user is NOT authenticated (anonymous mode).
+ * All collection/request/folder/environment data is stored in IndexedDB.
+ * No filesystem dependency for data operations.
+ * Electron IPC is kept only for: network requests, OAuth2, cookies, preferences.
  */
+
+import { nanoid } from 'nanoid';
+import {
+  STORES,
+  idbGet,
+  idbPut,
+  idbDelete,
+  idbGetByIndex,
+  idbPutBulk,
+  idbDeleteByIndex,
+  deleteCollectionCascade,
+  getUiState,
+  setUiState
+} from 'utils/idb/localStore';
+import { loadWorkspaceCollectionsFromIdb } from 'utils/idb/collectionTree';
 
 const { ipcRenderer } = window;
 
+// ─── Collections ──────────────────────────────────────────────────────────────
+
 export const getCollections = async (getState) => {
-  // For local mode, trigger a workspace reload to pick up file system changes
-  const state = getState();
-  const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
-
-  if (activeWorkspace && activeWorkspace.pathname && activeWorkspace.type !== 'default') {
-    // Trigger reload of workspace collections from disk
-    try {
-      await ipcRenderer.invoke('renderer:load-workspace-collections', activeWorkspace.pathname);
-
-      // Wait a bit for IPC events to update Redux state
-      // The IPC handler sends events that update collections asynchronously
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    } catch (error) {
-      console.warn('Failed to reload workspace collections:', error);
-    }
-  }
-
-  // Return current state (should be updated by IPC events now)
   return getState().collections.collections;
 };
 
 export const createCollection = async (name, options = {}, getState) => {
   const state = getState();
-  const userId = state.auth?.user?.id || null;
+  const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
+  const workspaceUid = activeWorkspace?.uid || 'default';
 
-  // Determine workspace
-  let workspaceId = options.workspaceId;
-  if (!workspaceId) {
-    const { workspaces } = state;
-    const activeWorkspace = workspaces.workspaces.find((w) => w.uid === workspaces.activeWorkspaceUid);
-    workspaceId = activeWorkspace?.pathname || 'default';
-  }
+  const uid = nanoid();
+  const collectionName = name || `Collection ${Date.now()}`;
+  const format = options.format || 'bru';
+  const now = Date.now();
 
-  return new Promise((resolve, reject) => {
-    ipcRenderer
-      .invoke('renderer:create-collection', name, userId, { ...options, workspaceId })
-      .then(resolve)
-      .catch(reject);
-  });
+  const record = {
+    uid,
+    workspaceUid,
+    name: collectionName,
+    format,
+    brunoConfig: { name: collectionName, version: '1', format },
+    root: {},
+    seq: now,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  await idbPut(STORES.COLLECTIONS, record);
+
+  // Dispatch _createCollection from Redux after write
+  const { createCollection: _createCollection } = await import('providers/ReduxStore/slices/collections');
+  const { addCollectionToWorkspace } = await import('providers/ReduxStore/slices/workspaces');
+  const { default: store } = await import('providers/ReduxStore');
+
+  const reduxCollection = {
+    uid,
+    name: collectionName,
+    pathname: uid,
+    format,
+    brunoConfig: record.brunoConfig,
+    root: {},
+    version: '1',
+    runtimeVariables: {},
+    items: [],
+    environments: []
+  };
+
+  store.dispatch(_createCollection(reduxCollection));
+  store.dispatch(addCollectionToWorkspace({
+    workspaceUid,
+    collection: { uid, name: collectionName, path: uid }
+  }));
+
+  return reduxCollection;
 };
 
 export const updateCollection = async (collectionUid, data, getState) => {
-  const state = getState();
-  const collection = state.collections.collections.find((c) => c.uid === collectionUid);
+  const record = await idbGet(STORES.COLLECTIONS, collectionUid);
+  if (!record) throw new Error('Collection not found');
 
-  if (!collection) {
-    throw new Error('Collection not found');
-  }
-
-  // For local collections, we need to use the specific IPC methods
-  // based on what's being updated
-  if (data.name) {
-    return ipcRenderer.invoke('renderer:rename-collection', data.name, collection.pathname);
-  }
-
-  // For security config updates
-  if (data.securityConfig) {
-    return ipcRenderer.invoke('renderer:save-collection-security-config', collection.pathname, data.securityConfig);
-  }
-
-  // For other updates (root, brunoConfig, etc.), use save-collection-root
-  if (data.root || data.brunoConfig) {
-    const collectionCopy = { ...collection };
-    if (data.root) {
-      collectionCopy.root = data.root;
-    }
-    if (data.brunoConfig) {
-      collectionCopy.brunoConfig = data.brunoConfig;
-    }
-
-    return ipcRenderer.invoke(
-      'renderer:save-collection-root',
-      collection.pathname,
-      collectionCopy.root,
-      data.brunoConfig || collection.brunoConfig
-    );
-  }
-
-  return Promise.resolve();
+  const updated = { ...record, ...data, updatedAt: Date.now() };
+  await idbPut(STORES.COLLECTIONS, updated);
+  return updated;
 };
 
 export const deleteCollection = async (collectionUid, getState) => {
-  const state = getState();
-  const collection = state.collections.collections.find((c) => c.uid === collectionUid);
-
-  if (!collection) {
-    throw new Error('Collection not found');
-  }
-
-  return ipcRenderer.invoke('renderer:remove-collection', collection.pathname);
+  await deleteCollectionCascade(collectionUid);
 };
 
 export const removeCollection = async (pathname, collectionUid, workspaceId) => {
-  console.log('[LocalStorage] removeCollection:', { pathname, collectionUid, workspaceId });
-  return ipcRenderer.invoke('renderer:remove-collection', pathname, collectionUid, workspaceId);
+  // pathname = collectionUid in IDB mode
+  const uid = collectionUid || pathname;
+  await deleteCollectionCascade(uid);
 };
 
 export const cloneCollection = async (collectionName, collectionFolderName, collectionLocation, previousPath, collectionUid, getState) => {
-  return ipcRenderer.invoke(
-    'renderer:clone-collection',
-    collectionName,
-    collectionFolderName,
-    collectionLocation,
-    previousPath
-  );
-};
+  const original = await idbGet(STORES.COLLECTIONS, collectionUid || previousPath);
+  if (!original) throw new Error('Collection not found');
 
-export const importCollection = async (collection, collectionLocation, options, getState) => {
   const state = getState();
   const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
-  const isMultiple = Array.isArray(collection);
-  const DEFAULT_COLLECTION_FORMAT = options?.format || 'bru';
+  const workspaceUid = activeWorkspace?.uid || 'default';
 
-  const result = await ipcRenderer.invoke('renderer:import-collection', collection, collectionLocation, DEFAULT_COLLECTION_FORMAT);
-  const importedPaths = result.success.items;
+  const newUid = nanoid();
+  const now = Date.now();
 
-  if (importedPaths.length > 0 && activeWorkspace && activeWorkspace.pathname && activeWorkspace.type !== 'default') {
-    for (const importedItem of importedPaths) {
-      const workspaceCollection = {
-        name: importedItem.name,
-        path: importedItem.path
-      };
-      await ipcRenderer.invoke('renderer:add-collection-to-workspace', activeWorkspace.pathname, workspaceCollection);
-    }
-  }
-
-  return isMultiple ? importedPaths : importedPaths[0];
-};
-
-export const renameCollection = async (collectionUid, newName, getState) => {
-  const state = getState();
-  const collection = state.collections.collections.find((c) => c.uid === collectionUid);
-
-  if (!collection) {
-    throw new Error('Collection not found');
-  }
-
-  console.log('LocalStorage.renameCollection: invoking IPC', { collectionUid, newName, pathname: collection.pathname });
-  return ipcRenderer.invoke('renderer:rename-collection', newName, collection.pathname);
-};
-
-export const createFolder = async (collectionUid, folderName, parentFolderId = null, getState) => {
-  const state = getState();
-  const collection = state.collections.collections.find((c) => c.uid === collectionUid);
-
-  if (!collection) {
-    throw new Error('Collection not found');
-  }
-
-  // Find parent item to get its pathname
-  let parentPathname = collection.pathname;
-  if (parentFolderId) {
-    const findItem = (items, uid) => {
-      for (const item of items || []) {
-        if (item.uid === uid) return item;
-        if (item.items) {
-          const found = findItem(item.items, uid);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    const parentItem = findItem(collection.items, parentFolderId);
-    if (parentItem) {
-      parentPathname = parentItem.pathname;
-    }
-  }
-
-  // Get collection format
-  const format = collection.brunoConfig?.format || collection.format || 'bru';
-
-  // Determine folder directory name (sanitized version of folder name)
-  const sanitizeName = (name) => {
-    return name
-      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
-  };
-  const directoryName = sanitizeName(folderName);
-
-  // Calculate full pathname
-  const path = require('path');
-  const fullPathname = path.join(parentPathname, directoryName);
-
-  // Get items count for sequence number
-  const parentItem = parentFolderId
-    ? (() => {
-        const findItem = (items, uid) => {
-          for (const item of items || []) {
-            if (item.uid === uid) return item;
-            if (item.items) {
-              const found = findItem(item.items, uid);
-              if (found) return found;
-            }
-          }
-          return null;
-        };
-        return findItem(collection.items, parentFolderId);
-      })()
-    : collection;
-
-  const items = (parentItem?.items || []).filter((i) => i.type === 'folder' || i.type?.includes('request'));
-
-  // Build folder data structure that IPC expects
-  const folderData = {
-    meta: {
-      name: folderName,
-      seq: items.length + 1
-    },
-    request: {
-      auth: {
-        mode: 'inherit'
-      }
-    }
-  };
-
-  return ipcRenderer.invoke('renderer:new-folder', {
-    pathname: fullPathname,
-    folderData,
-    format
-  });
-};
-
-export const createRequest = async (collectionUid, requestData, getState) => {
-  const state = getState();
-  const collection = state.collections.collections.find((c) => c.uid === collectionUid);
-
-  if (!collection) {
-    throw new Error('Collection not found');
-  }
-
-  const { name, method = 'GET', url = '', parentFolderId = null, type = 'http-request' } = requestData;
-
-  // Build the item structure that the IPC handler expects
-  const { v4: uuid } = require('uuid');
-  const path = require('path');
-
-  // Build filename based on collection format
-  const format = collection.brunoConfig?.format || collection.format || 'bru';
-  const extension = format === 'json' ? '.json' : '.bru';
-  const filename = `${name}${extension}`;
-
-  // Determine parent item and pathname
-  let parentItem = collection;
-  let parentPathname = collection.pathname;
-
-  if (parentFolderId) {
-    // Find parent folder
-    const findItemByUid = (items, uid) => {
-      for (const item of items || []) {
-        if (item.uid === uid) return item;
-        if (item.items) {
-          const found = findItemByUid(item.items, uid);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    const found = findItemByUid(collection.items, parentFolderId);
-    if (found) {
-      parentItem = found;
-      parentPathname = found.pathname;
-    }
-  }
-
-  // Calculate sequence number
-  const items = (parentItem.items || []).filter((i) => i.type === 'folder' || i.type?.includes('request'));
-  const seq = items.length + 1;
-
-  const item = {
-    uid: uuid(),
-    name: name,
-    filename: filename,
-    type: type,
-    seq: seq,
-    request: {
-      url: url,
-      method: method,
-      auth: { mode: 'inherit' },
-      headers: [],
-      params: [],
-      body: {
-        mode: 'none',
-        json: null,
-        text: null,
-        xml: null,
-        sparql: null,
-        multipartForm: [],
-        formUrlEncoded: [],
-        file: []
-      },
-      script: { req: null, res: null },
-      vars: { req: [], res: [] },
-      assertions: [],
-      tests: null
-    },
-    settings: {
-      encodeUrl: true
-    }
-  };
-
-  const fullPathname = path.join(parentPathname, filename);
-
-  console.log('🔍 [LocalStorage] Creating request:', {
-    fullPathname,
-    itemName: item.name,
-    itemType: item.type,
-    collectionPath: collection.pathname
+  await idbPut(STORES.COLLECTIONS, {
+    ...original,
+    uid: newUid,
+    name: collectionName || `${original.name} (Clone)`,
+    workspaceUid,
+    createdAt: now,
+    updatedAt: now
   });
 
-  // Call the IPC handler - this will trigger file watcher events
-  try {
-    const result = await ipcRenderer.invoke('renderer:new-request', fullPathname, item);
-    console.log('✅ [LocalStorage] IPC call succeeded:', result);
+  // Deep clone all items
+  const [folders, requests, environments] = await Promise.all([
+    idbGetByIndex(STORES.FOLDERS, 'collectionUid', original.uid),
+    idbGetByIndex(STORES.REQUESTS, 'collectionUid', original.uid),
+    idbGetByIndex(STORES.ENVIRONMENTS, 'collectionUid', original.uid)
+  ]);
 
-    // Manually scan the collection directory to pick up the new file
-    // This is more reliable than waiting for file watchers
-    const brunoFiles = await ipcRenderer.invoke('renderer:scan-for-bruno-files', collection.pathname);
-    console.log('📂 [LocalStorage] Scanned collection, found', brunoFiles?.length, 'files');
-  } catch (error) {
-    console.error('❌ [LocalStorage] IPC call failed:', error);
-    throw error;
-  }
-
-  // Return the created item with pathname
-  return {
-    ...item,
-    pathname: fullPathname,
-    collectionUid: collectionUid
-  };
-};
-
-export const updateRequest = async (itemUid, data, getState) => {
-  const state = getState();
-
-  // Find the collection containing this item
-  let collection = null;
-  for (const col of state.collections.collections) {
-    // Recursive search would be needed here - simplified for now
-    collection = col;
-    break;
-  }
-
-  if (!collection) {
-    throw new Error('Collection not found for item');
-  }
-
-  return ipcRenderer.invoke('renderer:save-request', {
-    collectionUid: collection.uid,
-    itemUid,
-    ...data
+  // Remap folder uids
+  const folderUidMap = {};
+  const newFolders = folders.map((f) => {
+    const newFolderUid = nanoid();
+    folderUidMap[f.uid] = newFolderUid;
+    return { ...f, uid: newFolderUid, collectionUid: newUid, createdAt: now, updatedAt: now };
   });
+  newFolders.forEach((f) => {
+    if (f.parentUid && folderUidMap[f.parentUid]) {
+      f.parentUid = folderUidMap[f.parentUid];
+    }
+  });
+
+  const newRequests = requests.map((r) => ({
+    ...r,
+    uid: nanoid(),
+    collectionUid: newUid,
+    folderUid: r.folderUid ? (folderUidMap[r.folderUid] || null) : null,
+    createdAt: now,
+    updatedAt: now
+  }));
+
+  const newEnvironments = environments.map((e) => ({
+    ...e,
+    uid: nanoid(),
+    collectionUid: newUid,
+    createdAt: now,
+    updatedAt: now
+  }));
+
+  await Promise.all([
+    newFolders.length && idbPutBulk(STORES.FOLDERS, newFolders),
+    newRequests.length && idbPutBulk(STORES.REQUESTS, newRequests),
+    newEnvironments.length && idbPutBulk(STORES.ENVIRONMENTS, newEnvironments)
+  ]);
+
+  return { id: newUid, name: collectionName || `${original.name} (Clone)` };
 };
 
 /**
- * Save request to filesystem
- * @param {string} pathname - Full path to the request file
- * @param {object} itemData - Request data (already transformed for saving)
- * @param {string} format - Collection format (json/bru)
+ * Import a pre-converted Bruno collection object into IDB.
+ * The collection data has a nested items tree that we flatten.
+ */
+export const importCollection = async (collection, collectionLocation, options, getState) => {
+  const isMultiple = Array.isArray(collection);
+  const collections = isMultiple ? collection : [collection];
+
+  const state = getState();
+  const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
+  const workspaceUid = activeWorkspace?.uid || 'default';
+  const format = options?.format || 'bru';
+
+  const results = [];
+
+  for (const col of collections) {
+    const uid = col.uid || nanoid();
+    const now = Date.now();
+
+    await idbPut(STORES.COLLECTIONS, {
+      uid,
+      workspaceUid,
+      name: col.name,
+      format,
+      brunoConfig: col.brunoConfig || { name: col.name, version: '1', format },
+      root: col.root || {},
+      seq: now,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    // Flatten nested items
+    await flattenItemsToIdb(col.items || [], uid, null, now);
+
+    // Import environments
+    for (const env of col.environments || []) {
+      await idbPut(STORES.ENVIRONMENTS, {
+        uid: env.uid || nanoid(),
+        collectionUid: uid,
+        name: env.name,
+        variables: env.variables || [],
+        color: env.color || null
+      });
+    }
+
+    results.push({ uid, name: col.name, path: uid });
+  }
+
+  return isMultiple ? results : results[0];
+};
+
+const flattenItemsToIdb = async (items, collectionUid, parentFolderUid, now) => {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const uid = item.uid || nanoid();
+
+    if (item.type === 'folder') {
+      await idbPut(STORES.FOLDERS, {
+        uid,
+        collectionUid,
+        parentUid: parentFolderUid,
+        name: item.name,
+        seq: item.seq || i + 1,
+        root: item.root || null,
+        createdAt: now,
+        updatedAt: now
+      });
+      // Recurse into sub-items
+      if (item.items?.length) {
+        await flattenItemsToIdb(item.items, collectionUid, uid, now);
+      }
+    } else {
+      await idbPut(STORES.REQUESTS, {
+        uid,
+        collectionUid,
+        folderUid: parentFolderUid,
+        name: item.name,
+        seq: item.seq || i + 1,
+        type: item.type || 'http-request',
+        filename: item.filename || item.name,
+        data: item.request || {},
+        settings: item.settings || { encodeUrl: true },
+        draft: null,
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+  }
+};
+
+export const renameCollection = async (collectionUid, newName, getState) => {
+  const record = await idbGet(STORES.COLLECTIONS, collectionUid);
+  if (!record) throw new Error('Collection not found');
+  const updated = { ...record, name: newName, updatedAt: Date.now() };
+  await idbPut(STORES.COLLECTIONS, updated);
+  return updated;
+};
+
+// ─── Folders ──────────────────────────────────────────────────────────────────
+
+export const createFolder = async (collectionUid, folderName, parentFolderId = null, getState) => {
+  const uid = nanoid();
+  const now = Date.now();
+
+  const state = getState();
+  const collection = state.collections.collections.find((c) => c.uid === collectionUid);
+  const parentItems = parentFolderId
+    ? (collection?.items ? findItemInTree(collection.items, parentFolderId)?.items : null) || []
+    : collection?.items || [];
+  const seq = parentItems.filter((i) => i.type === 'folder' || i.type?.includes('request')).length + 1;
+
+  await idbPut(STORES.FOLDERS, {
+    uid,
+    collectionUid,
+    parentUid: parentFolderId || null,
+    name: folderName,
+    seq,
+    root: null,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  return { id: uid, client_id: uid, name: folderName, sort_order: seq };
+};
+
+// ─── Requests ────────────────────────────────────────────────────────────────
+
+const findItemInTree = (items, uid) => {
+  for (const item of items || []) {
+    if (item.uid === uid) return item;
+    if (item.items) {
+      const found = findItemInTree(item.items, uid);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+export const createRequest = async (collectionUid, requestData, getState) => {
+  const { name, method = 'GET', url = '', parentFolderId = null, type = 'http-request' } = requestData;
+  const uid = nanoid();
+  const now = Date.now();
+
+  const state = getState();
+  const collection = state.collections.collections.find((c) => c.uid === collectionUid);
+  const parentItem = parentFolderId ? findItemInTree(collection?.items || [], parentFolderId) : collection;
+  const seq = ((parentItem?.items || []).filter((i) => i.type === 'folder' || i.type?.includes('request')).length + 1);
+
+  await idbPut(STORES.REQUESTS, {
+    uid,
+    collectionUid,
+    folderUid: parentFolderId || null,
+    name,
+    seq,
+    type,
+    filename: name,
+    data: { method, url, auth: { mode: 'inherit' }, headers: [], params: [], body: { mode: 'none', json: null, text: null, xml: null, sparql: null, multipartForm: [], formUrlEncoded: [], file: [] }, script: { req: null, res: null }, vars: { req: [], res: [] }, assertions: [], tests: null },
+    settings: { encodeUrl: true },
+    draft: null,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  return { uid, name, type, collectionUid, seq };
+};
+
+export const updateRequest = async (itemUid, data, getState) => {
+  const record = await idbGet(STORES.REQUESTS, itemUid);
+  if (!record) throw new Error('Request not found');
+  await idbPut(STORES.REQUESTS, { ...record, ...data, updatedAt: Date.now() });
+};
+
+/**
+ * Save a request to IDB.
+ * In IDB mode, pathname === uid (virtual path).
  */
 export const saveRequest = async (pathname, itemData, format) => {
-  console.log('LocalStorage.saveRequest: invoking IPC', { pathname, format });
-  return ipcRenderer.invoke('renderer:save-request', pathname, itemData, format);
+  const uid = pathname; // pathname is the item uid in IDB mode
+  const existing = await idbGet(STORES.REQUESTS, uid);
+  if (!existing) {
+    // If not found, try to create (shouldn't happen normally)
+    console.warn('[IDB saveRequest] Record not found for uid:', uid);
+    return;
+  }
+  await idbPut(STORES.REQUESTS, {
+    ...existing,
+    data: itemData.request || itemData,
+    name: itemData.name || existing.name,
+    settings: itemData.settings || existing.settings,
+    draft: null,
+    updatedAt: Date.now()
+  });
 };
 
 export const updateItem = async (itemUid, collectionUid, data, getState) => {
-  const state = getState();
-  const collection = state.collections.collections.find((c) => c.uid === collectionUid);
-
-  if (!collection) {
-    throw new Error('Collection not found');
+  // Try folder first, then request
+  const folder = await idbGet(STORES.FOLDERS, itemUid);
+  if (folder) {
+    await idbPut(STORES.FOLDERS, { ...folder, ...data, updatedAt: Date.now() });
+    return;
   }
-
-  // Find the item to get its pathname
-  const findItem = (items, uid) => {
-    for (const item of items) {
-      if (item.uid === uid) return item;
-      if (item.items?.length) {
-        const found = findItem(item.items, uid);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-
-  const item = findItem(collection.items, itemUid);
-  if (!item) {
-    throw new Error('Item not found');
+  const request = await idbGet(STORES.REQUESTS, itemUid);
+  if (request) {
+    await idbPut(STORES.REQUESTS, { ...request, ...data, updatedAt: Date.now() });
   }
-
-  // Handle name updates
-  if (data.name !== undefined) {
-    return ipcRenderer.invoke('renderer:rename-item-name', {
-      itemPath: item.pathname,
-      newName: data.name,
-      collectionPathname: collection.pathname
-    });
-  }
-
-  // For other updates, use save-request
-  return ipcRenderer.invoke('renderer:save-request', {
-    collectionUid: collection.uid,
-    itemUid,
-    ...data
-  });
 };
 
 export const deleteItem = async (itemUid, collectionUid, getState) => {
-  const state = getState();
-  const collection = state.collections.collections.find((c) => c.uid === collectionUid);
-
-  if (!collection) {
-    throw new Error('Collection not found');
+  // Try request first, then folder
+  const request = await idbGet(STORES.REQUESTS, itemUid);
+  if (request) {
+    await idbDelete(STORES.REQUESTS, itemUid);
+    return;
   }
-
-  // Find the item to get its pathname and type
-  const findItem = (items, uid) => {
-    for (const item of items || []) {
-      if (item.uid === uid) return item;
-      if (item.items) {
-        const found = findItem(item.items, uid);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-
-  const item = findItem(collection.items, itemUid);
-  if (!item) {
-    throw new Error('Item not found');
-  }
-
-  // IPC handler expects: (pathname, type, collectionPathname)
-  return ipcRenderer.invoke('renderer:delete-item', item.pathname, item.type, collection.pathname);
+  // Delete folder and all its children
+  const { deleteFolderCascade } = await import('utils/idb/localStore');
+  await deleteFolderCascade(itemUid);
 };
 
 export const moveItem = async (params, getState) => {
-  const { targetDirname, sourcePathname } = params;
+  const { targetDirname: targetUid, sourcePathname: sourceUid } = params;
 
-  console.log('LocalStorage.moveItem: invoking IPC', { targetDirname, sourcePathname });
-  return ipcRenderer.invoke('renderer:move-item', {
-    targetDirname,
-    sourcePathname
-  });
+  // Try request
+  const request = await idbGet(STORES.REQUESTS, sourceUid);
+  if (request) {
+    // targetUid is either a folder uid or collection uid
+    const targetFolder = await idbGet(STORES.FOLDERS, targetUid);
+    const newFolderUid = targetFolder ? targetFolder.uid : null;
+    const newCollectionUid = targetFolder ? targetFolder.collectionUid : targetUid;
+    await idbPut(STORES.REQUESTS, { ...request, folderUid: newFolderUid, collectionUid: newCollectionUid, updatedAt: Date.now() });
+    return;
+  }
+  // Try folder
+  const folder = await idbGet(STORES.FOLDERS, sourceUid);
+  if (folder) {
+    const targetFolder = await idbGet(STORES.FOLDERS, targetUid);
+    const newParentUid = targetFolder ? targetFolder.uid : null;
+    await idbPut(STORES.FOLDERS, { ...folder, parentUid: newParentUid, updatedAt: Date.now() });
+  }
 };
 
 export const renameItemName = async (itemPath, newName, collectionPathname) => {
-  console.log('LocalStorage.renameItemName: invoking IPC', { itemPath, newName, collectionPathname });
-  return ipcRenderer.invoke('renderer:rename-item-name', { itemPath, newName, collectionPathname });
+  // itemPath = itemUid in IDB mode
+  const request = await idbGet(STORES.REQUESTS, itemPath);
+  if (request) {
+    await idbPut(STORES.REQUESTS, { ...request, name: newName, filename: newName, updatedAt: Date.now() });
+    return;
+  }
+  const folder = await idbGet(STORES.FOLDERS, itemPath);
+  if (folder) {
+    await idbPut(STORES.FOLDERS, { ...folder, name: newName, updatedAt: Date.now() });
+  }
 };
 
 export const renameItemFilename = async (oldPath, newPath, newName, newFilename, collectionPathname) => {
-  console.log('LocalStorage.renameItemFilename: invoking IPC', { oldPath, newPath, newFilename });
-  return ipcRenderer.invoke('renderer:rename-item-filename', { oldPath, newPath, newName, newFilename, collectionPathname });
+  // In IDB mode, rename same as renameItemName
+  await renameItemName(oldPath, newName, collectionPathname);
 };
 
-export const newRequest = async (pathname, itemData, format) => {
-  console.log('LocalStorage.newRequest: invoking IPC', { pathname, format });
-  return ipcRenderer.invoke('renderer:new-request', pathname, itemData, format);
+/**
+ * Create a new request in IDB.
+ * containerPathname is either a collection uid (root) or folder uid (nested).
+ * Returns the created item with uid so Redux updates immediately (like cloud mode).
+ */
+export const newRequest = async (containerPathname, item) => {
+  const uid = item.uid || nanoid();
+  const now = Date.now();
+
+  // Resolve container: folder or collection
+  const folder = await idbGet(STORES.FOLDERS, containerPathname);
+  const collectionUid = folder ? folder.collectionUid : containerPathname;
+  const folderUid = folder ? folder.uid : null;
+
+  await idbPut(STORES.REQUESTS, {
+    uid,
+    collectionUid,
+    folderUid,
+    name: item.name,
+    seq: item.seq || 1,
+    type: item.type || 'http-request',
+    filename: item.filename || item.name,
+    data: item.request || {},
+    settings: item.settings || { encodeUrl: true },
+    draft: null,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  return { ...item, uid, collectionUid, folderUid };
+};
+
+/**
+ * Recursively clone a folder and all its descendants into a new parent.
+ */
+const _cloneFolderTree = async (sourceFolderUid, newParentUid, collectionUid, now) => {
+  const original = await idbGet(STORES.FOLDERS, sourceFolderUid);
+  if (!original) return;
+
+  const newUid = nanoid();
+  await idbPut(STORES.FOLDERS, {
+    ...original,
+    uid: newUid,
+    parentUid: newParentUid,
+    collectionUid,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  // Clone direct requests
+  const requests = await idbGetByIndex(STORES.REQUESTS, 'folderUid', sourceFolderUid);
+  if (requests.length) {
+    await idbPutBulk(STORES.REQUESTS, requests.map((r) => ({ ...r, uid: nanoid(), folderUid: newUid, collectionUid, createdAt: now, updatedAt: now })));
+  }
+
+  // Recurse into sub-folders
+  const subFolders = await idbGetByIndex(STORES.FOLDERS, 'parentUid', sourceFolderUid);
+  for (const sub of subFolders) {
+    await _cloneFolderTree(sub.uid, newUid, collectionUid, now);
+  }
+
+  return newUid;
 };
 
 export const cloneFolder = async (item, collectionPath, collectionPathname) => {
-  console.log('LocalStorage.cloneFolder: invoking IPC', { itemUid: item.uid, collectionPath });
-  return ipcRenderer.invoke('renderer:clone-folder', item, collectionPath, collectionPathname);
+  const now = Date.now();
+  const originalFolder = await idbGet(STORES.FOLDERS, item.uid);
+  if (!originalFolder) throw new Error('Folder not found for clone');
+
+  const newUid = await _cloneFolderTree(
+    item.uid,
+    originalFolder.parentUid,
+    originalFolder.collectionUid,
+    now
+  );
+
+  // Update name on the new top-level clone
+  const cloned = await idbGet(STORES.FOLDERS, newUid);
+  if (cloned) {
+    await idbPut(STORES.FOLDERS, { ...cloned, name: item.name || `${originalFolder.name} (Clone)` });
+  }
+
+  return { id: newUid, uid: newUid, client_id: newUid, name: item.name || originalFolder.name, type: 'folder' };
 };
 
 export const resequenceItems = async (itemsToResequence, collectionPathname) => {
-  console.log('LocalStorage.resequenceItems: invoking IPC', { itemCount: itemsToResequence.length });
-  return ipcRenderer.invoke('renderer:resequence-items', itemsToResequence, collectionPathname);
+  for (const it of itemsToResequence) {
+    const request = await idbGet(STORES.REQUESTS, it.uid);
+    if (request) {
+      await idbPut(STORES.REQUESTS, { ...request, seq: it.seq, updatedAt: Date.now() });
+      continue;
+    }
+    const folder = await idbGet(STORES.FOLDERS, it.uid);
+    if (folder) {
+      await idbPut(STORES.FOLDERS, { ...folder, seq: it.seq, updatedAt: Date.now() });
+    }
+  }
 };
 
 export const cloneItem = async (itemUid, collectionUid, newName, getState) => {
-  const state = getState();
-  const collection = state.collections.collections.find((c) => c.uid === collectionUid);
+  const now = Date.now();
 
-  if (!collection) {
-    throw new Error('Collection not found');
+  const request = await idbGet(STORES.REQUESTS, itemUid);
+  if (request) {
+    const newUid = nanoid();
+    await idbPut(STORES.REQUESTS, { ...request, uid: newUid, name: newName || request.name, filename: newName || request.filename, createdAt: now, updatedAt: now });
+    return { id: newUid, uid: newUid, name: newName || request.name };
   }
 
-  return ipcRenderer.invoke('renderer:clone-item', {
-    collectionPath: collection.pathname,
-    itemUid,
-    newName
-  });
+  const folder = await idbGet(STORES.FOLDERS, itemUid);
+  if (folder) {
+    const now2 = Date.now();
+    const newFolderUid = await _cloneFolderTree(itemUid, folder.parentUid, folder.collectionUid, now2);
+    // Update name on cloned root folder
+    const clonedFolder = await idbGet(STORES.FOLDERS, newFolderUid);
+    if (clonedFolder && newName) {
+      await idbPut(STORES.FOLDERS, { ...clonedFolder, name: newName });
+    }
+    return { id: newFolderUid, uid: newFolderUid, name: newName || folder.name };
+  }
+
+  throw new Error('Item not found for clone');
 };
 
-export const renameEnvironment = async (collectionPathname, oldName, newName) => {
-  console.log('LocalStorage.renameEnvironment: invoking IPC', { collectionPathname, oldName, newName });
-  return ipcRenderer.invoke('renderer:rename-environment', collectionPathname, oldName, newName);
+// ─── Environments ─────────────────────────────────────────────────────────────
+
+export const renameEnvironment = async (collectionPathname, oldName, newName, environmentUid) => {
+  // collectionPathname = collectionUid in IDB mode
+  let env = null;
+  if (environmentUid) {
+    env = await idbGet(STORES.ENVIRONMENTS, environmentUid);
+  }
+  if (!env) {
+    const envs = await idbGetByIndex(STORES.ENVIRONMENTS, 'collectionUid', collectionPathname);
+    env = envs.find((e) => e.name === oldName);
+  }
+  if (env) {
+    await idbPut(STORES.ENVIRONMENTS, { ...env, name: newName, updatedAt: Date.now() });
+  }
 };
 
 export const saveEnvironment = async (collectionPathname, environmentData) => {
-  console.log('LocalStorage.saveEnvironment: invoking IPC', { collectionPathname, envName: environmentData.name });
-  return ipcRenderer.invoke('renderer:save-environment', collectionPathname, environmentData);
+  const { uid, name, variables, color } = environmentData;
+  const existing = await idbGet(STORES.ENVIRONMENTS, uid);
+  await idbPut(STORES.ENVIRONMENTS, {
+    ...(existing || {}),
+    uid: uid || nanoid(),
+    collectionUid: collectionPathname,
+    name: name ?? existing?.name,
+    variables: variables ?? existing?.variables ?? [],
+    color: color !== undefined ? color : (existing?.color ?? null),
+    updatedAt: Date.now()
+  });
 };
 
-export const updateEnvironmentColor = async (collectionPathname, environmentName, color) => {
-  console.log('LocalStorage.updateEnvironmentColor: invoking IPC', { collectionPathname, environmentName, color });
-  return ipcRenderer.invoke('renderer:update-environment-color', collectionPathname, environmentName, color);
+export const updateEnvironmentColor = async (collectionPathname, environmentName, color, environmentUid) => {
+  let env = null;
+  if (environmentUid) {
+    env = await idbGet(STORES.ENVIRONMENTS, environmentUid);
+  }
+  if (!env) {
+    const envs = await idbGetByIndex(STORES.ENVIRONMENTS, 'collectionUid', collectionPathname);
+    env = envs.find((e) => e.name === environmentName);
+  }
+  if (env) {
+    await idbPut(STORES.ENVIRONMENTS, { ...env, color, updatedAt: Date.now() });
+  }
 };
+
+// ─── Collection Root / Config ─────────────────────────────────────────────────
 
 export const saveCollectionRoot = async (collectionPathname, collectionRootData, brunoConfig) => {
-  console.log('LocalStorage.saveCollectionRoot: invoking IPC', { collectionPathname });
-  return ipcRenderer.invoke('renderer:save-collection-root', collectionPathname, collectionRootData, brunoConfig);
+  const record = await idbGet(STORES.COLLECTIONS, collectionPathname);
+  if (!record) return;
+  await idbPut(STORES.COLLECTIONS, {
+    ...record,
+    root: collectionRootData || record.root,
+    brunoConfig: brunoConfig || record.brunoConfig,
+    updatedAt: Date.now()
+  });
 };
 
 export const updateBrunoConfig = async (brunoConfig, collectionPathname, collectionRoot) => {
-  console.log('LocalStorage.updateBrunoConfig: invoking IPC', { collectionPathname });
-  return ipcRenderer.invoke('renderer:update-bruno-config', brunoConfig, collectionPathname, collectionRoot);
+  return saveCollectionRoot(collectionPathname, collectionRoot, brunoConfig);
+};
+
+// ─── Workspace Collections ────────────────────────────────────────────────────
+
+export const loadWorkspaceCollections = async (workspaceUid) => {
+  return loadWorkspaceCollectionsFromIdb(workspaceUid);
 };
 
 export const openCollection = async (options = {}) => {
-  console.log('LocalStorage.openCollection: invoking IPC', { options });
-  return ipcRenderer.invoke('renderer:open-collection', options);
+  // In IDB mode, "opening" a collection means loading from IDB.
+  // This is a no-op since loadWorkspaceCollections handles everything.
+  console.log('[IDB] openCollection: no-op in IDB mode');
+  return null;
 };
 
 export const importCollectionZip = async (zipFilePath, collectionLocation) => {
-  console.log('LocalStorage.importCollectionZip: invoking IPC', { zipFilePath, collectionLocation });
+  // TODO: Migrate to IDB — requires a new IPC handler that parses the zip and returns
+  // collection data (instead of writing to filesystem) so we can import via importCollection().
+  // For now, delegate to Electron to unzip + parse; the resulting collection-opened event
+  // will be handled by the file watcher which is still in place for this code path.
+  console.log('[LocalStorage] importCollectionZip: invoking IPC', { zipFilePath, collectionLocation });
   return ipcRenderer.invoke('renderer:import-collection-zip', zipFilePath, collectionLocation);
 };
 
 export const addCollectionToWorkspace = async (workspacePath, workspaceCollection) => {
-  console.log('LocalStorage.addCollectionToWorkspace: invoking IPC', { workspacePath });
-  return ipcRenderer.invoke('renderer:add-collection-to-workspace', workspacePath, workspaceCollection);
+  // In IDB mode, workspace associations are stored in IDB, not filesystem
+  console.log('[IDB] addCollectionToWorkspace: no-op, associations tracked in IDB');
+  return null;
 };
 
 export const getCollectionSecurityConfig = async (pathname) => {
-  console.log('LocalStorage.getCollectionSecurityConfig: invoking IPC', { pathname });
-  return ipcRenderer.invoke('renderer:get-collection-security-config', pathname);
+  const record = await idbGet(STORES.COLLECTIONS, pathname);
+  return record?.securityConfig || {};
 };
 
 export const getCollectionWorkspaces = async (collectionPathname) => {
-  console.log('LocalStorage.getCollectionWorkspaces: invoking IPC', { collectionPathname });
-  return ipcRenderer.invoke('renderer:get-collection-workspaces', collectionPathname);
+  const record = await idbGet(STORES.COLLECTIONS, collectionPathname);
+  return record ? [record.workspaceUid] : [];
 };
 
 export const setCollectionWorkspace = async (collectionUid, workspacePathname) => {
-  console.log('[LocalStorage] setCollectionWorkspace:', { collectionUid, workspacePathname });
-  return ipcRenderer.invoke('renderer:set-collection-workspace', collectionUid, workspacePathname);
+  const record = await idbGet(STORES.COLLECTIONS, collectionUid);
+  if (record) {
+    await idbPut(STORES.COLLECTIONS, { ...record, workspaceUid: workspacePathname, updatedAt: Date.now() });
+  }
 };
 
 export const openMultipleCollections = async (collectionPaths, options = {}) => {
-  console.log('[LocalStorage] openMultipleCollections:', { count: collectionPaths.length });
-  return ipcRenderer.invoke('renderer:open-multiple-collections', collectionPaths, options);
+  // In IDB mode, this is handled by loadWorkspaceCollections
+  console.log('[IDB] openMultipleCollections: no-op in IDB mode');
+  return null;
 };
 
 export const deleteTransientRequests = async (filePaths, tempDir) => {
-  console.log('[LocalStorage] deleteTransientRequests:', { count: filePaths.length, tempDir });
-  return ipcRenderer.invoke('renderer:delete-transient-requests', filePaths, tempDir);
+  // Transient requests in IDB mode are removed by uid
+  for (const uid of filePaths) {
+    await idbDelete(STORES.REQUESTS, uid).catch(() => {});
+  }
 };
 
 export const clearUserCollections = async (userId) => {
-  console.log('[LocalStorage] clearUserCollections:', { userId });
-  return ipcRenderer.invoke('renderer:clear-user-collections', userId);
+  // Not needed in IDB mode — clear handled by workspace deletion
+  console.log('[IDB] clearUserCollections: not applicable in IDB mode');
 };
 
-// UI/System operations (local-only)
 export const updateUiStateSnapshot = async (data) => {
-  console.log('[LocalStorage] updateUiStateSnapshot:', data.type);
-  return ipcRenderer.invoke('renderer:update-ui-state-snapshot', data);
+  // In IDB mode, active environment is tracked in Redux state — no separate snapshot needed
 };
 
 export const browseDirectory = async () => {
@@ -586,31 +692,45 @@ export const showInFolder = async (collectionPath) => {
   return ipcRenderer.invoke('renderer:show-in-folder', collectionPath);
 };
 
-// Load request operations (may be deprecated)
+// Load request operations — in IDB mode, requests are already in Redux via loadWorkspaceCollectionsFromIdb.
+// loadLargeRequest is called for lazy-loaded large requests; load from IDB by uid.
 export const loadRequestViaWorker = async ({ collectionUid, pathname }) => {
-  console.log('[LocalStorage] loadRequestViaWorker:', { collectionUid, pathname });
-  return ipcRenderer.invoke('renderer:load-request-via-worker', { collectionUid, pathname });
+  return idbGet(STORES.REQUESTS, pathname);
 };
 
 export const loadRequest = async ({ collectionUid, pathname }) => {
-  console.log('[LocalStorage] loadRequest:', { collectionUid, pathname });
-  return ipcRenderer.invoke('renderer:load-request', { collectionUid, pathname });
+  return idbGet(STORES.REQUESTS, pathname);
 };
 
 export const loadLargeRequest = async ({ collectionUid, pathname }) => {
-  console.log('[LocalStorage] loadLargeRequest:', { collectionUid, pathname });
-  return ipcRenderer.invoke('renderer:load-large-request', { collectionUid, pathname });
+  return idbGet(STORES.REQUESTS, pathname);
 };
 
 // Save and folder operations
 export const saveMultipleRequests = async (itemsToSave) => {
-  console.log('[LocalStorage] saveMultipleRequests:', { count: itemsToSave.length });
-  return ipcRenderer.invoke('renderer:save-multiple-requests', itemsToSave);
+  for (const { item, pathname } of itemsToSave) {
+    const uid = pathname; // pathname === uid in IDB mode
+    const existing = await idbGet(STORES.REQUESTS, uid);
+    if (existing) {
+      await idbPut(STORES.REQUESTS, {
+        ...existing,
+        data: item.request || item,
+        name: item.name || existing.name,
+        settings: item.settings || existing.settings,
+        draft: null,
+        updatedAt: Date.now()
+      });
+    }
+  }
 };
 
 export const saveFolderRoot = async (folderData) => {
-  console.log('[LocalStorage] saveFolderRoot:', { folderData });
-  return ipcRenderer.invoke('renderer:save-folder-root', folderData);
+  const { folderPathname, root } = folderData;
+  const uid = folderPathname; // uid in IDB mode
+  const existing = await idbGet(STORES.FOLDERS, uid);
+  if (existing) {
+    await idbPut(STORES.FOLDERS, { ...existing, root: root || {}, updatedAt: Date.now() });
+  }
 };
 
 export const runCollectionFolder = async (collectionUid, folderUid, itemsToRun, options) => {
@@ -619,37 +739,79 @@ export const runCollectionFolder = async (collectionUid, folderUid, itemsToRun, 
 };
 
 // Environment operations
-export const createEnvironment = async (pathname, name, variables, color) => {
-  console.log('[LocalStorage] createEnvironment:', { pathname, name });
-  return ipcRenderer.invoke('renderer:create-environment', pathname, name, variables, color);
+export const createEnvironment = async (collectionPathname, name, variables, color) => {
+  const uid = nanoid();
+  await idbPut(STORES.ENVIRONMENTS, {
+    uid,
+    collectionUid: collectionPathname,
+    name,
+    variables: variables || [],
+    color: color || null
+  });
+  return { uid, name, variables: variables || [], color };
 };
 
-export const deleteEnvironment = async (pathname, name) => {
-  console.log('[LocalStorage] deleteEnvironment:', { pathname, name });
-  return ipcRenderer.invoke('renderer:delete-environment', pathname, name);
+export const deleteEnvironment = async (collectionPathname, name, environmentUid) => {
+  if (environmentUid) {
+    await idbDelete(STORES.ENVIRONMENTS, environmentUid);
+    return;
+  }
+  const envs = await idbGetByIndex(STORES.ENVIRONMENTS, 'collectionUid', collectionPathname);
+  const env = envs.find((e) => e.name === name);
+  if (env) await idbDelete(STORES.ENVIRONMENTS, env.uid);
 };
 
-// Variable operations
+// Variable operations — update variable value in collection/folder/request root
 export const updateVariableInFile = async (pathname, variable, scopeType, collectionRoot, format) => {
-  console.log('[LocalStorage] updateVariableInFile:', { pathname });
-  return ipcRenderer.invoke('renderer:update-variable-in-file', pathname, variable, scopeType, collectionRoot, format);
+  if (scopeType === 'collection') {
+    const record = await idbGet(STORES.COLLECTIONS, pathname);
+    if (record) {
+      const root = record.root || {};
+      const vars = (root.vars || []).map((v) => v.name === variable.name ? { ...v, value: variable.value } : v);
+      await idbPut(STORES.COLLECTIONS, { ...record, root: { ...root, vars }, updatedAt: Date.now() });
+    }
+  } else if (scopeType === 'folder') {
+    const record = await idbGet(STORES.FOLDERS, pathname);
+    if (record) {
+      const root = record.root || {};
+      const vars = (root.vars || []).map((v) => v.name === variable.name ? { ...v, value: variable.value } : v);
+      await idbPut(STORES.FOLDERS, { ...record, root: { ...root, vars }, updatedAt: Date.now() });
+    }
+  } else if (scopeType === 'request') {
+    const record = await idbGet(STORES.REQUESTS, pathname);
+    if (record) {
+      const data = record.data || {};
+      const vars = (data.vars?.req || []).map((v) => v.name === variable.name ? { ...v, value: variable.value } : v);
+      await idbPut(STORES.REQUESTS, { ...record, data: { ...data, vars: { ...data.vars, req: vars } }, updatedAt: Date.now() });
+    }
+  }
 };
 
 // Bruno config operations
 export const updateBrunoConfigStorage = async (brunoConfig, pathname, collectionRoot) => {
-  console.log('[LocalStorage] updateBrunoConfigStorage:', { pathname });
-  return ipcRenderer.invoke('renderer:update-bruno-config', brunoConfig, pathname, collectionRoot);
+  const record = await idbGet(STORES.COLLECTIONS, pathname);
+  if (record) {
+    await idbPut(STORES.COLLECTIONS, { ...record, brunoConfig, updatedAt: Date.now() });
+  }
 };
 
 // Workspace operations
 export const reorderWorkspaceCollections = async (workspacePathname, collectionPaths) => {
-  console.log('[LocalStorage] reorderWorkspaceCollections:', { count: collectionPaths.length });
-  return ipcRenderer.invoke('renderer:reorder-workspace-collections', workspacePathname, collectionPaths);
+  // collectionPaths are uids in IDB mode; update seq on each collection record
+  for (let i = 0; i < collectionPaths.length; i++) {
+    const uid = collectionPaths[i];
+    const record = await idbGet(STORES.COLLECTIONS, uid);
+    if (record) {
+      await idbPut(STORES.COLLECTIONS, { ...record, seq: i, updatedAt: Date.now() });
+    }
+  }
 };
 
 export const saveCollectionSecurityConfig = async (pathname, securityConfig) => {
-  console.log('[LocalStorage] saveCollectionSecurityConfig:', { pathname });
-  return ipcRenderer.invoke('renderer:save-collection-security-config', pathname, securityConfig);
+  const record = await idbGet(STORES.COLLECTIONS, pathname);
+  if (record) {
+    await idbPut(STORES.COLLECTIONS, { ...record, securityConfig });
+  }
 };
 
 // OAuth2 operations
@@ -712,9 +874,9 @@ export const mountCollection = async ({ collectionUid, collectionPathname, bruno
 };
 
 // New request file operations
-export const newRequestFile = async (fullName, item) => {
-  console.log('[LocalStorage] newRequestFile:', { fullName });
-  return ipcRenderer.invoke('renderer:new-request', fullName, item);
+export const newRequestFile = async () => {
+  // No-op in IDB mode — new requests are written via newRequest() directly to IDB
+  return null;
 };
 
 // gRPC operations
@@ -736,8 +898,8 @@ export const clearOAuth2Cache = async (collectionUid, url, credentialsId) => {
 
 // Preferences
 export const savePreferences = async (preferences) => {
-  console.log('[LocalStorage] savePreferences:', preferences);
-  return ipcRenderer.invoke('renderer:save-preferences', preferences);
+  const { savePreferences: idbSavePrefs } = await import('utils/idb/localStore');
+  return idbSavePrefs(preferences);
 };
 
 // Collection import helper
@@ -825,9 +987,11 @@ export const getWorkspaceLinks = async () => {
 };
 
 // Workspace operations (local filesystem - not applicable to cloud mode)
-export const createWorkspace = async (workspaceName, workspacePath) => {
-  console.log('[LocalStorage] createWorkspace:', { workspaceName, workspacePath });
-  return ipcRenderer.invoke('renderer:create-workspace', workspaceName, workspacePath);
+export const createWorkspace = async (workspaceName) => {
+  const uid = nanoid();
+  const now = Date.now();
+  await idbPut(STORES.WORKSPACES, { uid, name: workspaceName, createdAt: now, updatedAt: now });
+  return { workspaceUid: uid, workspacePath: null, workspaceConfig: { name: workspaceName } };
 };
 
 export const openWorkspace = async (workspacePath) => {
@@ -841,8 +1005,11 @@ export const openWorkspaceDialog = async () => {
 };
 
 export const removeCollectionFromWorkspace = async (workspaceUid, workspacePath, collectionPath, options = {}) => {
-  console.log('[LocalStorage] removeCollectionFromWorkspace:', { workspaceUid, workspacePath, collectionPath, options });
-  return ipcRenderer.invoke('renderer:remove-collection-from-workspace', workspaceUid, workspacePath, collectionPath, options);
+  // collectionPath = collection uid in IDB mode
+  const uid = collectionPath;
+  if (options?.deleteFiles !== false) {
+    await deleteCollectionCascade(uid);
+  }
 };
 
 export const loadWorkspaceApiSpecs = async (workspacePath) => {
@@ -855,19 +1022,19 @@ export const openApiSpecFile = async (apiSpecPath, workspacePath) => {
   return ipcRenderer.invoke('renderer:open-api-spec-file', apiSpecPath, workspacePath);
 };
 
-export const getGlobalEnvironments = async (workspacePath) => {
-  console.log('[LocalStorage] getGlobalEnvironments:', { workspacePath });
-  return ipcRenderer.invoke('renderer:get-global-environments', workspacePath);
+export const getGlobalEnvironments = async ({ workspaceUid } = {}) => {
+  const globalEnvironments = await idbGetByIndex(STORES.GLOBAL_ENVIRONMENTS, 'workspaceUid', workspaceUid) || [];
+  const activeGlobalEnvironmentUid = await getUiState(`global_env_active_${workspaceUid}`);
+  return { globalEnvironments, activeGlobalEnvironmentUid };
 };
 
-export const loadWorkspaceCollections = async (workspacePath) => {
-  console.log('[LocalStorage] loadWorkspaceCollections:', { workspacePath });
-  return ipcRenderer.invoke('renderer:load-workspace-collections', workspacePath);
-};
+// loadWorkspaceCollections already exported above (IDB version at line ~572)
 
 export const getLastOpenedWorkspaces = async () => {
-  console.log('[LocalStorage] getLastOpenedWorkspaces');
-  return ipcRenderer.invoke('renderer:get-last-opened-workspaces');
+  // In IDB mode, all workspaces are always available in IDB
+  const { loadWorkspacesFromIdb } = await import('utils/idb/collectionTree');
+  const workspaces = await loadWorkspacesFromIdb();
+  return workspaces.map((w) => ({ uid: w.uid, name: w.name, pathname: w.uid }));
 };
 
 export const startWorkspaceWatcher = async (workspacePath) => {
@@ -880,54 +1047,90 @@ export const saveWorkspaceDocs = async (workspacePath, docs) => {
   return ipcRenderer.invoke('renderer:save-workspace-docs', workspacePath, docs);
 };
 
-export const renameWorkspace = async (...args) => {
-  console.log('[LocalStorage] renameWorkspace:', args);
-  return ipcRenderer.invoke('renderer:rename-workspace', ...args);
+export const renameWorkspace = async (workspaceUid, newName) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (workspace) {
+    await idbPut(STORES.WORKSPACES, { ...workspace, name: newName, updatedAt: Date.now() });
+  }
+  return { uid: workspaceUid, name: newName };
 };
 
-export const closeWorkspace = async (workspacePath) => {
-  console.log('[LocalStorage] closeWorkspace:', { workspacePath });
-  return ipcRenderer.invoke('renderer:close-workspace', workspacePath);
+export const closeWorkspace = async (workspaceUid) => {
+  // In IDB mode, remove the workspace record so it doesn't reappear on restart
+  if (workspaceUid) {
+    await idbDelete(STORES.WORKSPACES, workspaceUid);
+  }
+  return true;
 };
 
-export const loadWorkspaceEnvironments = async (workspacePath) => {
-  console.log('[LocalStorage] loadWorkspaceEnvironments:', { workspacePath });
-  return ipcRenderer.invoke('renderer:load-workspace-environments', workspacePath);
+export const loadWorkspaceEnvironments = async (workspaceUid) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  return workspace?.environments || [];
 };
 
-export const createWorkspaceEnvironment = async (workspacePath, environmentName) => {
-  console.log('[LocalStorage] createWorkspaceEnvironment:', { workspacePath, environmentName });
-  return ipcRenderer.invoke('renderer:create-workspace-environment', workspacePath, environmentName);
+export const createWorkspaceEnvironment = async (workspaceUid, environmentName) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) throw new Error('Workspace not found');
+  const newEnv = { uid: nanoid(), name: environmentName, variables: [] };
+  const environments = [...(workspace.environments || []), newEnv];
+  await idbPut(STORES.WORKSPACES, { ...workspace, environments });
+  return newEnv;
 };
 
-export const deleteWorkspaceEnvironment = async (workspacePath, environmentUid) => {
-  console.log('[LocalStorage] deleteWorkspaceEnvironment:', { workspacePath, environmentUid });
-  return ipcRenderer.invoke('renderer:delete-workspace-environment', workspacePath, environmentUid);
+export const deleteWorkspaceEnvironment = async (workspaceUid, environmentUid) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) throw new Error('Workspace not found');
+  const environments = (workspace.environments || []).filter((e) => e.uid !== environmentUid);
+  const activeEnvironmentUid = workspace.activeEnvironmentUid === environmentUid ? null : workspace.activeEnvironmentUid;
+  await idbPut(STORES.WORKSPACES, { ...workspace, environments, activeEnvironmentUid });
+  return true;
 };
 
-export const selectWorkspaceEnvironment = async (workspacePath, environmentUid) => {
-  console.log('[LocalStorage] selectWorkspaceEnvironment:', { workspacePath, environmentUid });
-  return ipcRenderer.invoke('renderer:select-workspace-environment', workspacePath, environmentUid);
+export const selectWorkspaceEnvironment = async (workspaceUid, environmentUid) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) throw new Error('Workspace not found');
+  await idbPut(STORES.WORKSPACES, { ...workspace, activeEnvironmentUid: environmentUid });
+  return true;
 };
 
-export const importWorkspaceEnvironment = async (workspacePath, environmentData) => {
-  console.log('[LocalStorage] importWorkspaceEnvironment:', { workspacePath });
-  return ipcRenderer.invoke('renderer:import-workspace-environment', workspacePath, environmentData);
+export const importWorkspaceEnvironment = async (workspaceUid, environmentData) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) throw new Error('Workspace not found');
+  const importedEnv = { uid: nanoid(), name: environmentData.name, variables: environmentData.variables || [] };
+  const environments = [...(workspace.environments || []), importedEnv];
+  await idbPut(STORES.WORKSPACES, { ...workspace, environments });
+  return importedEnv;
 };
 
-export const updateWorkspaceEnvironment = async (workspacePath, environmentUid, environmentData) => {
-  console.log('[LocalStorage] updateWorkspaceEnvironment:', { workspacePath, environmentUid });
-  return ipcRenderer.invoke('renderer:update-workspace-environment', workspacePath, environmentUid, environmentData);
+export const updateWorkspaceEnvironment = async (workspaceUid, environmentUid, environmentData) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) throw new Error('Workspace not found');
+  const environments = (workspace.environments || []).map((e) =>
+    e.uid === environmentUid ? { ...e, ...environmentData, uid: environmentUid } : e
+  );
+  await idbPut(STORES.WORKSPACES, { ...workspace, environments });
+  return true;
 };
 
-export const renameWorkspaceEnvironment = async (workspacePath, environmentUid, newName) => {
-  console.log('[LocalStorage] renameWorkspaceEnvironment:', { workspacePath, environmentUid, newName });
-  return ipcRenderer.invoke('renderer:rename-workspace-environment', workspacePath, environmentUid, newName);
+export const renameWorkspaceEnvironment = async (workspaceUid, environmentUid, newName) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) throw new Error('Workspace not found');
+  const environments = (workspace.environments || []).map((e) =>
+    e.uid === environmentUid ? { ...e, name: newName } : e
+  );
+  await idbPut(STORES.WORKSPACES, { ...workspace, environments });
+  return true;
 };
 
-export const copyWorkspaceEnvironment = async (workspacePath, environmentUid, newName) => {
-  console.log('[LocalStorage] copyWorkspaceEnvironment:', { workspacePath, environmentUid, newName });
-  return ipcRenderer.invoke('renderer:copy-workspace-environment', workspacePath, environmentUid, newName);
+export const copyWorkspaceEnvironment = async (workspaceUid, environmentUid, newName) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) throw new Error('Workspace not found');
+  const baseEnv = (workspace.environments || []).find((e) => e.uid === environmentUid);
+  if (!baseEnv) throw new Error('Environment not found');
+  const copiedEnv = { uid: nanoid(), name: newName, variables: baseEnv.variables || [] };
+  const environments = [...(workspace.environments || []), copiedEnv];
+  await idbPut(STORES.WORKSPACES, { ...workspace, environments });
+  return copiedEnv;
 };
 
 export const exportWorkspace = async (workspacePath, workspaceName) => {
@@ -975,34 +1178,48 @@ export const fetchNotifications = async () => {
   return ipcRenderer.invoke('renderer:fetch-notifications');
 };
 
-export const createGlobalEnvironment = async (params) => {
-  console.log('[LocalStorage] createGlobalEnvironment:', params);
-  return ipcRenderer.invoke('renderer:create-global-environment', params);
+export const createGlobalEnvironment = async ({ name, uid, variables = [], color, workspaceUid }) => {
+  const record = { uid, name, variables, color: color || null, workspaceUid };
+  await idbPut(STORES.GLOBAL_ENVIRONMENTS, record);
+  return record;
 };
 
-export const renameGlobalEnvironment = async (params) => {
-  console.log('[LocalStorage] renameGlobalEnvironment:', params);
-  return ipcRenderer.invoke('renderer:rename-global-environment', params);
+export const renameGlobalEnvironment = async ({ name, environmentUid, workspaceUid }) => {
+  const existing = await idbGet(STORES.GLOBAL_ENVIRONMENTS, environmentUid);
+  if (!existing) throw new Error('Global environment not found');
+  const updated = { ...existing, name };
+  await idbPut(STORES.GLOBAL_ENVIRONMENTS, updated);
+  return updated;
 };
 
-export const saveGlobalEnvironment = async (params) => {
-  console.log('[LocalStorage] saveGlobalEnvironment:', params);
-  return ipcRenderer.invoke('renderer:save-global-environment', params);
+export const saveGlobalEnvironment = async ({ environmentUid, variables }) => {
+  const existing = await idbGet(STORES.GLOBAL_ENVIRONMENTS, environmentUid);
+  if (!existing) throw new Error('Global environment not found');
+  const updated = { ...existing, variables };
+  await idbPut(STORES.GLOBAL_ENVIRONMENTS, updated);
+  return updated;
 };
 
-export const updateGlobalEnvironmentColor = async (params) => {
-  console.log('[LocalStorage] updateGlobalEnvironmentColor:', params);
-  return ipcRenderer.invoke('renderer:update-global-environment-color', params);
+export const updateGlobalEnvironmentColor = async ({ environmentUid, color }) => {
+  const existing = await idbGet(STORES.GLOBAL_ENVIRONMENTS, environmentUid);
+  if (!existing) throw new Error('Global environment not found');
+  const updated = { ...existing, color };
+  await idbPut(STORES.GLOBAL_ENVIRONMENTS, updated);
+  return updated;
 };
 
-export const selectGlobalEnvironment = async (params) => {
-  console.log('[LocalStorage] selectGlobalEnvironment:', params);
-  return ipcRenderer.invoke('renderer:select-global-environment', params);
+export const selectGlobalEnvironment = async ({ environmentUid, workspaceUid }) => {
+  await setUiState(`global_env_active_${workspaceUid}`, environmentUid || null);
+  return { environmentUid };
 };
 
-export const deleteGlobalEnvironment = async (params) => {
-  console.log('[LocalStorage] deleteGlobalEnvironment:', params);
-  return ipcRenderer.invoke('renderer:delete-global-environment', params);
+export const deleteGlobalEnvironment = async ({ environmentUid, workspaceUid }) => {
+  await idbDelete(STORES.GLOBAL_ENVIRONMENTS, environmentUid);
+  const activeUid = await getUiState(`global_env_active_${workspaceUid}`);
+  if (activeUid === environmentUid) {
+    await setUiState(`global_env_active_${workspaceUid}`, null);
+  }
+  return { environmentUid };
 };
 
 export const getCollectionJson = async (collectionLocation) => {

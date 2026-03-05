@@ -76,7 +76,7 @@ const Collection = ({ collection, searchText }) => {
 
   // Cloud workspace integration
   const isAuthenticated = useSelector(selectIsAuthenticated);
-  const syncStatus = useSelector((state) => selectSyncStatus(state, collection.pathname));
+  const syncStatus = useSelector((state) => selectSyncStatus(state, collection.uid ?? collection.pathname));
 
   const handleRun = () => {
     dispatch(
@@ -94,7 +94,7 @@ const Collection = ({ collection, searchText }) => {
     }
     dispatch(mountCollection({
       collectionUid: collection.uid,
-      collectionPathname: collection.pathname,
+      collectionPathname: collection.uid ?? collection.pathname,
       brunoConfig: collection.brunoConfig
     }));
   };
@@ -377,7 +377,7 @@ const Collection = ({ collection, searchText }) => {
       leftSection: IconTerminal2,
       label: 'Open in Terminal',
       onClick: async () => {
-        const collectionCwd = collection.pathname;
+        const collectionCwd = collection.uid ?? collection.pathname;
         await openDevtoolsAndSwitchToTerminal(dispatch, collectionCwd);
       }
     },
@@ -465,10 +465,10 @@ const Collection = ({ collection, searchText }) => {
         {!collectionIsCollapsed ? (
           <div>
             {folderItems?.map?.((i) => {
-              return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.pathname} searchText={searchText} />;
+              return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.uid ?? collection.pathname} searchText={searchText} />;
             })}
             {requestItems?.map?.((i) => {
-              return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.pathname} searchText={searchText} />;
+              return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.uid ?? collection.pathname} searchText={searchText} />;
             })}
           </div>
         ) : null}

@@ -98,10 +98,10 @@ const CollectionsSection = () => {
     setImportCollectionLocationModalOpen(true);
   };
 
-  const handleImportCollectionLocation = (convertedCollection, collectionLocation, options = {}) => {
+  const handleImportCollectionLocation = (convertedCollection, _collectionLocation, options = {}) => {
     const importAction = options.isZipImport
-      ? importCollectionFromZip(convertedCollection.zipFilePath, collectionLocation)
-      : importCollection(convertedCollection, collectionLocation, options);
+      ? importCollectionFromZip(convertedCollection.zipFilePath, null)
+      : importCollection(convertedCollection, null, options);
 
     dispatch(importAction)
       .then(() => {
@@ -284,10 +284,6 @@ const CollectionsSection = () => {
           onCreateCollection={() => {
             handleDismissWelcomeModal();
             setCreateCollectionModalOpen(true);
-          }}
-          onOpenCollection={() => {
-            handleDismissWelcomeModal();
-            handleOpenCollection();
           }}
         />
       )}

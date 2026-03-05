@@ -38,6 +38,24 @@ const getSelectedWorkspace = (getState) => {
 };
 
 /**
+ * Update a single item inside a cached cloud collection (best-effort, never throws).
+ * @param {string} collectionUid
+ * @param {Function} updater — (items: Array) => Array  — returns new items array
+ */
+async function updateCachedCollectionItems(collectionUid, updater) {
+  try {
+    const { getCachedCloudCollection, cacheCloudCollection } = await import('utils/cache/indexedDB');
+    const cached = await getCachedCloudCollection(collectionUid);
+    if (cached) {
+      cached.items = updater(cached.items || []);
+      await cacheCloudCollection(cached);
+    }
+  } catch (_) {
+    // cache update is best-effort
+  }
+}
+
+/**
  * Wrapper to handle errors consistently across all cloud operations
  * Transforms cloud errors to standard format and logs them
  *
@@ -344,12 +362,18 @@ export const saveRequest = async (itemUid, itemData, format) => {
 
   console.log(`☁️  [CloudStorage] Saving request: ${itemUid}`);
 
-  // Transform the nested request structure to flat format for API
   const flatData = transformLocalItemToCloud(itemData);
-
   const updated = await brunoApi.collections.updateItem(itemUid, flatData);
 
   console.log(`✅ [CloudStorage] Request saved`);
+
+  // Update IDB cache
+  const collectionUid = itemData.collectionUid || itemData.collection_id;
+  if (collectionUid) {
+    updateCachedCollectionItems(collectionUid, (items) =>
+      items.map((i) => (i.uid === itemUid ? { ...i, ...itemData } : i))
+    );
+  }
 
   return updated;
 };
@@ -374,6 +398,11 @@ export const deleteItem = async (itemUid, collectionUid, getState) => {
   await brunoApi.collections.deleteItem(itemUid);
 
   console.log(`✅ [CloudStorage] Item deleted`);
+
+  // Update IDB cache
+  if (collectionUid) {
+    updateCachedCollectionItems(collectionUid, (items) => items.filter((i) => i.uid !== itemUid));
+  }
 };
 
 export const moveItem = async (params, getState) => {
@@ -397,6 +426,13 @@ export const renameItemName = async (itemUid, newName, collectionUid) => {
   const result = await brunoApi.collections.updateItem(itemUid, { name: newName });
 
   console.log(`✅ [CloudStorage] Item display name renamed`);
+
+  // Update IDB cache
+  if (collectionUid) {
+    updateCachedCollectionItems(collectionUid, (items) =>
+      items.map((i) => (i.uid === itemUid ? { ...i, name: newName } : i))
+    );
+  }
 
   return result;
 };
@@ -422,17 +458,20 @@ export const newRequest = async (itemUid, itemData, format) => {
 
   console.log(`☁️  [CloudStorage] Creating new request`);
 
-  // Transform nested structure to flat for API
   const flatData = transformLocalItemToCloud(itemData);
-  // Ensure collectionUid is passed as first param
   const collectionUid = itemData.collectionUid || itemData.collection_id || itemData.collection || flatData.collectionUid || flatData.collection_id || flatData.collection;
   if (!collectionUid) {
     throw new Error('Missing collectionUid when creating request');
   }
   const result = await brunoApi.collections.createRequest(collectionUid, flatData);
   console.log(`✅ [CloudStorage] Request created`);
-  // Preserve the original local type (http-request, graphql-request, etc.) since the API only returns generic 'request'
-  return transformCloudItemToLocal({ ...result, item_subtype: itemData.type }, collectionUid);
+
+  const localItem = transformCloudItemToLocal({ ...result, item_subtype: itemData.type }, collectionUid);
+
+  // Update IDB cache
+  updateCachedCollectionItems(collectionUid, (items) => [...items, localItem]);
+
+  return localItem;
 };
 
 export const cloneFolder = async (sourceItem, targetPath, collectionUid) => {

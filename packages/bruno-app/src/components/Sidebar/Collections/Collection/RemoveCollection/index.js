@@ -65,7 +65,7 @@ const RemoveCollection = ({ onClose, collectionUid }) => {
         <p className="mb-4">Are you sure you want to close following collection in Bruno?</p>
         <div className="collection-info-card">
           <div className="collection-name">{collection.name}</div>
-          <div className="collection-path">{collection.pathname}</div>
+          <div className="collection-path">{collection.uid}</div>
         </div>
         <p className="mt-4 text-muted text-sm">
           It will still be available in the filesystem at the above location and can be re-opened later.
