@@ -2,6 +2,8 @@ use bson::oid::ObjectId;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::models::item::generate_uid;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum WorkspaceRole {
@@ -23,8 +25,11 @@ impl WorkspaceRole {
 pub struct Workspace {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
+    /// External nanoid UID.
+    pub uid: String,
     pub name: String,
     pub description: Option<String>,
+    /// Internal reference to the owner user (MongoDB ObjectId — auth layer).
     pub owner_id: ObjectId,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -35,6 +40,7 @@ impl Workspace {
         let now = Utc::now();
         Self {
             id: None,
+            uid: generate_uid(),
             name,
             description,
             owner_id,
@@ -44,6 +50,7 @@ impl Workspace {
     }
 }
 
+/// Internal membership record — uses ObjectId for MongoDB joins with users/workspaces.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceMember {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
@@ -68,10 +75,12 @@ impl WorkspaceMember {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceResponse {
-    pub id: String,
+    pub uid: String,
     pub name: String,
     pub description: Option<String>,
-    pub owner_id: String,
+    /// Owner's hex ObjectId (users do not have a nanoid uid yet).
+    #[serde(rename = "ownerUid")]
+    pub owner_uid: String,
     pub role: WorkspaceRole,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

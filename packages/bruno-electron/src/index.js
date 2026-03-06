@@ -5,7 +5,6 @@ const isDev = require('electron-is-dev');
 const os = require('os');
 const { initializeShellEnv } = require('@usebruno/requests');
 const { percentageToZoomLevel } = require('@usebruno/common');
-
 if (isDev) {
   if (!fs.existsSync(path.join(__dirname, '../../bruno-js/src/sandbox/bundle-browser-rollup.js'))) {
     console.log('JS Sandbox libraries have not been bundled yet');
@@ -51,7 +50,7 @@ const collectionWatcher = require('./app/collection-watcher');
 const WorkspaceWatcher = require('./app/workspace-watcher');
 const ApiSpecWatcher = require('./app/apiSpecsWatcher');
 const { loadWindowState, saveBounds, saveMaximized } = require('./utils/window');
-const { preferencesUtil, getPreferences, savePreferences } = require('./store/preferences');
+
 const { globalEnvironmentsManager } = require('./store/workspace-environments');
 const registerNotificationsIpc = require('./ipc/notifications');
 const registerGlobalEnvironmentsIpc = require('./ipc/global-environments');
@@ -97,23 +96,11 @@ const isLinux = process.platform === 'linux';
 let mainWindow;
 let appProtocolUrl;
 
-// Helper function to save zoom percentage to preferences and notify renderer
-const saveZoomPreferences = async (percentage) => {
+// Helper function to notify renderer of zoom change (renderer saves to IDB)
+const saveZoomPreferences = (percentage) => {
   if (!mainWindow) return;
-
   const clampedPercentage = Math.max(50, Math.min(150, percentage));
-
-  const prefs = getPreferences();
-  prefs.display = prefs.display || {};
-  prefs.display.zoomPercentage = clampedPercentage;
-
-  try {
-    await savePreferences(prefs);
-    // Notify renderer to update Redux state only after successful save
-    mainWindow.webContents.send('main:load-preferences', prefs);
-  } catch (err) {
-    console.error('Failed to save zoom preference:', err);
-  }
+  mainWindow.webContents.send('main:zoom-changed', clampedPercentage);
 };
 
 // Helper function to focus and restore the main window
@@ -191,9 +178,9 @@ app.on('ready', async () => {
       });
       console.log(`Added Extensions:  ${extensions.map((ext) => ext.name).join(', ')}`);
       await require('node:timers/promises').setTimeout(1000);
-      session.defaultSession.getAllExtensions().map((ext) => {
+      session.defaultSession.extensions.getAllExtensions().map((ext) => {
         console.log(`Loading Extension: ${ext.name}`);
-        session.defaultSession.loadExtension(ext.path);
+        session.defaultSession.extensions.loadExtension(ext.path);
       });
     } catch (err) {
       console.error('An error occurred while loading extensions: ', err);
@@ -321,13 +308,17 @@ app.on('ready', async () => {
   });
 
   mainWindow.once('ready-to-show', () => {
-    // Apply saved zoom level from preferences before showing window
-    const zoomPercentage = preferencesUtil.getZoomPercentage();
-    if (zoomPercentage) {
-      const zoomLevel = percentageToZoomLevel(zoomPercentage);
-      mainWindow.webContents.setZoomLevel(zoomLevel);
-    }
     mainWindow.show();
+    // Restore zoom from preferences file
+    try {
+      const { getPreferences } = require('./store/preferences');
+      const prefs = getPreferences();
+      const zoomPercentage = prefs?.display?.zoomPercentage;
+      if (zoomPercentage && zoomPercentage !== 100) {
+        const { percentageToZoomLevel } = require('@usebruno/common');
+        mainWindow.webContents.setZoomLevel(percentageToZoomLevel(zoomPercentage));
+      }
+    } catch {}
   });
   const devPort = process.env.BRUNO_DEV_PORT || 3000;
   const url = isDev
@@ -514,7 +505,8 @@ app.on('browser-window-blur', () => {
  * @param {number} inc (+/- amount to zoom in / out);
  */
 function incrementZoomAndPersist(inc) {
-  const currentPercentage = preferencesUtil.getZoomPercentage();
+  // getZoomFactor() returns a decimal (1.0 = 100%), convert to percentage
+  const currentPercentage = Math.round(mainWindow.webContents.getZoomFactor() * 100);
   const nextPercentage = Math.min(
     Math.max(currentPercentage + inc, 50),
     150

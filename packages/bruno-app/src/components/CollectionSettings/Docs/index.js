@@ -1,27 +1,27 @@
 import 'github-markdown-css/github-markdown.css';
 import get from 'lodash/get';
-import { updateCollectionDocs, deleteCollectionDraft } from 'providers/ReduxStore/slices/collections';
-import { useTheme } from 'providers/Theme';
-import { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { updateCollectionDocs } from 'providers/ReduxStore/slices/collections';
+import { useDispatch } from 'react-redux';
 import { saveCollectionSettings } from 'providers/ReduxStore/slices/collections/actions';
-import Markdown from 'components/MarkDown';
-import CodeEditor from 'components/CodeEditor';
+import MarkdownEditor from 'components/MarkdownEditor';
 import StyledWrapper from './StyledWrapper';
-import { IconEdit, IconX, IconFileText } from '@tabler/icons';
+import { IconFileText } from '@tabler/icons';
 import Button from 'ui/Button/index';
-import ActionIcon from 'ui/ActionIcon/index';
+
+const documentationPlaceholder = `Welcome to your collection documentation!
+
+## Overview
+Describe the purpose of these API endpoints...
+
+## Authentication
+Explain how to authenticate...
+
+## Getting Started
+Add usage instructions here...`;
 
 const Docs = ({ collection }) => {
   const dispatch = useDispatch();
-  const { displayedTheme } = useTheme();
-  const [isEditing, setIsEditing] = useState(false);
   const docs = collection.draft?.root ? get(collection, 'draft.root.docs', '') : get(collection, 'root.docs', '');
-  const preferences = useSelector((state) => state.app.preferences);
-
-  const toggleViewMode = () => {
-    setIsEditing((prev) => !prev);
-  };
 
   const onEdit = (value) => {
     dispatch(
@@ -32,19 +32,8 @@ const Docs = ({ collection }) => {
     );
   };
 
-  const handleDiscardChanges = () => {
-    dispatch((
-      updateCollectionDocs({
-        collectionUid: collection.uid,
-        docs: docs
-      }))
-    );
-    toggleViewMode();
-  };
-
   const onSave = () => {
     dispatch(saveCollectionSettings(collection.uid));
-    toggleViewMode();
   };
 
   return (
@@ -54,71 +43,21 @@ const Docs = ({ collection }) => {
           <IconFileText size={20} strokeWidth={1.5} />
           Documentation
         </div>
-        <div className="flex flex-row gap-2 items-center justify-center">
-          {isEditing ? (
-            <>
-              <Button type="button" color="secondary" onClick={handleDiscardChanges}>
-                Cancel
-              </Button>
-              <Button type="button" onClick={onSave}>
-                Save
-              </Button>
-            </>
-          ) : (
-            <ActionIcon className="editing-mode" onClick={toggleViewMode}>
-              <IconEdit className="cursor-pointer" size={16} strokeWidth={1.5} />
-            </ActionIcon>
-          )}
-        </div>
+        <Button type="button" onClick={onSave}>
+          Save
+        </Button>
       </div>
-      {isEditing ? (
-        <CodeEditor
-          collection={collection}
-          theme={displayedTheme}
-          value={docs}
+      <div className="flex-1 min-h-0">
+        <MarkdownEditor
+          value={docs || ''}
           onEdit={onEdit}
           onSave={onSave}
-          mode="application/text"
-          font={get(preferences, 'font.codeFont', 'default')}
-          fontSize={get(preferences, 'font.codeFontSize')}
+          height={500}
+          placeholder={documentationPlaceholder}
         />
-      ) : (
-        <div className="h-full overflow-auto pl-1">
-          <div className="h-[1px] min-h-[500px]">
-            {
-              docs?.length > 0
-                ? <Markdown collectionPath={collection.pathname} onDoubleClick={toggleViewMode} content={docs} />
-                : <Markdown collectionPath={collection.pathname} onDoubleClick={toggleViewMode} content={documentationPlaceholder} />
-            }
-          </div>
-        </div>
-      )}
+      </div>
     </StyledWrapper>
   );
 };
 
 export default Docs;
-
-const documentationPlaceholder = `
-Welcome to your collection documentation! This space is designed to help you document your API collection effectively.
-
-## Overview
-Use this section to provide a high-level overview of your collection. You can describe:
-- The purpose of these API endpoints
-- Key features and functionalities
-- Target audience or users
-
-## Best Practices
-- Keep documentation up to date
-- Include request/response examples
-- Document error scenarios
-- Add relevant links and references
-
-## Markdown Support
-This documentation supports Markdown formatting! You can use:
-- **Bold** and *italic* text
-- \`code blocks\` and syntax highlighting
-- Tables and lists
-- [Links](https://usebruno.com)
-- And more!
-`;

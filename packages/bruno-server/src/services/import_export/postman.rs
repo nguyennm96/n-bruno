@@ -2,7 +2,6 @@
 use bson::{doc, oid::ObjectId};
 use futures::StreamExt;
 use mongodb::{Collection, Database};
-use serde_json::Value;
 
 use crate::{
     errors::{AppError, AppResult},
@@ -53,9 +52,6 @@ impl PostmanService {
             return Err(AppError::Forbidden("Editor role required to import".into()));
         }
 
-        let ws_oid = ObjectId::parse_str(workspace_id)
-            .map_err(|_| AppError::BadRequest("Invalid workspace ID".into()))?;
-
         // Parse JSON
         let pm_col: PostmanCollection = serde_json::from_str(postman_json)
             .map_err(|e| AppError::BadRequest(format!("Invalid Postman JSON: {e}")))?;
@@ -63,7 +59,7 @@ impl PostmanService {
         // Handle name conflict
         let col_name = pm_col.info.name.clone();
         let existing = self.collections
-            .find_one(doc! { "workspace_id": ws_oid, "name": &col_name })
+            .find_one(doc! { "workspaceUid": workspace_id, "name": &col_name })
             .await
             .map_err(AppError::from)?;
 
@@ -78,9 +74,8 @@ impl PostmanService {
                 ImportConflict::Replace => {
                     // Delete the existing collection and its items
                     if let Some(ref existing_col) = existing {
-                        let col_oid = existing_col.id.unwrap();
-                        self.items.delete_many(doc! { "collection_id": col_oid }).await.map_err(AppError::from)?;
-                        self.collections.delete_one(doc! { "_id": col_oid }).await.map_err(AppError::from)?;
+                        self.items.delete_many(doc! { "collectionUid": existing_col.uid.clone() }).await.map_err(AppError::from)?;
+                        self.collections.delete_one(doc! { "_id": existing_col.id.unwrap() }).await.map_err(AppError::from)?;
                     }
                 }
                 ImportConflict::Rename => {
@@ -96,31 +91,31 @@ impl PostmanService {
             col_name
         };
 
-        let mut col = CollectionModel::new(
+        let col = CollectionModel::new(
             final_name,
             pm_col.info.description.clone(),
-            ws_oid,
+            workspace_id.to_string(),
         );
-        let res = self.collections.insert_one(&col).await.map_err(AppError::from)?;
-        let col_id = res.inserted_id.as_object_id().unwrap();
-        col.id = Some(col_id);
+        self.collections.insert_one(&col).await.map_err(AppError::from)?;
 
         // Import items recursively
         let mut stats = ImportStats::default();
-        self.import_items(&pm_col.item, col_id, None, &mut stats).await?;
+        self.import_items(&pm_col.item, col.uid.clone(), None, &mut stats).await?;
 
         // Import collection-level variables as an environment (optional)
         if let Some(vars) = &pm_col.variable {
             if !vars.is_empty() {
                 let env_vars: Vec<EnvVariable> = vars.iter().map(|v| EnvVariable {
-                    key: v.key.clone(),
+                    uid: None,
+                    name: v.key.clone(),
                     value: v.value.as_str().unwrap_or_default().to_string(),
                     enabled: !v.disabled.unwrap_or(false),
+                    secret: None,
                 }).collect();
 
-                let mut env = Environment::new(
+                let env = Environment::new(
                     format!("{} Variables", pm_col.info.name),
-                    ws_oid,
+                    workspace_id.to_string(),
                     env_vars,
                 );
                 self.environments.insert_one(&env).await.map_err(AppError::from)?;
@@ -129,7 +124,7 @@ impl PostmanService {
         }
 
         Ok(ImportResult {
-            collection_id: col_id.to_hex(),
+            collection_uid: col.uid.clone(),
             collection_name: col.name,
             stats,
         })
@@ -138,63 +133,40 @@ impl PostmanService {
     async fn import_items(
         &self,
         items: &[PostmanItem],
-        collection_id: ObjectId,
-        parent_id: Option<ObjectId>,
+        col_uid: String,
+        parent_uid: Option<String>,
         stats: &mut ImportStats,
     ) -> AppResult<()> {
         for (i, pm_item) in items.iter().enumerate() {
-            let sort_order = i as f64;
+            let seq = i as f64;
 
             if pm_item.is_folder() {
                 // Create folder
-                let mut folder = Item::new_folder(
+                let folder = Item::new_folder(
                     pm_item.name.clone(),
-                    collection_id,
-                    parent_id,
-                    sort_order,
+                    col_uid.clone(),
+                    parent_uid.clone(),
+                    seq,
                 );
-                let res = self.items.insert_one(&folder).await.map_err(AppError::from)?;
-                let folder_id = res.inserted_id.as_object_id().unwrap();
-                folder.id = Some(folder_id);
+                self.items.insert_one(&folder).await.map_err(AppError::from)?;
                 stats.folders_created += 1;
 
                 // Recurse children
                 if let Some(children) = &pm_item.item {
-                    Box::pin(self.import_items(children, collection_id, Some(folder_id), stats)).await?;
+                    Box::pin(self.import_items(children, col_uid.clone(), Some(folder.uid.clone()), stats)).await?;
                 }
             } else if let Some(req) = &pm_item.request {
                 let url_raw = req.url.as_raw();
-                let mut item = Item::new_request(
+                let item = Item::new_request(
                     pm_item.name.clone(),
-                    collection_id,
-                    parent_id,
-                    sort_order,
+                    col_uid.clone(),
+                    parent_uid.clone(),
+                    seq,
                     req.method.clone(),
                     url_raw,
                 );
 
-                // Map headers to BSON document
-                if let Some(headers) = &req.header {
-                    let mut hdoc = bson::Document::new();
-                    for h in headers.iter().filter(|h| !h.disabled.unwrap_or(false)) {
-                        hdoc.insert(h.key.clone(), h.value.clone());
-                    }
-                    if !hdoc.is_empty() {
-                        item.headers = Some(hdoc);
-                    }
-                }
-
-                // Map body (serialize to JSON Value for backward compatibility)
-                if let Some(body) = &req.body {
-                    let body_json = serde_json::json!({
-                        "mode": body.mode,
-                        "raw": body.raw,
-                    });
-                    item.body = Some(body_json);
-                }
-
-                let res = self.items.insert_one(&item).await.map_err(AppError::from)?;
-                let item_id = res.inserted_id.as_object_id().unwrap();
+                self.items.insert_one(&item).await.map_err(AppError::from)?;
                 stats.requests_created += 1;
 
                 // Import response examples
@@ -208,7 +180,7 @@ impl PostmanService {
                         }
                         let example = Example::new(
                             resp.name.clone(),
-                            item_id,
+                            item.uid.clone(),
                             resp.code.unwrap_or(200),
                             hdoc,
                             resp.body.clone(),
@@ -230,21 +202,18 @@ impl PostmanService {
         collection_id: &str,
         user_id: ObjectId,
     ) -> AppResult<PostmanCollection> {
-        let col_oid = ObjectId::parse_str(collection_id)
-            .map_err(|_| AppError::BadRequest("Invalid collection ID".into()))?;
-
         let col = self.collections
-            .find_one(doc! { "_id": col_oid })
+            .find_one(doc! { "uid": collection_id })
             .await
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::NotFound("Collection not found".into()))?;
 
         // Access check
-        self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+        self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
 
         // Load all items for this collection
         let mut cursor = self.items
-            .find(doc! { "collection_id": col_oid })
+            .find(doc! { "collectionUid": collection_id })
             .await
             .map_err(AppError::from)?;
         let mut all_items: Vec<Item> = Vec::new();
@@ -266,7 +235,7 @@ impl PostmanService {
                 name: col.name.clone(),
                 description: col.description,
                 schema: POSTMAN_SCHEMA.to_string(),
-                postman_id: Some(col_oid.to_hex()),
+                postman_id: Some(col.uid.clone()),
             },
             item: pm_items,
             variable: None,
@@ -278,21 +247,19 @@ impl PostmanService {
         &self,
         all_items: &[Item],
         all_examples: &[Example],
-        parent_id: Option<ObjectId>,
+        parent_uid: Option<String>,
     ) -> Vec<PostmanItem> {
         let mut result = Vec::new();
 
         let mut children: Vec<&Item> = all_items
             .iter()
-            .filter(|i| i.parent_item_id == parent_id)
+            .filter(|i| i.parent_uid == parent_uid)
             .collect();
-        children.sort_by(|a, b| a.sort_order.partial_cmp(&b.sort_order).unwrap_or(std::cmp::Ordering::Equal));
+        children.sort_by(|a, b| a.seq.partial_cmp(&b.seq).unwrap_or(std::cmp::Ordering::Equal));
 
         for item in children {
-            let item_id = item.id.unwrap();
-
             if item.item_type == ItemType::Folder {
-                let nested = self.build_pm_items(all_items, all_examples, Some(item_id));
+                let nested = self.build_pm_items(all_items, all_examples, Some(item.uid.clone()));
                 result.push(PostmanItem {
                     name: item.name.clone(),
                     description: None,
@@ -302,26 +269,27 @@ impl PostmanService {
                 });
             } else {
                 // Request
-                let headers: Vec<PostmanHeader> = item.headers.as_ref()
-                    .map(|doc| doc.iter().map(|(k, v)| PostmanHeader {
-                        key: k.clone(),
-                        value: v.as_str().unwrap_or_default().to_string(),
+                let request = item.request.as_ref();
+
+                let headers: Vec<PostmanHeader> = request
+                    .map(|r| r.headers.iter().map(|h| PostmanHeader {
+                        key: h.name.clone().unwrap_or_default(),
+                        value: h.value.clone().unwrap_or_default(),
                         header_type: Some("text".into()),
-                        disabled: None,
+                        disabled: Some(!h.enabled),
                     }).collect())
                     .unwrap_or_default();
 
-                let pm_body = item.body.as_ref().map(|b| {
-                    let mode = b.get("mode")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("raw")
-                        .to_string();
-                    let raw = b.get("raw")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string());
-
-                    PostmanBody {
-                        mode: mode.clone(),
+                let pm_body = request.and_then(|r| {
+                    let mode = r.body.mode.as_str();
+                    if mode == "none" { return None; }
+                    let raw = match mode {
+                        "json" => r.body.json.clone(),
+                        "text" => r.body.text.clone(),
+                        _ => None,
+                    };
+                    Some(PostmanBody {
+                        mode: mode.to_string(),
                         raw,
                         options: Some(PostmanBodyOptions {
                             raw: Some(PostmanBodyRawOptions {
@@ -330,12 +298,12 @@ impl PostmanService {
                         }),
                         urlencoded: None,
                         formdata: None,
-                    }
+                    })
                 });
 
                 // Map examples
                 let responses: Vec<PostmanResponse> = all_examples.iter()
-                    .filter(|e| e.item_id == item_id)
+                    .filter(|e| e.request_uid == item.uid)
                     .map(|e| {
                         let resp_headers: Vec<PostmanHeader> = e.headers.iter()
                             .map(|(k, v)| PostmanHeader {
@@ -361,8 +329,8 @@ impl PostmanService {
                     description: None,
                     item: None,
                     request: Some(PostmanRequest {
-                        method: item.method.clone().unwrap_or_else(|| "GET".to_string()),
-                        url: PostmanUrl::Raw(item.url.clone().unwrap_or_default()),
+                        method: request.map(|r| r.method.clone()).unwrap_or_else(|| "GET".to_string()),
+                        url: PostmanUrl::Raw(request.map(|r| r.url.clone()).unwrap_or_default()),
                         header: if headers.is_empty() { None } else { Some(headers) },
                         body: pm_body,
                         auth: None,
@@ -382,18 +350,15 @@ impl PostmanService {
         user_id: ObjectId,
     ) -> AppResult<Vec<PostmanCollection>> {
         self.ws_service.get_with_role(workspace_id, user_id).await?;
-        let ws_oid = ObjectId::parse_str(workspace_id)
-            .map_err(|_| AppError::BadRequest("Invalid workspace ID".into()))?;
 
         let mut cursor = self.collections
-            .find(doc! { "workspace_id": ws_oid })
+            .find(doc! { "workspaceUid": workspace_id })
             .await
             .map_err(AppError::from)?;
 
         let mut result = Vec::new();
         while let Some(Ok(col)) = cursor.next().await {
-            let col_id = col.id.unwrap().to_hex();
-            result.push(self.export_collection(&col_id, user_id).await?);
+            result.push(self.export_collection(&col.uid, user_id).await?);
         }
         Ok(result)
     }
@@ -412,7 +377,7 @@ pub struct ImportStats {
 
 #[derive(Debug, Clone)]
 pub struct ImportResult {
-    pub collection_id: String,
+    pub collection_uid: String,
     pub collection_name: String,
     pub stats: ImportStats,
 }

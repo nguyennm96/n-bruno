@@ -23,6 +23,7 @@ use services::{
         postman::PostmanService,
     },
     item::ItemService,
+    sync::SyncService,
     workspace::WorkspaceService,
 };
 use state::AppState;
@@ -49,16 +50,17 @@ async fn main() -> anyhow::Result<()> {
     // ── Services ──────────────────────────────────────────────────────────────
     let auth_service = AuthService::new(&db, config.clone());
     let workspace_service = WorkspaceService::new(&db);
-    let collection_service = CollectionService::new(&db, workspace_service.clone());
-    let item_service = ItemService::new(&db, workspace_service.clone());
-    let environment_service = EnvironmentService::new(&db, workspace_service.clone());
-    let example_service = ExampleService::new(&db, workspace_service.clone());
     let ws_manager = WsManager::new();
+    let collection_service = CollectionService::new(&db, workspace_service.clone(), ws_manager.clone());
+    let item_service = ItemService::new(&db, workspace_service.clone(), ws_manager.clone());
+    let environment_service = EnvironmentService::new(&db, workspace_service.clone(), ws_manager.clone());
+    let example_service = ExampleService::new(&db, workspace_service.clone(), ws_manager.clone());
 
     // Phase 10: Import/Export services
     let postman_service = PostmanService::new(&db, workspace_service.clone());
     let openapi_service = OpenApiService::new(&db, workspace_service.clone());
     let insomnia_service = InsomniaService::new(&db, workspace_service.clone());
+    let sync_service = SyncService::new(&db, workspace_service.clone());
 
     let state = AppState {
         config: config.clone(),
@@ -72,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
         postman_service,
         openapi_service,
         insomnia_service,
+        sync_service,
     };
 
     // ── Router ────────────────────────────────────────────────────────────────

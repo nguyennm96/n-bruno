@@ -11,6 +11,7 @@ use crate::{
             postman::PostmanService,
         },
         item::ItemService,
+        sync::SyncService,
         workspace::WorkspaceService,
     },
     ws::WsManager,
@@ -25,6 +26,7 @@ pub struct AppState {
     pub item_service: ItemService,
     pub environment_service: EnvironmentService,
     pub example_service: ExampleService,
+    pub sync_service: SyncService,
     pub ws_manager: WsManager,
     // Phase 10: Import/Export
     pub postman_service: PostmanService,

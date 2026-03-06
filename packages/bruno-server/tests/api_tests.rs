@@ -145,7 +145,7 @@ async fn test_workspace_crud() {
     resp.assert_status(axum::http::StatusCode::CREATED);
     let body: Value = resp.json();
     eprintln!("CREATE RESP: {}", serde_json::to_string_pretty(&body).unwrap());
-    let ws_id = body["data"]["id"].as_str().unwrap();
+    let ws_id = body["data"]["uid"].as_str().unwrap();
     assert_eq!(body["data"]["name"], "Test WS");
     assert_eq!(body["data"]["role"], "owner");
 
@@ -187,7 +187,7 @@ async fn test_non_member_cannot_access_workspace() {
         .authorization_bearer(&token_a)
         .json(&json!({ "name": "Private" }))
         .await.json();
-    let ws_id = resp["data"]["id"].as_str().unwrap();
+    let ws_id = resp["data"]["uid"].as_str().unwrap();
 
     // User B tries to access → should get 404 (not 403, for security)
     let resp = server.get(&format!("/api/workspaces/{ws_id}"))
@@ -211,7 +211,7 @@ async fn test_collection_crud() {
         .await;
     resp.assert_status(axum::http::StatusCode::CREATED);
     let body: Value = resp.json();
-    let col_id = body["data"]["id"].as_str().unwrap();
+    let col_id = body["data"]["uid"].as_str().unwrap();
 
     // List
     let list: Value = server.get(&format!("/api/workspaces/{ws_id}/collections"))
@@ -248,9 +248,9 @@ async fn test_item_hierarchy() {
     // Create folder
     let folder: Value = server.post(&format!("/api/collections/{col_id}/folders"))
         .authorization_bearer(&token)
-        .json(&json!({ "name": "Users", "sort_order": 1.0 }))
+        .json(&json!({ "name": "Users", "seq": 1.0 }))
         .await.json();
-    let folder_id = folder["data"]["id"].as_str().unwrap();
+    let folder_id = folder["data"]["uid"].as_str().unwrap();
     assert_eq!(folder["data"]["type"], "folder");
 
     // Create request inside folder
@@ -260,13 +260,13 @@ async fn test_item_hierarchy() {
             "name": "List Users",
             "method": "GET",
             "url": "https://api.example.com/users",
-            "parent_item_id": folder_id,
-            "sort_order": 1.0
+            "parentUid": folder_id,
+            "seq": 1.0
         }))
         .await.json();
-    let item_id = req["data"]["id"].as_str().unwrap();
+    let item_id = req["data"]["uid"].as_str().unwrap();
     assert_eq!(req["data"]["type"], "request");
-    assert_eq!(req["data"]["parent_item_id"], folder_id);
+    assert_eq!(req["data"]["parentUid"], folder_id);
 
     // List items
     let items: Value = server.get(&format!("/api/collections/{col_id}/items"))
@@ -299,14 +299,14 @@ async fn test_environment_crud() {
         .json(&json!({
             "name": "Dev",
             "variables": [
-                { "key": "BASE_URL", "value": "https://dev.api.com", "enabled": true },
-                { "key": "SECRET", "value": "dev-secret", "enabled": false }
+                { "name": "BASE_URL", "value": "https://dev.api.com", "enabled": true },
+                { "name": "SECRET", "value": "dev-secret", "enabled": false }
             ]
         }))
         .await;
     resp.assert_status(axum::http::StatusCode::CREATED);
     let body: Value = resp.json();
-    let env_id = body["data"]["id"].as_str().unwrap();
+    let env_id = body["data"]["uid"].as_str().unwrap();
     assert_eq!(body["data"]["variables"].as_array().unwrap().len(), 2);
 
     // Update - add a variable
@@ -314,9 +314,9 @@ async fn test_environment_crud() {
         .authorization_bearer(&token)
         .json(&json!({
             "variables": [
-                { "key": "BASE_URL", "value": "https://dev.api.com", "enabled": true },
-                { "key": "SECRET", "value": "dev-secret", "enabled": false },
-                { "key": "TIMEOUT", "value": "30", "enabled": true }
+                { "name": "BASE_URL", "value": "https://dev.api.com", "enabled": true },
+                { "name": "SECRET", "value": "dev-secret", "enabled": false },
+                { "name": "TIMEOUT", "value": "30", "enabled": true }
             ]
         }))
         .await;
@@ -351,9 +351,9 @@ async fn test_examples_only_for_requests() {
     // Create a folder
     let folder: Value = server.post(&format!("/api/collections/{col_id}/folders"))
         .authorization_bearer(&token)
-        .json(&json!({ "name": "Folder", "sort_order": 1.0 }))
+        .json(&json!({ "name": "Folder", "seq": 1.0 }))
         .await.json();
-    let folder_id = folder["data"]["id"].as_str().unwrap();
+    let folder_id = folder["data"]["uid"].as_str().unwrap();
 
     // Try to add example to folder → should fail
     let resp = server.post(&format!("/api/items/{folder_id}/examples"))
@@ -365,9 +365,9 @@ async fn test_examples_only_for_requests() {
     // Create a request and add example → should succeed
     let req: Value = server.post(&format!("/api/collections/{col_id}/requests"))
         .authorization_bearer(&token)
-        .json(&json!({ "name": "Get Users", "method": "GET", "url": "https://api.com/users", "sort_order": 1.0 }))
+        .json(&json!({ "name": "Get Users", "method": "GET", "url": "https://api.com/users", "seq": 1.0 }))
         .await.json();
-    let item_id = req["data"]["id"].as_str().unwrap();
+    let item_id = req["data"]["uid"].as_str().unwrap();
 
     let ex_resp = server.post(&format!("/api/items/{item_id}/examples"))
         .authorization_bearer(&token)
@@ -442,7 +442,7 @@ async fn test_import_postman_collection() {
     let body: Value = resp.json();
 
     assert_eq!(body["data"]["collection_name"], "My API Collection");
-    assert!(body["data"]["collection_id"].is_string());
+    assert!(body["data"]["collectionUid"].is_string());
     assert_eq!(body["data"]["imported"]["folders"], 1); // "Users" folder
     assert_eq!(body["data"]["imported"]["requests"], 2); // 2 requests
     assert_eq!(body["data"]["imported"]["examples"], 1); // 1 response example
@@ -526,9 +526,9 @@ async fn test_export_collection_to_postman() {
     // Create some items
     let folder: Value = server.post(&format!("/api/collections/{col_id}/folders"))
         .authorization_bearer(&token)
-        .json(&json!({ "name": "Endpoints", "sort_order": 1.0 }))
+        .json(&json!({ "name": "Endpoints", "seq": 1.0 }))
         .await.json();
-    let folder_id = folder["data"]["id"].as_str().unwrap();
+    let folder_id = folder["data"]["uid"].as_str().unwrap();
 
     server.post(&format!("/api/collections/{col_id}/requests"))
         .authorization_bearer(&token)
@@ -536,8 +536,8 @@ async fn test_export_collection_to_postman() {
             "name": "Get Items",
             "method": "GET",
             "url": "https://api.com/items",
-            "parent_item_id": folder_id,
-            "sort_order": 1.0
+            "parentUid": folder_id,
+            "seq": 1.0
         }))
         .await;
 
@@ -571,7 +571,7 @@ async fn test_export_collection_to_openapi() {
             "name": "List Users",
             "method": "GET",
             "url": "https://api.example.com/v1/users",
-            "sort_order": 1.0
+            "seq": 1.0
         }))
         .await;
 
@@ -669,7 +669,7 @@ async fn test_import_export_roundtrip() {
         .json(&json!({ "json": original.to_string() }))
         .await.json();
 
-    let col_id = import_resp["data"]["collection_id"].as_str().unwrap();
+    let col_id = import_resp["data"]["collectionUid"].as_str().unwrap();
 
     // Export back to Postman
     let export_resp = server.get(&format!("/api/collections/{col_id}/export?format=postman"))

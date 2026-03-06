@@ -53,7 +53,7 @@ pub async fn create_workspace(server: &TestServer, token: &str, name: &str) -> S
         .json(&json!({ "name": name }))
         .await
         .json();
-    resp["data"]["id"].as_str().unwrap().to_string()
+    resp["data"]["uid"].as_str().unwrap().to_string()
 }
 
 pub async fn create_collection(server: &TestServer, token: &str, ws_id: &str, name: &str) -> String {
@@ -63,5 +63,5 @@ pub async fn create_collection(server: &TestServer, token: &str, ws_id: &str, na
         .json(&json!({ "name": name }))
         .await
         .json();
-    resp["data"]["id"].as_str().unwrap().to_string()
+    resp["data"]["uid"].as_str().unwrap().to_string()
 }

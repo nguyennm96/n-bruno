@@ -142,7 +142,7 @@ export const createCollection = async (name, options = {}, getState) => {
   return {
     ...collection,
     isCloud: true,
-    pathname: `cloud://${collection.id}`
+    pathname: `cloud://${collection.uid}`
   };
 };
 
@@ -158,7 +158,7 @@ export const updateCollection = async (collectionUid, data, getState) => {
   return {
     ...updated,
     isCloud: true,
-    pathname: `cloud://${updated.id}`
+    pathname: `cloud://${updated.uid}`
   };
 };
 
@@ -214,22 +214,22 @@ export const cloneCollection = async (collectionName, collectionFolderName, coll
     name: collectionName
   });
 
-  console.log(`✅ [CloudStorage] Collection cloned: ${clonedCollection.id}`);
+  console.log(`✅ [CloudStorage] Collection cloned: ${clonedCollection.uid}`);
 
   // Fetch items and environments for the cloned collection so caller can mount it into Redux
   let items = [];
   let environments = [];
   try {
-    const tree = await brunoApi.collections.getCollectionsTreeByWorkspace(sourceCollection.workspaceId || clonedCollection.workspace_id);
-    const clonedTree = tree.find((c) => c.id === clonedCollection.id);
+    const tree = await brunoApi.collections.getCollectionsTreeByWorkspace(sourceCollection.workspaceUid || clonedCollection.workspaceUid);
+    const clonedTree = tree.find((c) => c.uid === clonedCollection.uid);
     if (clonedTree) {
-      items = (clonedTree.items || []).map((item) => transformCloudItemToLocal(item, clonedCollection.id));
+      items = (clonedTree.items || []).map((item) => transformCloudItemToLocal(item, clonedCollection.uid));
     }
   } catch (e) {
     console.warn('⚠️  [CloudStorage] cloneCollection: could not fetch cloned items', e?.message);
   }
   try {
-    const rawEnvs = await brunoApi.environments.listCollectionEnvironments(clonedCollection.id);
+    const rawEnvs = await brunoApi.environments.listCollectionEnvironments(clonedCollection.uid);
     environments = rawEnvs.map(transformCloudEnvironmentToLocal);
   } catch (e) {
     console.warn('⚠️  [CloudStorage] cloneCollection: could not fetch environments', e?.message);
@@ -240,7 +240,7 @@ export const cloneCollection = async (collectionName, collectionFolderName, coll
     items,
     environments,
     isCloud: true,
-    pathname: `cloud://${clonedCollection.id}`
+    pathname: `cloud://${clonedCollection.uid}`
   };
 };
 
@@ -285,7 +285,7 @@ export const renameCollection = async (collectionUid, newName, getState) => {
   return {
     ...updated,
     isCloud: true,
-    pathname: `cloud://${updated.id}`
+    pathname: `cloud://${updated.uid}`
   };
 };
 
@@ -301,8 +301,8 @@ export const createFolder = async (collectionUid, folderName, parentFolderId = n
 
   const folder = await brunoApi.collections.createFolder(collectionUid, {
     name: folderName,
-    parent_item_id: parentFolderId,
-    sort_order: sortOrder
+    parentUid: parentFolderId,
+    seq: sortOrder
   });
 
   console.log(`✅ [CloudStorage] Folder created`);
@@ -325,15 +325,15 @@ export const createRequest = async (collectionUid, requestData, getState) => {
   // Create request with nested structure matching local schema
   const requestPayload = {
     name,
-    parent_item_id: parentFolderId,
-    sort_order: sortOrder,
-    request: createDefaultRequest(method, url), // Use transformation helper
+    parentUid: parentFolderId,
+    seq: sortOrder,
+    request: createDefaultRequest(method, url),
     settings: createDefaultSettings()
   };
 
   const request = await brunoApi.collections.createRequest(collectionUid, requestPayload);
 
-  console.log(`✅ [CloudStorage] Request created with ID: ${request.id}`);
+  console.log(`✅ [CloudStorage] Request created with ID: ${request.uid}`);
 
   // Transform response to match local schema
   return transformCloudItemToLocal({ ...request, item_subtype: type }, collectionUid);
@@ -412,7 +412,7 @@ export const moveItem = async (params, getState) => {
   console.log(`☁️  [CloudStorage] Moving item: ${itemUid}`);
 
   await brunoApi.collections.updateItem(itemUid, {
-    parent_item_id: targetParentItemId || null
+    parentUid: targetParentItemId || null
   });
 
   console.log(`✅ [CloudStorage] Item moved`);
@@ -483,18 +483,18 @@ export const cloneFolder = async (sourceItem, targetPath, collectionUid) => {
   const cloneFolderRecursive = async (item, parentId) => {
     const newFolder = await brunoApi.collections.createFolder(collectionId, {
       name: item.name,
-      parent_item_id: parentId
+      parentUid: parentId
     });
 
     const clonedChildren = [];
     if (item.items?.length) {
       for (const child of item.items) {
         if (child.type === 'folder') {
-          const clonedChild = await cloneFolderRecursive(child, newFolder.id);
+          const clonedChild = await cloneFolderRecursive(child, newFolder.uid);
           clonedChildren.push(clonedChild);
         } else {
           const childData = transformLocalItemToCloud(child);
-          childData.parent_item_id = newFolder.id;
+          childData.parentUid = newFolder.uid;
           const createdChild = await brunoApi.collections.createRequest(collectionId, childData);
           clonedChildren.push(transformCloudItemToLocal({ ...createdChild, item_subtype: child.type }, collectionId));
         }
@@ -519,8 +519,8 @@ export const resequenceItems = async (itemsToResequence, collectionPathname) => 
 
   await brunoApi.collections.resequenceItems(collectionId, {
     items: itemsToResequence.map((item) => ({
-      id: item.uid, // client_id stored as uid in Redux
-      sort_order: item.seq
+      uid: item.uid,
+      seq: item.seq
     }))
   });
 
@@ -562,16 +562,16 @@ export const cloneItem = async (itemUid, collectionUid, newName, getState) => {
   if (sourceItem.type === 'folder') {
     return await brunoApi.collections.createFolder(collectionUid, {
       name: newName,
-      parent_item_id: sourceItem.parent_item_id,
-      sort_order: sourceItem.seq || 0
+      parentUid: sourceItem.parentUid,
+      seq: sourceItem.seq || 0
     });
   } else {
     return await brunoApi.collections.createRequest(collectionUid, {
       name: newName,
       method: sourceItem.request?.method || 'GET',
       url: sourceItem.request?.url || '',
-      parent_item_id: sourceItem.parent_item_id,
-      sort_order: sourceItem.seq || 0
+      parentUid: sourceItem.parentUid,
+      seq: sourceItem.seq || 0
     });
   }
 };
@@ -599,7 +599,7 @@ export const renameEnvironment = async (pathname, oldName, newName, envUid) => {
     const environments = await brunoApi.environments.listCollectionEnvironments(collectionId);
     const env = environments.find((e) => e.name === oldName);
     if (!env) throw new Error(`Environment '${oldName}' not found`);
-    envId = env.id;
+    envId = env.uid;
   }
 
   await brunoApi.environments.updateEnvironment(envId, { name: newName });
@@ -630,7 +630,7 @@ export const updateEnvironmentColor = async (pathname, environmentName, color, e
     const environments = await brunoApi.environments.listCollectionEnvironments(collectionId);
     const env = environments.find((e) => e.name === environmentName);
     if (!env) throw new Error(`Environment '${environmentName}' not found`);
-    envId = env.id;
+    envId = env.uid;
   }
 
   await brunoApi.environments.updateEnvironment(envId, { color });
@@ -674,7 +674,7 @@ export const getGlobalEnvironments = async ({ workspaceUid }) => {
 
   const envs = await brunoApi.environments.listEnvironments(workspaceUid);
   const globalEnvironments = envs.map((e) => ({
-    uid: e.id,
+    uid: e.uid,
     name: e.name,
     variables: e.variables || [],
     color: e.color || null
@@ -694,7 +694,7 @@ export const createGlobalEnvironment = async ({ name, uid, variables, color, wor
   });
 
   // Return with the server-assigned ID so Redux uses it as uid
-  return { uid: env.id, name: env.name, variables: env.variables || [], color: env.color || null };
+  return { uid: env.uid, name: env.name, variables: env.variables || [], color: env.color || null };
 };
 
 export const renameGlobalEnvironment = async ({ name, environmentUid, workspaceUid }) => {
@@ -746,16 +746,7 @@ export const openCollection = async (options) => {
 };
 
 export const importCollectionZip = async (zipFilePath, collectionLocation) => {
-  const brunoApi = getBrunoApi();
-
-  console.log(`☁️  [CloudStorage] Importing collection from zip to cloud`);
-
-  // Cloud mode: upload zip to server for processing
-  const result = await brunoApi.collections.importFromZip(zipFilePath);
-
-  console.log(`✅ [CloudStorage] Collection imported from zip`);
-
-  return result.collectionPath || result.id;
+  throw new Error('ZIP import is not supported in cloud mode. Please use Postman or Insomnia format instead.');
 };
 
 export const addCollectionToWorkspace = async (workspaceUid, workspaceCollection) => {
@@ -905,8 +896,15 @@ export const saveFolderRoot = async (folderData) => {
   const brunoApi = getBrunoApi();
   console.log(`☁️  [CloudStorage] saveFolderRoot:`, { folderData });
 
-  // Update folder metadata in cloud
-  const updated = await brunoApi.folders.updateFolder(folderData);
+  const folderUid = folderData.folderPathname?.replace('cloud://', '') || folderData.folderPathname;
+  const root = folderData.root || {};
+
+  // Sync folder docs and any root-level settings via updateItem
+  const updated = await brunoApi.collections.updateItem(folderUid, {
+    docs: root.docs ?? null,
+    // Preserve headers/auth/script/vars/tests from root.request if present
+    ...(root.request ? { request: root.request } : {})
+  });
   return updated;
 };
 
@@ -945,7 +943,7 @@ export const deleteEnvironment = async (pathname, name, envUid) => {
     const environments = await brunoApi.environments.listCollectionEnvironments(collectionId);
     const env = environments.find((e) => e.name === name);
     if (!env) throw new Error(`Environment '${name}' not found`);
-    envId = env.id;
+    envId = env.uid;
   }
 
   await brunoApi.environments.deleteEnvironment(envId);
@@ -953,12 +951,9 @@ export const deleteEnvironment = async (pathname, name, envUid) => {
 
 // Variable operations
 export const updateVariableInFile = async (pathname, variable, scopeType, collectionRoot, format) => {
-  const brunoApi = getBrunoApi();
-  console.log(`☁️  [CloudStorage] updateVariableInFile:`, { pathname });
-
-  // Update variable in cloud environment
-  const updated = await brunoApi.variables.updateVariable(pathname, variable, scopeType);
-  return updated;
+  // Runtime variables (request/folder/collection scope) are session-only in cloud mode —
+  // they are kept in Redux memory and don't need to be persisted to the server.
+  console.log(`☁️  [CloudStorage] updateVariableInFile (no-op in cloud, session-only):`, { pathname, scopeType });
 };
 
 // Bruno config operations
@@ -967,9 +962,10 @@ export const updateBrunoConfigStorage = async (brunoConfig, pathname, collection
   console.log(`☁️  [CloudStorage] updateBrunoConfigStorage:`, { pathname });
 
   const collectionId = pathname.replace('cloud://', '');
-  const updated = await brunoApi.collections.updateBrunoConfig(collectionId, brunoConfig);
-
-  return updated;
+  await brunoApi.collections.updateCollection(collectionId, {
+    bruno_config: brunoConfig,
+    root: collectionRoot
+  });
 };
 
 // Workspace operations
@@ -1222,7 +1218,7 @@ export const createWorkspace = async (workspaceName, _workspaceFolderName, _work
   console.log(`☁️  [CloudStorage] createWorkspace: "${workspaceName}"`);
   const workspace = await brunoApi.workspaces.create({ name: workspaceName });
   return {
-    workspaceUid: workspace.id,
+    workspaceUid: workspace.uid,
     workspacePath: null,
     workspaceConfig: { name: workspace.name, isCloud: true }
   };
@@ -1380,7 +1376,7 @@ export const saveTransientRequest = async ({ sourcePathname, targetDirname, targ
   const flatData = transformLocalItemToCloud({ ...request, collectionUid: collectionId });
   const createdItem = await brunoApi.collections.createRequest(collectionId, flatData);
 
-  console.log(`✅ [CloudStorage] saveTransientRequest: request created`, { id: createdItem.id });
+  console.log(`✅ [CloudStorage] saveTransientRequest: request created`, { uid: createdItem.uid });
 
   // Remove draft from localStorage
   const { removeDraft } = await import('./cloudDrafts');

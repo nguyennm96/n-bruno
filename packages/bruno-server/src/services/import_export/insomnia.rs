@@ -78,9 +78,6 @@ impl InsomniaService {
             return Err(AppError::Forbidden("Editor role required".into()));
         }
 
-        let ws_oid = ObjectId::parse_str(workspace_id)
-            .map_err(|_| AppError::BadRequest("Invalid workspace ID".into()))?;
-
         let export: InsomniaExport = serde_json::from_str(insomnia_json)
             .map_err(|e| AppError::BadRequest(format!("Invalid Insomnia JSON: {e}")))?;
 
@@ -90,21 +87,19 @@ impl InsomniaService {
             .map(|r| r.name.clone())
             .unwrap_or_else(|| "Imported from Insomnia".to_string());
 
-        let mut col = CollectionModel::new(workspace_name.clone(), None, ws_oid);
-        let res = self.collections.insert_one(&col).await.map_err(AppError::from)?;
-        let col_id = res.inserted_id.as_object_id().unwrap();
-        col.id = Some(col_id);
+        let col = CollectionModel::new(workspace_name.clone(), None, workspace_id.to_string());
+        self.collections.insert_one(&col).await.map_err(AppError::from)?;
 
         let mut stats = ImportStats::default();
 
-        // Build id -> ObjectId map for parent references
-        let mut id_map: std::collections::HashMap<String, ObjectId> = std::collections::HashMap::new();
+        // Build id -> uid map for parent references
+        let mut id_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
         id_map.insert(
             export.resources.iter()
                 .find(|r| r.resource_type == "workspace")
                 .map(|r| r.id.clone())
                 .unwrap_or_default(),
-            col_id,
+            col.uid.clone(),
         );
 
         // Process folders first (request_group), then requests
@@ -114,17 +109,16 @@ impl InsomniaService {
 
         for folder in &folders {
             let parent_bruno_id = folder.parent_id.as_deref()
-                .and_then(|pid| id_map.get(pid)).copied();
+                .and_then(|pid| id_map.get(pid)).cloned();
 
-            let mut item = Item::new_folder(
+            let item = Item::new_folder(
                 folder.name.clone(),
-                col_id,
+                col.uid.clone(),
                 parent_bruno_id,
                 stats.folders_created as f64,
             );
-            let res = self.items.insert_one(&item).await.map_err(AppError::from)?;
-            let item_id = res.inserted_id.as_object_id().unwrap();
-            id_map.insert(folder.id.clone(), item_id);
+            self.items.insert_one(&item).await.map_err(AppError::from)?;
+            id_map.insert(folder.id.clone(), item.uid.clone());
             stats.folders_created += 1;
         }
 
@@ -135,51 +129,26 @@ impl InsomniaService {
 
         for request in &requests {
             let parent_bruno_id = request.parent_id.as_deref()
-                .and_then(|pid| id_map.get(pid)).copied();
+                .and_then(|pid| id_map.get(pid)).cloned();
 
             let method = request.method.clone().unwrap_or_else(|| "GET".to_string());
             let url = request.url.clone().unwrap_or_default();
 
-            let mut item = Item::new_request(
+            let item = Item::new_request(
                 request.name.clone(),
-                col_id,
+                col.uid.clone(),
                 parent_bruno_id,
                 stats.requests_created as f64,
                 method,
                 url,
             );
 
-            // Map headers
-            if let Some(headers) = &request.headers {
-                let mut hdoc = bson::Document::new();
-                for h in headers.iter().filter(|h| !h.disabled.unwrap_or(false)) {
-                    hdoc.insert(h.name.clone(), h.value.clone());
-                }
-                if !hdoc.is_empty() { item.headers = Some(hdoc); }
-            }
-
-            // Map body
-            if let Some(body) = &request.body {
-                if body.text.is_some() || body.mimeType.is_some() {
-                    let body_mode = body.mimeType.as_deref()
-                        .map(|m| if m.contains("json") { "json" } else { "text" })
-                        .unwrap_or("text")
-                        .to_string();
-
-                    let body_json = serde_json::json!({
-                        "mode": body_mode,
-                        "text": body.text,
-                    });
-                    item.body = Some(body_json);
-                }
-            }
-
             self.items.insert_one(&item).await.map_err(AppError::from)?;
             stats.requests_created += 1;
         }
 
         Ok(ImportResult {
-            collection_id: col_id.to_hex(),
+            collection_uid: col.uid.clone(),
             collection_name: workspace_name,
             stats,
         })

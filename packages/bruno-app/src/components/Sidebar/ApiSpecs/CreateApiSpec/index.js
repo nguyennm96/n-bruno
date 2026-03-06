@@ -33,6 +33,7 @@ const CreateApiSpec = ({ onClose }) => {
   const [defaultApiSpecLocation, setDefaultApiSpecLocation] = React.useState('');
 
   const isDefaultWorkspace = !activeWorkspace || activeWorkspace.type === 'default';
+  const isIdbMode = !activeWorkspace?.pathname;
 
   React.useEffect(() => {
     const getDefaultLocation = async () => {
@@ -55,7 +56,7 @@ const CreateApiSpec = ({ onClose }) => {
       collectionLocation: '',
       environment: '',
       apiSpecName: '',
-      apiSpecLocation: defaultApiSpecLocation || ''
+      apiSpecLocation: defaultApiSpecLocation || (isIdbMode ? 'idb' : '')
     },
     validationSchema: Yup.object({
       importFrom: Yup.string().oneOf(['blank', 'collection']),
@@ -69,7 +70,7 @@ const CreateApiSpec = ({ onClose }) => {
           return isValid ? true : this.createError({ message: validateNameError(value) });
         })
         .required('Name is required'),
-      apiSpecLocation: Yup.string().min(1, 'location is required').required('location is required')
+      apiSpecLocation: isIdbMode ? Yup.string() : Yup.string().min(1, 'location is required').required('location is required')
     }),
     onSubmit: async (values) => {
       let yamlContent = '';

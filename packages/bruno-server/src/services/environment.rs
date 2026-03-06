@@ -17,60 +17,63 @@ pub struct EnvironmentService {
     environments: Collection<Environment>,
     collections: Collection<CollectionModel>,
     ws_service: WorkspaceService,
+    ws_manager: crate::ws::WsManager,
 }
 
 impl EnvironmentService {
-    pub fn new(db: &Database, ws_service: WorkspaceService) -> Self {
+    pub fn new(db: &Database, ws_service: WorkspaceService, ws_manager: crate::ws::WsManager) -> Self {
         Self {
             environments: db.collection("environments"),
             collections: db.collection("collections"),
             ws_service,
+            ws_manager,
         }
     }
 
-    // ========== WORKSPACE-LEVEL ENVIRONMENTS ==========
+    // ── Workspace-level environments ─────────────────────────────────────────
 
-    pub async fn create(&self, workspace_id: &str, user_id: ObjectId, name: String, variables: Vec<EnvVariable>, color: Option<String>) -> AppResult<EnvironmentResponse> {
-        let (_, role) = self.ws_service.get_with_role(workspace_id, user_id).await?;
+    pub async fn create(&self, workspace_uid: &str, user_id: ObjectId, name: String, variables: Vec<EnvVariable>, color: Option<String>) -> AppResult<EnvironmentResponse> {
+        let (_, role) = self.ws_service.get_with_role(workspace_uid, user_id).await?;
         if !role.can_write() { return Err(AppError::Forbidden("Editor role required".into())); }
 
-        let ws_oid = ObjectId::parse_str(workspace_id)
-            .map_err(|_| AppError::BadRequest("Invalid workspace ID".into()))?;
-
-        // Check unique name within workspace
-        if self.environments.find_one(doc! { "workspace_id": ws_oid, "name": &name }).await.map_err(AppError::from)?.is_some() {
+        if self.environments.find_one(doc! { "workspaceUid": workspace_uid, "name": &name }).await.map_err(AppError::from)?.is_some() {
             return Err(AppError::Conflict(format!("Environment '{}' already exists in this workspace", name)));
         }
 
-        let mut env = Environment::new_workspace(name, ws_oid, variables);
+        let mut env = Environment::new_workspace(name, workspace_uid.to_string(), variables);
         env.color = color;
         let res = self.environments.insert_one(&env).await.map_err(AppError::from)?;
         env.id = res.inserted_id.as_object_id();
-        Ok(EnvironmentResponse::from(env))
+        let resp = EnvironmentResponse::from(env);
+        self.ws_manager.broadcast(
+            workspace_uid,
+            &user_id.to_hex(),
+            crate::ws::WsEvent::EnvironmentChanged {
+                action: "created".into(),
+                environment_uid: resp.uid.clone(),
+                data: serde_json::to_value(&resp).unwrap_or_default(),
+            },
+        );
+        Ok(resp)
     }
 
-    pub async fn list(&self, workspace_id: &str, user_id: ObjectId) -> AppResult<Vec<EnvironmentResponse>> {
-        self.ws_service.get_with_role(workspace_id, user_id).await?;
-        let ws_oid = ObjectId::parse_str(workspace_id)
-            .map_err(|_| AppError::BadRequest("Invalid workspace ID".into()))?;
-
-        let mut cursor = self.environments.find(doc! { "workspace_id": ws_oid }).await.map_err(AppError::from)?;
+    pub async fn list(&self, workspace_uid: &str, user_id: ObjectId) -> AppResult<Vec<EnvironmentResponse>> {
+        self.ws_service.get_with_role(workspace_uid, user_id).await?;
+        let mut cursor = self.environments.find(doc! { "workspaceUid": workspace_uid, "deletedAt": { "$exists": false } }).await.map_err(AppError::from)?;
         let mut result = Vec::new();
         while let Some(Ok(e)) = cursor.next().await { result.push(EnvironmentResponse::from(e)); }
         Ok(result)
     }
 
-    pub async fn update(&self, env_id: &str, user_id: ObjectId, name: Option<String>, variables: Option<Vec<EnvVariable>>, color: Option<String>) -> AppResult<EnvironmentResponse> {
-        let env = self.get_raw(env_id).await?;
+    pub async fn update(&self, env_uid: &str, user_id: ObjectId, name: Option<String>, variables: Option<Vec<EnvVariable>>, color: Option<String>) -> AppResult<EnvironmentResponse> {
+        let env = self.get_raw(env_uid).await?;
 
-        // Check permissions based on scope
-        if let Some(ws_id) = env.workspace_id {
-            let (_, role) = self.ws_service.get_with_role(&ws_id.to_hex(), user_id).await?;
+        if let Some(ws_uid) = &env.workspace_uid {
+            let (_, role) = self.ws_service.get_with_role(ws_uid, user_id).await?;
             if !role.can_write() { return Err(AppError::Forbidden("Editor role required".into())); }
-        } else if let Some(col_id) = env.collection_id {
-            // Collection-scoped: check collection permissions
-            let col = self.get_collection(&col_id.to_hex()).await?;
-            let (_, role) = self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+        } else if let Some(col_uid) = &env.collection_uid {
+            let col = self.get_collection(col_uid).await?;
+            let (_, role) = self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
             if !role.can_write() { return Err(AppError::Forbidden("Editor role required".into())); }
         } else {
             return Err(AppError::Internal("Environment has no scope".into()));
@@ -87,78 +90,114 @@ impl EnvironmentService {
         if let Some(c) = &color { update.insert("color", c); }
 
         self.environments.update_one(doc! { "_id": env_oid }, doc! { "$set": update }).await.map_err(AppError::from)?;
-        let updated = self.get_raw(env_id).await?;
-        Ok(EnvironmentResponse::from(updated))
+        let updated = self.get_raw(env_uid).await?;
+        let resp = EnvironmentResponse::from(updated);
+        // Broadcast to the relevant workspace
+        let ws_uid_for_broadcast = if let Some(ws) = &resp.workspace_uid {
+            Some(ws.clone())
+        } else if let Some(col_uid) = &env.collection_uid {
+            self.get_collection(col_uid).await.ok().map(|c| c.workspace_uid)
+        } else {
+            None
+        };
+        if let Some(ws_uid) = ws_uid_for_broadcast {
+            self.ws_manager.broadcast(
+                &ws_uid,
+                &user_id.to_hex(),
+                crate::ws::WsEvent::EnvironmentChanged {
+                    action: "updated".into(),
+                    environment_uid: resp.uid.clone(),
+                    data: serde_json::to_value(&resp).unwrap_or_default(),
+                },
+            );
+        }
+        Ok(resp)
     }
 
-    pub async fn delete(&self, env_id: &str, user_id: ObjectId) -> AppResult<()> {
-        let env = self.get_raw(env_id).await?;
+    pub async fn delete(&self, env_uid: &str, user_id: ObjectId) -> AppResult<()> {
+        let env = self.get_raw(env_uid).await?;
 
-        // Check permissions based on scope
-        if let Some(ws_id) = env.workspace_id {
-            let (_, role) = self.ws_service.get_with_role(&ws_id.to_hex(), user_id).await?;
+        let workspace_uid = if let Some(ws_uid) = &env.workspace_uid {
+            let (_, role) = self.ws_service.get_with_role(ws_uid, user_id).await?;
             if !role.can_write() { return Err(AppError::Forbidden("Editor role required".into())); }
-        } else if let Some(col_id) = env.collection_id {
-            let col = self.get_collection(&col_id.to_hex()).await?;
-            let (_, role) = self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+            ws_uid.clone()
+        } else if let Some(col_uid) = &env.collection_uid {
+            let col = self.get_collection(col_uid).await?;
+            let (_, role) = self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
             if !role.can_write() { return Err(AppError::Forbidden("Editor role required".into())); }
+            col.workspace_uid.clone()
         } else {
             return Err(AppError::Internal("Environment has no scope".into()));
-        }
+        };
 
-        self.environments.delete_one(doc! { "_id": env.id.unwrap() }).await.map_err(AppError::from)?;
+        let deleted_uid = env.uid.clone();
+        self.environments.update_one(
+            doc! { "_id": env.id.unwrap() },
+            doc! { "$set": { "deletedAt": chrono::Utc::now().to_rfc3339() } },
+        ).await.map_err(AppError::from)?;
+        self.ws_manager.broadcast(
+            &workspace_uid,
+            &user_id.to_hex(),
+            crate::ws::WsEvent::EnvironmentChanged {
+                action: "deleted".into(),
+                environment_uid: deleted_uid.clone(),
+                data: serde_json::json!({ "uid": deleted_uid }),
+            },
+        );
         Ok(())
     }
 
-    // ========== COLLECTION-LEVEL ENVIRONMENTS ==========
+    // ── Collection-level environments ────────────────────────────────────────
 
-    pub async fn create_for_collection(&self, collection_id: &str, user_id: ObjectId, name: String, variables: Vec<EnvVariable>, color: Option<String>) -> AppResult<EnvironmentResponse> {
-        let col = self.get_collection(collection_id).await?;
-        let (_, role) = self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+    pub async fn create_for_collection(&self, collection_uid: &str, user_id: ObjectId, name: String, variables: Vec<EnvVariable>, color: Option<String>) -> AppResult<EnvironmentResponse> {
+        let col = self.get_collection(collection_uid).await?;
+        let (_, role) = self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
         if !role.can_write() { return Err(AppError::Forbidden("Editor role required".into())); }
 
-        let col_oid = col.id.unwrap();
-
-        // Check unique name within collection
-        if self.environments.find_one(doc! { "collection_id": col_oid, "name": &name }).await.map_err(AppError::from)?.is_some() {
+        if self.environments.find_one(doc! { "collectionUid": collection_uid, "name": &name }).await.map_err(AppError::from)?.is_some() {
             return Err(AppError::Conflict(format!("Environment '{}' already exists in this collection", name)));
         }
 
-        let mut env = Environment::new_collection(name, col_oid, variables);
+        let mut env = Environment::new_collection(name, collection_uid.to_string(), variables);
         env.color = color;
         let res = self.environments.insert_one(&env).await.map_err(AppError::from)?;
         env.id = res.inserted_id.as_object_id();
-        Ok(EnvironmentResponse::from(env))
+        let resp = EnvironmentResponse::from(env);
+        self.ws_manager.broadcast(
+            &col.workspace_uid,
+            &user_id.to_hex(),
+            crate::ws::WsEvent::EnvironmentChanged {
+                action: "created".into(),
+                environment_uid: resp.uid.clone(),
+                data: serde_json::to_value(&resp).unwrap_or_default(),
+            },
+        );
+        Ok(resp)
     }
 
-    pub async fn list_for_collection(&self, collection_id: &str, user_id: ObjectId) -> AppResult<Vec<EnvironmentResponse>> {
-        let col = self.get_collection(collection_id).await?;
-        self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+    pub async fn list_for_collection(&self, collection_uid: &str, user_id: ObjectId) -> AppResult<Vec<EnvironmentResponse>> {
+        let col = self.get_collection(collection_uid).await?;
+        self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
 
-        let col_oid = col.id.unwrap();
-        let mut cursor = self.environments.find(doc! { "collection_id": col_oid }).await.map_err(AppError::from)?;
+        let mut cursor = self.environments.find(doc! { "collectionUid": collection_uid, "deletedAt": { "$exists": false } }).await.map_err(AppError::from)?;
         let mut result = Vec::new();
         while let Some(Ok(e)) = cursor.next().await { result.push(EnvironmentResponse::from(e)); }
         Ok(result)
     }
 
-    // ========== HELPERS ==========
+    // ── Helpers ──────────────────────────────────────────────────────────────
 
-    async fn get_collection(&self, collection_id: &str) -> AppResult<CollectionModel> {
-        let col_oid = ObjectId::parse_str(collection_id)
-            .map_err(|_| AppError::BadRequest("Invalid collection ID".into()))?;
+    async fn get_collection(&self, collection_uid: &str) -> AppResult<CollectionModel> {
         self.collections
-            .find_one(doc! { "_id": col_oid })
+            .find_one(doc! { "uid": collection_uid, "deletedAt": { "$exists": false } })
             .await
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::NotFound("Collection not found".into()))
     }
 
-    async fn get_raw(&self, env_id: &str) -> AppResult<Environment> {
-        let oid = ObjectId::parse_str(env_id)
-            .map_err(|_| AppError::BadRequest("Invalid environment ID".into()))?;
+    async fn get_raw(&self, env_uid: &str) -> AppResult<Environment> {
         self.environments
-            .find_one(doc! { "_id": oid })
+            .find_one(doc! { "uid": env_uid, "deletedAt": { "$exists": false } })
             .await
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::NotFound("Environment not found".into()))

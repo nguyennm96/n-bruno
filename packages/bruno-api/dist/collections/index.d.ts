@@ -47,16 +47,16 @@ export declare class CollectionService {
      */
     createFolder(collectionId: string, data: {
         name: string;
-        parent_item_id?: string;
-        sort_order?: number;
+        parentUid?: string;
+        seq?: number;
     }): Promise<CollectionItem>;
     /**
      * Create a new request in a collection
      */
     createRequest(collectionId: string, data: {
         name: string;
-        parent_item_id?: string;
-        sort_order?: number;
+        parentUid?: string;
+        seq?: number;
         request?: any;
         settings?: any;
         method?: string;
@@ -82,7 +82,7 @@ export declare class CollectionService {
      */
     moveItem(itemId: string, data: {
         new_parent_id?: string;
-        new_sort_order?: number;
+        seq?: number;
     }): Promise<CollectionItem>;
     /**
      * Get item by path (for sync lookups)

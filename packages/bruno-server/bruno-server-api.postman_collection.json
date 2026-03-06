@@ -1,0 +1,913 @@
+{
+  "info": {
+    "name": "Bruno Server API",
+    "description": "Bruno Server API — full REST API documentation for the Bruno cloud backend. Base URL: {{baseUrl}}",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "bruno-server-api-v1"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "workspaceId", "value": "", "type": "string" },
+    { "key": "collectionId", "value": "", "type": "string" },
+    { "key": "itemId", "value": "", "type": "string" },
+    { "key": "envId", "value": "", "type": "string" },
+    { "key": "exampleId", "value": "", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/health", "host": ["{{baseUrl}}"], "path": ["api", "health"] },
+            "description": "Check server health. No authentication required."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', body.data.access_token || '');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"12345678\",\n  \"name\": \"John Doe\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] },
+            "description": "Register a new user. Password must be at least 8 characters."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', body.data.access_token);",
+                  "  pm.collectionVariables.set('refreshToken', body.data.refresh_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"12345678\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] },
+            "description": "Login and receive access_token + refresh_token."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', body.data.access_token);",
+                  "  pm.collectionVariables.set('refreshToken', body.data.refresh_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] },
+            "description": "Get a new access_token using a valid refresh_token (rotates the refresh token)."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] },
+            "description": "Revoke the refresh token. Returns 204 No Content."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] },
+            "description": "Get the currently authenticated user's profile."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Workspaces",
+      "item": [
+        {
+          "name": "List Workspaces",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.length > 0) {",
+                  "    pm.collectionVariables.set('workspaceId', body.data[0].uid);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/workspaces", "host": ["{{baseUrl}}"], "path": ["api", "workspaces"] },
+            "description": "List all workspaces the authenticated user is a member of."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Workspace",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('workspaceId', body.data.uid);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Workspace\",\n  \"description\": \"Optional description\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/workspaces", "host": ["{{baseUrl}}"], "path": ["api", "workspaces"] },
+            "description": "Create a new workspace. The creator becomes the owner."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Workspace",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}"] },
+            "description": "Get a workspace by UID. Returns uid, name, description, ownerUid, role."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Workspace",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Workspace Name\",\n  \"description\": \"New description\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}"] },
+            "description": "Update workspace name or description. All fields optional."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Workspace",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}"] },
+            "description": "Delete a workspace. Only the owner can delete. Returns 204 No Content."
+          },
+          "response": []
+        },
+        {
+          "name": "List Members",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/members", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}", "members"] },
+            "description": "List all members of a workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Member",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"<mongodb-objectid-hex>\",\n  \"role\": \"editor\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/members", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}", "members"] },
+            "description": "Add a user to the workspace. role: 'owner' | 'admin' | 'editor' | 'viewer'. Returns 204."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Member",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/members/:user_id", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}", "members", ":user_id"], "variable": [{ "key": "user_id", "value": "<mongodb-objectid-hex>" }] },
+            "description": "Remove a user from the workspace. Returns 204."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Collections",
+      "item": [
+        {
+          "name": "List Collections",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.length > 0) {",
+                  "    pm.collectionVariables.set('collectionId', body.data[0].uid);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/collections", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}", "collections"] },
+            "description": "List all collections in a workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Collection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('collectionId', body.data.uid);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My API Collection\",\n  \"description\": \"Optional description\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/collections", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}", "collections"] },
+            "description": "Create a new collection in the workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Collection",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/collections/{{collectionId}}", "host": ["{{baseUrl}}"], "path": ["api", "collections", "{{collectionId}}"] },
+            "description": "Get a collection by UID."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Collection",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Collection Name\",\n  \"description\": \"New description\",\n  \"bruno_config\": {},\n  \"root\": {}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/collections/{{collectionId}}", "host": ["{{baseUrl}}"], "path": ["api", "collections", "{{collectionId}}"] },
+            "description": "Update collection metadata. All fields optional. bruno_config and root store collection-level settings."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Collection",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/collections/{{collectionId}}", "host": ["{{baseUrl}}"], "path": ["api", "collections", "{{collectionId}}"] },
+            "description": "Delete a collection and all its items. Returns 204."
+          },
+          "response": []
+        },
+        {
+          "name": "Clone Collection",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Collection (Copy)\",\n  \"workspaceUid\": \"{{workspaceId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/collections/{{collectionId}}/clone", "host": ["{{baseUrl}}"], "path": ["api", "collections", "{{collectionId}}", "clone"] },
+            "description": "Clone a collection. Optionally specify a different workspaceUid to clone into another workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Resequence Items",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    { \"uid\": \"<item-uid-1>\", \"seq\": 1.0 },\n    { \"uid\": \"<item-uid-2>\", \"seq\": 2.0 },\n    { \"uid\": \"<item-uid-3>\", \"seq\": 3.0 }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/collections/{{collectionId}}/resequence", "host": ["{{baseUrl}}"], "path": ["api", "collections", "{{collectionId}}", "resequence"] },
+            "description": "Update the seq (sequence/ordering) of items in the collection. Returns { updated: N, failed: 0 }."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Items (Folders & Requests)",
+      "item": [
+        {
+          "name": "List Items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.length > 0) {",
+                  "    pm.collectionVariables.set('itemId', body.data[0].uid);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/collections/{{collectionId}}/items", "host": ["{{baseUrl}}"], "path": ["api", "collections", "{{collectionId}}", "items"] },
+            "description": "List all items (folders + requests) in a collection (flat list with parentUid relationships)."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Folder",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('itemId', body.data.uid);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Folder\",\n  \"parentUid\": null,\n  \"seq\": 1.0\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/collections/{{collectionId}}/folders", "host": ["{{baseUrl}}"], "path": ["api", "collections", "{{collectionId}}", "folders"] },
+            "description": "Create a folder inside a collection. parentUid: null for root level, or a folder's uid for nesting."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('itemId', body.data.uid);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Get Users\",\n  \"parentUid\": null,\n  \"seq\": 1.0,\n  \"request\": {\n    \"method\": \"GET\",\n    \"url\": \"https://api.example.com/users\",\n    \"headers\": [],\n    \"params\": [],\n    \"body\": { \"mode\": \"none\" },\n    \"auth\": { \"mode\": \"none\" }\n  },\n  \"settings\": {}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/collections/{{collectionId}}/requests", "host": ["{{baseUrl}}"], "path": ["api", "collections", "{{collectionId}}", "requests"] },
+            "description": "Create an HTTP request item inside a collection. parentUid: null for root, or folder uid for nesting."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Item",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/items/{{itemId}}", "host": ["{{baseUrl}}"], "path": ["api", "items", "{{itemId}}"] },
+            "description": "Get a single item (folder or request) by UID."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Item",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Request Name\",\n  \"request\": {\n    \"method\": \"POST\",\n    \"url\": \"https://api.example.com/users\",\n    \"headers\": [{ \"name\": \"Content-Type\", \"value\": \"application/json\", \"enabled\": true }],\n    \"body\": { \"mode\": \"json\", \"json\": \"{\\\"key\\\": \\\"value\\\"}\" }\n  },\n  \"settings\": {}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/items/{{itemId}}", "host": ["{{baseUrl}}"], "path": ["api", "items", "{{itemId}}"] },
+            "description": "Update an item's name, request data, or settings. All fields optional."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Item",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/items/{{itemId}}", "host": ["{{baseUrl}}"], "path": ["api", "items", "{{itemId}}"] },
+            "description": "Delete an item. Returns 204."
+          },
+          "response": []
+        },
+        {
+          "name": "Move Item",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"parentUid\": null,\n  \"seq\": 2.5\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/items/{{itemId}}/move", "host": ["{{baseUrl}}"], "path": ["api", "items", "{{itemId}}", "move"] },
+            "description": "Move an item to a different parent folder (parentUid: null = root). Also updates seq for ordering."
+          },
+          "response": []
+        },
+        {
+          "name": "Clone Item",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Get Users (Copy)\",\n  \"parentUid\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/items/{{itemId}}/clone", "host": ["{{baseUrl}}"], "path": ["api", "items", "{{itemId}}", "clone"] },
+            "description": "Clone an item (folder or request). Returns 201 with the new item."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Environments",
+      "item": [
+        {
+          "name": "Workspace Environments",
+          "item": [
+            {
+              "name": "List Workspace Environments",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const body = pm.response.json();",
+                      "  if (body.data && body.data.length > 0) {",
+                      "    pm.collectionVariables.set('envId', body.data[0].uid);",
+                      "  }",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/environments", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}", "environments"] },
+                "description": "List all workspace-level (global) environments."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Workspace Environment",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "  const body = pm.response.json();",
+                      "  pm.collectionVariables.set('envId', body.data.uid);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Production\",\n  \"color\": \"#FF6B6B\",\n  \"variables\": [\n    { \"name\": \"BASE_URL\", \"value\": \"https://api.prod.example.com\", \"enabled\": true, \"secret\": false },\n    { \"name\": \"API_KEY\", \"value\": \"prod-key-123\", \"enabled\": true, \"secret\": true }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/environments", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}", "environments"] },
+                "description": "Create a workspace-level (global) environment. variables is an array of { name, value, enabled, secret }."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Collection Environments",
+          "item": [
+            {
+              "name": "List Collection Environments",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{baseUrl}}/api/collections/{{collectionId}}/environments", "host": ["{{baseUrl}}"], "path": ["api", "collections", "{{collectionId}}", "environments"] },
+                "description": "List all collection-level environments."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Collection Environment",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Dev\",\n  \"color\": \"#4CAF50\",\n  \"variables\": [\n    { \"name\": \"BASE_URL\", \"value\": \"http://localhost:3000\", \"enabled\": true, \"secret\": false }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": { "raw": "{{baseUrl}}/api/collections/{{collectionId}}/environments", "host": ["{{baseUrl}}"], "path": ["api", "collections", "{{collectionId}}", "environments"] },
+                "description": "Create a collection-level environment scoped to a specific collection."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Update Environment",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Staging\",\n  \"color\": \"#FFA500\",\n  \"variables\": [\n    { \"name\": \"BASE_URL\", \"value\": \"https://api.staging.example.com\", \"enabled\": true, \"secret\": false }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/environments/{{envId}}", "host": ["{{baseUrl}}"], "path": ["api", "environments", "{{envId}}"] },
+            "description": "Update an environment (workspace-level or collection-level). All fields optional."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Environment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/environments/{{envId}}", "host": ["{{baseUrl}}"], "path": ["api", "environments", "{{envId}}"] },
+            "description": "Delete an environment. Returns 204."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Examples",
+      "item": [
+        {
+          "name": "List Examples",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.data && body.data.length > 0) {",
+                  "    pm.collectionVariables.set('exampleId', body.data[0].uid);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/items/{{itemId}}/examples", "host": ["{{baseUrl}}"], "path": ["api", "items", "{{itemId}}", "examples"] },
+            "description": "List all response examples for a request item."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Example",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('exampleId', body.data.uid);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Success 200\",\n  \"status_code\": 200,\n  \"headers\": {\n    \"Content-Type\": \"application/json\"\n  },\n  \"body\": \"{\\\"id\\\": 1, \\\"name\\\": \\\"John Doe\\\"}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/items/{{itemId}}/examples", "host": ["{{baseUrl}}"], "path": ["api", "items", "{{itemId}}", "examples"] },
+            "description": "Create a response example for a request. status_code is required."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Example",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Error 404\",\n  \"status_code\": 404,\n  \"body\": \"{\\\"error\\\": \\\"Not found\\\"}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/examples/{{exampleId}}", "host": ["{{baseUrl}}"], "path": ["api", "examples", "{{exampleId}}"] },
+            "description": "Update an example. All fields optional."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Example",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/examples/{{exampleId}}", "host": ["{{baseUrl}}"], "path": ["api", "examples", "{{exampleId}}"] },
+            "description": "Delete an example. Returns 204."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Import / Export",
+      "item": [
+        {
+          "name": "Import Postman Collection",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"json\": \"{\\\"info\\\": {\\\"name\\\": \\\"My Collection\\\", \\\"schema\\\": \\\"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\\\"}, \\\"item\\\": []}\",\n  \"conflict\": \"error\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/import/postman", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}", "import", "postman"] },
+            "description": "Import a Postman collection (v2 or v2.1) into the workspace. \n\n**Body:**\n- `json` (string, required): The full Postman JSON as a string\n- `conflict` (optional): `'error'` (default) | `'replace'` | `'skip'` — behavior when collection name already exists\n\n**Returns:** `{ collectionUid, collection_name, imported: { folders, requests, examples, environments }, warnings }`"
+          },
+          "response": []
+        },
+        {
+          "name": "Import Insomnia Collection",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"json\": \"{\\\"_type\\\": \\\"export\\\", \\\"__export_format\\\": 4, \\\"resources\\\": []}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/import/insomnia", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}", "import", "insomnia"] },
+            "description": "Import an Insomnia export (v4 format) into the workspace.\n\n**Body:**\n- `json` (string, required): The full Insomnia JSON as a string\n\n**Returns:** `{ collectionUid, collection_name, imported: { folders, requests } }`"
+          },
+          "response": []
+        },
+        {
+          "name": "Export Collection (Postman)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/collections/{{collectionId}}/export?format=postman",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "collections", "{{collectionId}}", "export"],
+              "query": [
+                { "key": "format", "value": "postman", "description": "postman | openapi | openapi3 | swagger | swagger2" }
+              ]
+            },
+            "description": "Export a collection to a file.\n\n**Query params:**\n- `format`: `postman` (default) | `openapi` / `openapi3` | `swagger` / `swagger2`\n- `server_url` (openapi only): e.g. `https://api.example.com`\n- `host` (swagger only): e.g. `api.example.com`\n- `base_path` (swagger only): e.g. `/v1`\n\nReturns a JSON file download."
+          },
+          "response": []
+        },
+        {
+          "name": "Export Collection (OpenAPI 3)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/collections/{{collectionId}}/export?format=openapi&server_url=https://api.example.com",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "collections", "{{collectionId}}", "export"],
+              "query": [
+                { "key": "format", "value": "openapi" },
+                { "key": "server_url", "value": "https://api.example.com" }
+              ]
+            },
+            "description": "Export collection as OpenAPI 3.0 spec."
+          },
+          "response": []
+        },
+        {
+          "name": "Export Collection (Swagger 2)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/collections/{{collectionId}}/export?format=swagger&host=api.example.com&base_path=/v1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "collections", "{{collectionId}}", "export"],
+              "query": [
+                { "key": "format", "value": "swagger" },
+                { "key": "host", "value": "api.example.com" },
+                { "key": "base_path", "value": "/v1" }
+              ]
+            },
+            "description": "Export collection as Swagger 2.0 spec."
+          },
+          "response": []
+        },
+        {
+          "name": "Export Workspace (All Collections)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/export", "host": ["{{baseUrl}}"], "path": ["api", "workspaces", "{{workspaceId}}", "export"] },
+            "description": "Export all collections in the workspace as an array of Postman collections. Returns a JSON file download."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sync",
+      "item": [
+        {
+          "name": "Get Workspace Changes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/workspaces/{{workspaceId}}/changes?since=2024-01-01T00:00:00Z",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "workspaces", "{{workspaceId}}", "changes"],
+              "query": [
+                { "key": "since", "value": "2024-01-01T00:00:00Z", "description": "ISO 8601 timestamp. Only return changes after this time. Omit for all changes." }
+              ]
+            },
+            "description": "Pull incremental changes for the workspace since a given timestamp.\n\n**Query params:**\n- `since` (optional): ISO 8601 / RFC 3339 timestamp — return only items updated after this time\n\n**Returns:** Array of changed collections, items, and environments with their full data and `updatedAt` timestamps."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "WebSocket",
+      "item": [
+        {
+          "name": "WebSocket Connection Info",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/ws?token={{accessToken}}", "host": ["{{baseUrl}}"], "path": ["ws"], "query": [{ "key": "token", "value": "{{accessToken}}", "description": "JWT access token for authentication" }] },
+            "description": "WebSocket endpoint for real-time sync. Connect via: `ws://localhost:8080/ws?token=<accessToken>`\n\n**Note:** This is a WebSocket endpoint — use a WebSocket client to connect, not a regular HTTP request.\n\n**Events received from server:**\n- `{ type: 'collection.created', data: { collection } }`\n- `{ type: 'collection.updated', data: { collection } }`\n- `{ type: 'collection.deleted', data: { collectionUid } }`\n- `{ type: 'item.created', data: { item } }`\n- `{ type: 'item.updated', data: { item } }`\n- `{ type: 'item.deleted', data: { itemUid, collectionUid } }`\n- `{ type: 'environment.created', data: { environment } }`\n- `{ type: 'environment.updated', data: { environment } }`\n- `{ type: 'environment.deleted', data: { environmentUid } }`"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

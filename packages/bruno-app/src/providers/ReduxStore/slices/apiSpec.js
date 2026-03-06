@@ -79,78 +79,41 @@ const findApiSpecByUid = (apiSpecs, uid) => {
   return find(apiSpecs, (apiSpec) => apiSpec.uid === uid);
 };
 
-export const openApiSpec = (workspacePath = null) => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
-    if (!workspacePath) {
-      const state = getState();
-      const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
-      workspacePath = activeWorkspace?.pathname || null;
-    }
-
-    storage.openApiSpec(workspacePath).then(resolve).catch(reject);
-  });
-};
-
-export const saveApiSpecToFile
-  = ({ uid, content }) =>
-    (dispatch, getState) => {
-      return new Promise((resolve, reject) => {
-        const state = getState();
-        const apiSpec = findApiSpecByUid(state.apiSpec.apiSpecs, uid);
-        const { pathname } = apiSpec;
-        storage
-          .saveApiSpec(pathname, content)
-          .then(() => {
-            dispatch(saveApiSpec({ content, uid }));
-            toast.success('Saved API spec successfully!');
-            resolve();
-          })
-          .catch((reject) => {
-            toast.error('Error saving file');
-            resolve();
-          });
-      });
-    };
-
-export const createApiSpecFile = (apiSpecName, apiSpecLocation, content, workspacePath = null) => (dispatch, getState) => {
-  if (!workspacePath) {
-    const state = getState();
-    const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
-    workspacePath = activeWorkspace?.pathname || null;
+export const openApiSpec = (workspaceUid = null) => async (dispatch, getState) => {
+  const state = getState();
+  const activeWorkspaceUid = workspaceUid || state.workspaces.activeWorkspaceUid;
+  const spec = await storage.openApiSpec(activeWorkspaceUid);
+  if (spec) {
+    dispatch(apiSpecAddFileEvent({ data: spec }));
   }
-
-  return new Promise((resolve, reject) => {
-    storage.createApiSpec(apiSpecName, apiSpecLocation, content, workspacePath).then(resolve).catch(reject);
-  });
 };
 
-export const closeApiSpecFile
-  = ({ uid }) =>
-    (dispatch, getState) => {
-      return new Promise((resolve, reject) => {
-        const state = getState();
-        const apiSpec = findApiSpecByUid(state.apiSpec.apiSpecs, uid);
-        if (!apiSpec) {
-          return reject(new Error('API Spec not found'));
-        }
-        if (apiSpec) {
-          const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
-          const workspacePath = activeWorkspace?.pathname || null;
+export const saveApiSpecToFile = ({ uid, content }) => async (dispatch, getState) => {
+  const state = getState();
+  const apiSpec = findApiSpecByUid(state.apiSpec.apiSpecs, uid);
+  if (!apiSpec) throw new Error('API spec not found');
+  await storage.saveApiSpec(apiSpec.uid, content);
+  dispatch(saveApiSpec({ content, uid }));
+  toast.success('Saved API spec successfully!');
+};
 
-          storage
-            .removeApiSpec(apiSpec.pathname, workspacePath)
-            .then(async () => {
-              dispatch(removeApiSpec({ uid }));
+export const createApiSpecFile = (apiSpecName, apiSpecLocation, content, workspaceUid = null) => async (dispatch, getState) => {
+  const state = getState();
+  const activeWorkspaceUid = workspaceUid || state.workspaces.activeWorkspaceUid;
+  const spec = await storage.createApiSpec(apiSpecName, apiSpecLocation, content, activeWorkspaceUid);
+  dispatch(apiSpecAddFileEvent({ data: spec }));
+  return spec;
+};
 
-              if (activeWorkspace) {
-                const { loadWorkspaceApiSpecs } = require('./workspaces/actions');
-                await dispatch(loadWorkspaceApiSpecs(activeWorkspace.uid));
-              }
-
-              resolve();
-            })
-            .catch((error) => reject(error));
-        }
-        return;
-      });
-    };
+export const closeApiSpecFile = ({ uid }) => async (dispatch, getState) => {
+  const state = getState();
+  const apiSpec = findApiSpecByUid(state.apiSpec.apiSpecs, uid);
+  if (!apiSpec) throw new Error('API Spec not found');
+  await storage.removeApiSpec(apiSpec.uid);
+  dispatch(removeApiSpec({ uid }));
+  const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
+  if (activeWorkspace) {
+    const { loadWorkspaceApiSpecs } = require('./workspaces/actions');
+    await dispatch(loadWorkspaceApiSpecs(activeWorkspace.uid));
+  }
+};

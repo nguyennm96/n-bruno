@@ -71,7 +71,7 @@ class CollectionService {
         const collections = await this.listCollections(workspaceId);
         // Then, fetch items for each collection
         const collectionsWithItems = await Promise.all(collections.map(async (collection) => {
-            const items = await this.getItems(collection.id);
+            const items = await this.getItems(collection.uid);
             return {
                 ...collection,
                 items

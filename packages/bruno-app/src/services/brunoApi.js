@@ -54,6 +54,11 @@ export const initializeBrunoCloudApi = (store) => {
   // Initialize auth slice with API instance
   initializeAuthSlice(brunoApiInstance);
 
+  // Initialize syncQueue with API instance for offline flush
+  import('providers/ReduxStore/slices/syncQueue').then(({ initializeSyncQueueApi }) => {
+    initializeSyncQueueApi(brunoApiInstance);
+  });
+
   // Make API instance globally available for cloud.js
   window.__BRUNO_API__ = brunoApiInstance;
 

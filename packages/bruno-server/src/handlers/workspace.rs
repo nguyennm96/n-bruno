@@ -63,10 +63,10 @@ pub async fn get_workspace(
     let user_id = extract_user_id(&claims)?;
     let (ws, role) = state.workspace_service.get_with_role(&workspace_id, user_id).await?;
     Ok(Json(json!({ "data": {
-        "id": ws.id.unwrap_or_default().to_hex(),
+        "uid": ws.uid,
         "name": ws.name,
         "description": ws.description,
-        "owner_id": ws.owner_id.to_hex(),
+        "ownerUid": ws.owner_id.to_hex(),
         "role": role,
         "created_at": ws.created_at,
         "updated_at": ws.updated_at,
@@ -102,7 +102,7 @@ pub async fn list_members(
     let user_id = extract_user_id(&claims)?;
     let members = state.workspace_service.list_members(&workspace_id, user_id).await?;
     let data: Vec<Value> = members.iter().map(|m| json!({
-        "user_id": m.user_id.to_hex(),
+        "userUid": m.user_id.to_hex(),
         "role": m.role,
         "joined_at": m.joined_at,
     })).collect();

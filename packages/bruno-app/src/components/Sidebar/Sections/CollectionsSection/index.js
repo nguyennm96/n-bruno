@@ -81,7 +81,10 @@ const CollectionsSection = () => {
       if (isScratchCollection(c, workspaces)) {
         return false;
       }
-      return activeWorkspace.collections?.some((wc) => normalizePath(wc.path) === normalizePath(c.pathname));
+      return activeWorkspace.collections?.some((wc) => {
+        const wcPath = wc.path ?? wc.pathname ?? wc.uid;
+        return normalizePath(wcPath) === normalizePath(c.pathname);
+      });
     });
   }, [activeWorkspace, collections, workspaces]);
 

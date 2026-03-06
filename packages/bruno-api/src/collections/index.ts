@@ -122,7 +122,7 @@ export class CollectionService {
     // Then, fetch items for each collection
     const collectionsWithItems = await Promise.all(
       collections.map(async (collection) => {
-        const items = await this.getItems(collection.id);
+        const items = await this.getItems(collection.uid);
         return {
           ...collection,
           items
@@ -140,8 +140,8 @@ export class CollectionService {
     collectionId: string,
     data: {
       name: string;
-      parent_item_id?: string;
-      sort_order?: number;
+      parentUid?: string;
+      seq?: number;
     }
   ): Promise<CollectionItem> {
     const response = await this.client.getClient().post<ApiResponse<CollectionItem>>(
@@ -158,8 +158,8 @@ export class CollectionService {
     collectionId: string,
     data: {
       name: string;
-      parent_item_id?: string;
-      sort_order?: number;
+      parentUid?: string;
+      seq?: number;
       request?: any;
       settings?: any;
       method?: string;
@@ -218,7 +218,7 @@ export class CollectionService {
     itemId: string,
     data: {
       new_parent_id?: string;
-      new_sort_order?: number;
+      seq?: number;
     }
   ): Promise<CollectionItem> {
     const response = await this.client.getClient().patch<ApiResponse<CollectionItem>>(

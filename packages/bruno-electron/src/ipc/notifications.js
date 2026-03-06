@@ -22,6 +22,6 @@ const fetchNotifications = async () => {
 
     return data?.notifications || [];
   } catch (error) {
-    return Promise.reject('Error while fetching notifications!', error);
+    return [];
   }
 };

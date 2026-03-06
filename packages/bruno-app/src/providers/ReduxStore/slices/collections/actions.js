@@ -68,7 +68,8 @@ import {
   newItem as _newItem,
   deleteItem as _deleteItem,
   renameItem as _renameItem,
-  renameCollection as _renameCollection
+  renameCollection as _renameCollection,
+  setDotEnvVariables as _setDotEnvVariables
 } from './index';
 
 import { each } from 'lodash';
@@ -743,17 +744,18 @@ export const newFolder = (folderName, directoryName, collectionUid, itemUid) => 
 
   try {
     const result = await storage.createFolder(collectionUid, folderName, itemUid);
-    if (result?.id) {
+    if (result?.uid || result?.id) {
       // Cloud mode: manually update Redux state (no filesystem watcher in cloud)
+      const resultUid = result.uid || result.id;
       dispatch(_newItem({
         collectionUid,
         currentItemUid: itemUid || null,
         item: {
-          uid: result.client_id || result.id,
+          uid: result.client_id || resultUid,
           name: result.name,
           type: 'folder',
           filename: result.name,
-          pathname: result.client_id || result.id,
+          pathname: result.client_id || resultUid,
           collapsed: true,
           items: [],
           seq: result.sort_order || 1
@@ -1150,12 +1152,24 @@ export const handleCollectionItemDrop
           dispatch(_deleteItem({ collectionUid: sourceCollectionUid || collectionUid, itemUid: draggedItemUid }));
           dispatch(_newItem({ collectionUid, currentItemUid: newPathname || null, item: draggedItem }));
         } else {
-          // Local mode: pass targetDirname and sourcePathname
-          const newDirname = path.dirname(newPathname);
+          // Local (IDB) mode: compute parent uid directly (UIDs have no slashes, path.dirname would give '.')
+          const localCollectionId = collection.uid ?? collection.pathname;
+          let targetParentUid;
+          if (dropType === 'inside') {
+            targetParentUid = (targetItemUid === collection.uid) ? localCollectionId : targetItemUid;
+          } else {
+            // adjacent: same level as target item
+            const isAtRoot = targetItemDirectory === collection;
+            targetParentUid = isAtRoot ? localCollectionId : (targetItemDirectory.uid ?? targetItemDirectory.pathname);
+          }
           await dispatch(moveItem({
-            targetDirname: newDirname,
+            targetDirname: targetParentUid,
             sourcePathname: draggedItemPathname
           }));
+          // IDB local mode: manually update Redux tree (no filesystem watcher)
+          const parentItemUid = targetParentUid === localCollectionId ? null : targetParentUid;
+          dispatch(_deleteItem({ collectionUid: sourceCollectionUid || collectionUid, itemUid: draggedItemUid }));
+          dispatch(_newItem({ collectionUid, currentItemUid: parentItemUid, item: draggedItem }));
         }
 
         // Update sequences in the source directory
@@ -2683,15 +2697,16 @@ export const cloneCollection = (collectionName, collectionFolderName, collection
   const result = await storage.cloneCollection(collectionName, collectionFolderName, collectionLocation, previousPath, undefined, getState);
 
   // Mount cloned collection into Redux immediately (no file watcher in IDB/cloud mode)
-  if (result?.id) {
+  if (result?.uid || result?.id) {
+    const resultUid = result.uid || result.id;
     if (storage.isCloudMode()) {
       const state = getState();
       const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
       const collection = {
         version: '1',
-        uid: result.id,
+        uid: resultUid,
         name: result.name,
-        pathname: `cloud://${result.id}`,
+        pathname: `cloud://${resultUid}`,
         items: result.items || [],
         environments: result.environments || [],
         runtimeVariables: {},
@@ -2704,13 +2719,13 @@ export const cloneCollection = (collectionName, collectionFolderName, collection
       if (activeWorkspace) {
         dispatch(_addCollectionToWorkspace({
           workspaceUid: activeWorkspace.uid,
-          collection: { uid: result.id, name: result.name, path: `cloud://${result.id}` }
+          collection: { uid: resultUid, name: result.name, path: `cloud://${resultUid}` }
         }));
       }
     } else {
       // Local IDB mode: load full collection tree and dispatch
       const { loadCollectionFromIdb } = await import('utils/idb/collectionTree');
-      const col = await loadCollectionFromIdb(result.id);
+      const col = await loadCollectionFromIdb(resultUid);
       if (col) {
         const state = getState();
         const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
@@ -2718,7 +2733,7 @@ export const cloneCollection = (collectionName, collectionFolderName, collection
         if (activeWorkspace) {
           dispatch(_addCollectionToWorkspace({
             workspaceUid: activeWorkspace.uid,
-            collection: { uid: result.id, name: result.name, path: result.id }
+            collection: { uid: resultUid, name: result.name, path: resultUid }
           }));
         }
       }
@@ -2814,21 +2829,34 @@ export const importCollection = (collection, collectionLocation, options = {}) =
 };
 
 export const importCollectionFromZip = (zipFilePath, collectionLocation) => async (dispatch, getState) => {
-  console.log('Using unified storage layer for importCollectionFromZip');
   const state = getState();
   const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
 
-  const collectionPath = await storage.importCollectionZip(zipFilePath, collectionLocation);
+  // IPC call to unzip + parse (Electron handles filesystem)
+  const result = await storage.importCollectionZip(zipFilePath, collectionLocation);
 
-  if (activeWorkspace && activeWorkspace.pathname && activeWorkspace.type !== 'default') {
-    const collectionName = path.basename(collectionPath);
-    await storage.addCollectionToWorkspace(activeWorkspace.pathname, {
-      name: collectionName,
-      path: collectionPath
-    });
+  // In IDB mode, importCollectionZip returns a uid (collection was saved to IDB by the IPC handler)
+  // Load it from IDB and dispatch to Redux
+  if (result && !storage.isCloudMode()) {
+    const collectionUid = typeof result === 'string' ? result : result.uid;
+    if (collectionUid) {
+      try {
+        const { loadCollectionFromIdb } = await import('utils/idb/collectionTree');
+        const col = await loadCollectionFromIdb(collectionUid);
+        if (col) {
+          const workspaceUid = activeWorkspace?.uid || 'default';
+          dispatch(_createCollection(col));
+          dispatch(_addCollectionToWorkspace({ workspaceUid, collection: { uid: col.uid, name: col.name, path: col.uid } }));
+        }
+      } catch (_) {}
+    }
+  } else if (result && activeWorkspace?.pathname && activeWorkspace.type !== 'default') {
+    // Legacy filesystem mode
+    const collectionName = path.basename(result);
+    await storage.addCollectionToWorkspace(activeWorkspace.pathname, { name: collectionName, path: result });
   }
 
-  return collectionPath;
+  return result;
 };
 
 /**
@@ -3109,7 +3137,7 @@ export const openCollectionSettings
     };
 
 export const saveDotEnvVariables = (collectionUid, variables, filename = '.env') => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const state = getState();
     const collection = findCollectionByUid(state.collections.collections, collectionUid);
 
@@ -3117,16 +3145,18 @@ export const saveDotEnvVariables = (collectionUid, variables, filename = '.env')
       return reject(new Error('Collection not found'));
     }
 
-    console.log('Using unified storage layer for saveDotenvVariables');
-    storage
-      .saveDotenvVariables(collection.uid ?? collection.pathname, variables, filename)
-      .then(resolve)
-      .catch(reject);
+    try {
+      await storage.saveDotenvVariables(collection.uid ?? collection.pathname, variables, filename);
+      dispatch(_setDotEnvVariables({ collectionUid, variables, filename, exists: true }));
+      resolve();
+    } catch (e) {
+      reject(e);
+    }
   });
 };
 
 export const saveDotEnvRaw = (collectionUid, content, filename = '.env') => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const state = getState();
     const collection = findCollectionByUid(state.collections.collections, collectionUid);
 
@@ -3134,16 +3164,20 @@ export const saveDotEnvRaw = (collectionUid, content, filename = '.env') => (dis
       return reject(new Error('Collection not found'));
     }
 
-    console.log('Using unified storage layer for saveDotenvRaw');
-    storage
-      .saveDotenvRaw(collection.uid ?? collection.pathname, content, filename)
-      .then(resolve)
-      .catch(reject);
+    try {
+      const result = await storage.saveDotenvRaw(collection.uid ?? collection.pathname, content, filename);
+      if (result) {
+        dispatch(_setDotEnvVariables({ collectionUid, variables: result.variables || [], filename, exists: true }));
+      }
+      resolve(result);
+    } catch (e) {
+      reject(e);
+    }
   });
 };
 
 export const createDotEnvFile = (collectionUid, filename = '.env') => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const state = getState();
     const collection = findCollectionByUid(state.collections.collections, collectionUid);
 
@@ -3151,16 +3185,18 @@ export const createDotEnvFile = (collectionUid, filename = '.env') => (dispatch,
       return reject(new Error('Collection not found'));
     }
 
-    console.log('Using unified storage layer for createDotenvFile');
-    storage
-      .createDotenvFile(collection.uid ?? collection.pathname, filename)
-      .then(resolve)
-      .catch(reject);
+    try {
+      await storage.createDotenvFile(collection.uid ?? collection.pathname, filename);
+      dispatch(_setDotEnvVariables({ collectionUid, variables: [], filename, exists: true }));
+      resolve();
+    } catch (e) {
+      reject(e);
+    }
   });
 };
 
 export const deleteDotEnvFile = (collectionUid, filename = '.env') => (dispatch, getState) => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const state = getState();
     const collection = findCollectionByUid(state.collections.collections, collectionUid);
 
@@ -3168,11 +3204,13 @@ export const deleteDotEnvFile = (collectionUid, filename = '.env') => (dispatch,
       return reject(new Error('Collection not found'));
     }
 
-    console.log('Using unified storage layer for deleteDotenvFile');
-    storage
-      .deleteDotenvFile(collection.uid ?? collection.pathname, filename)
-      .then(resolve)
-      .catch(reject);
+    try {
+      await storage.deleteDotenvFile(collection.uid ?? collection.pathname, filename);
+      dispatch(_setDotEnvVariables({ collectionUid, variables: [], filename, exists: false }));
+      resolve();
+    } catch (e) {
+      reject(e);
+    }
   });
 };
 

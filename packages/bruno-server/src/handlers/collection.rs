@@ -31,13 +31,14 @@ pub struct UpdateCollectionRequest {
 #[derive(Debug, Deserialize)]
 pub struct CloneCollectionRequest {
     pub name: String,
-    pub workspace_id: Option<String>,
+    #[serde(rename = "workspaceUid")]
+    pub workspace_uid: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ResequenceItem {
-    pub id: String,
-    pub sort_order: f64,
+    pub uid: String,
+    pub seq: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -105,7 +106,7 @@ pub async fn clone_collection(
 ) -> AppResult<(StatusCode, Json<Value>)> {
     let user_id = extract_user_id(&claims)?;
     let cloned = state.collection_service
-        .clone_collection(&collection_id, user_id, body.name, body.workspace_id)
+        .clone_collection(&collection_id, user_id, body.name, body.workspace_uid)
         .await?;
     Ok((StatusCode::CREATED, Json(json!({ "data": cloned }))))
 }
@@ -119,7 +120,7 @@ pub async fn resequence_items(
     let user_id = extract_user_id(&claims)?;
     let updates: Vec<(String, f64)> = body.items
         .into_iter()
-        .map(|item| (item.id, item.sort_order))
+        .map(|item| (item.uid, item.seq))
         .collect();
 
     let updated = state.collection_service

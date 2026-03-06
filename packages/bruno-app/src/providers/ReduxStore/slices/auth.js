@@ -144,6 +144,14 @@ export const logout = createAsyncThunk('auth/logout', async (_, { getState, disp
 
     stopSyncPolling();
 
+    // Disconnect WebSocket
+    try {
+      const brunoApi = window.__BRUNO_API__;
+      if (brunoApi?.ws?.isConnected) {
+        brunoApi.ws.disconnect();
+      }
+    } catch (_) {}
+
     const { clearAllCache } = await import('utils/cache/indexedDB');
     await clearAllCache();
 
@@ -151,6 +159,7 @@ export const logout = createAsyncThunk('auth/logout', async (_, { getState, disp
     dispatch({ type: 'collections/clearAllCollections' });
     dispatch({ type: 'tabs/resetTabs' });
     dispatch({ type: 'workspaces/resetWorkspaces' });
+    dispatch({ type: 'cloudSync/resetCloudSync' });
 
     // Re-open local default workspace
     try {
@@ -202,7 +211,7 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
 
     console.log('🔄 [Step 1] Fetching cloud workspaces for user:', userId);
     const workspaces = await brunoApi.workspaces.getAll();
-    console.log(`✅ [Step 1] Fetched ${workspaces.length} workspaces:`, workspaces.map((w) => ({ id: w.id, name: w.name })));
+    console.log(`✅ [Step 1] Fetched ${workspaces.length} workspaces:`, workspaces.map((w) => ({ id: w.uid, name: w.name })));
 
     console.log('🔄 [Step 2] Clearing local state and loading cloud workspaces...');
     const { createWorkspace, setActiveWorkspace, resetWorkspaces } = await import('./workspaces');
@@ -216,11 +225,11 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
 
     for (const workspace of workspaces) {
       dispatch(createWorkspace({
-        uid: workspace.id,
-        id: workspace.id,
+        uid: workspace.uid,
+        id: workspace.uid,
         name: workspace.name,
         description: workspace.description,
-        isCloud: true, // Mark as cloud workspace
+        isCloud: true,
         role: workspace.role,
         created_at: workspace.created_at,
         updated_at: workspace.updated_at
@@ -230,7 +239,7 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
     let activeWorkspaceId;
     if (workspaces.length > 0) {
       const defaultWorkspace = workspaces[0];
-      activeWorkspaceId = defaultWorkspace.id;
+      activeWorkspaceId = defaultWorkspace.uid;
       dispatch(setActiveWorkspace(activeWorkspaceId));
       dispatch(addTab({ uid: `${activeWorkspaceId}-overview`, collectionUid: activeWorkspaceId, type: 'workspaceOverview' }));
       dispatch(focusTab({ uid: `${activeWorkspaceId}-overview` }));
@@ -241,10 +250,10 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
         name: 'My Workspace',
         description: 'Default workspace'
       });
-      activeWorkspaceId = defaultWorkspace.id;
+      activeWorkspaceId = defaultWorkspace.uid;
       dispatch(createWorkspace({
-        uid: defaultWorkspace.id,
-        id: defaultWorkspace.id,
+        uid: defaultWorkspace.uid,
+        id: defaultWorkspace.uid,
         name: defaultWorkspace.name,
         description: defaultWorkspace.description,
         isCloud: true,
@@ -286,7 +295,7 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
         console.log(`🔄 [Step 3] Transforming collection "${collection.name}" with ${(collection.items || []).length} items...`);
         let transformedItems = [];
         try {
-          transformedItems = (collection.items || []).map((item) => transformCloudItemToLocal(item, collection.id));
+          transformedItems = (collection.items || []).map((item) => transformCloudItemToLocal(item, collection.uid));
           console.log(`✅ [Step 3] Transformed items for "${collection.name}":`, transformedItems.map((i) => ({ uid: i.uid, type: i.type, name: i.name, pathname: i.pathname })));
         } catch (transformErr) {
           console.error(`❌ [Step 3] Failed to transform items for collection "${collection.name}":`, transformErr);
@@ -294,7 +303,7 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
 
         let environments = [];
         try {
-          const rawEnvs = await brunoApi.environments.listCollectionEnvironments(collection.id);
+          const rawEnvs = await brunoApi.environments.listCollectionEnvironments(collection.uid);
           environments = rawEnvs.map(transformCloudEnvironmentToLocal);
           console.log(`✅ [Step 3] Loaded ${environments.length} environments for "${collection.name}"`);
         } catch (envErr) {
@@ -302,9 +311,9 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
         }
 
         const collectionData = {
-          uid: collection.id,
+          uid: collection.uid,
           name: collection.name,
-          pathname: `cloud://${collection.id}`,
+          pathname: `cloud://${collection.uid}`,
           items: transformedItems,
           version: '1',
           isCloud: true,
@@ -321,12 +330,12 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
         dispatch(createCollection(collectionData));
         dispatch(addCollectionToWorkspace({
           workspaceUid: activeWorkspaceId,
-          collection: { uid: collection.id, name: collection.name, path: `cloud://${collection.id}` }
+          collection: { uid: collection.uid, name: collection.name, path: `cloud://${collection.uid}` }
         }));
 
         // Update local sync metadata with server version
         if (collection.updated_at) {
-          updateSyncMeta(userId, collection.id, { server_updated_at: collection.updated_at });
+          updateSyncMeta(userId, collection.uid, { server_updated_at: collection.updated_at });
         }
 
         console.log(`✅ [Step 3] Dispatched collection: "${collection.name}"`);
@@ -338,7 +347,7 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
       try {
         const { newItem: _newItem } = await import('providers/ReduxStore/slices/collections');
         const drafts = getAllCloudDrafts();
-        const loadedCollectionIds = new Set(collections.map((c) => c.id));
+        const loadedCollectionIds = new Set(collections.map((c) => c.uid));
         for (const draft of drafts) {
           if (loadedCollectionIds.has(draft.collectionUid)) {
             dispatch(_newItem({ collectionUid: draft.collectionUid, currentItemUid: null, item: draft }));

@@ -56,10 +56,10 @@ export interface BrunoApiConfig {
 
 // Workspace types
 export interface Workspace {
-  id: string;
+  uid: string;
   name: string;
   description: string;
-  owner_id: string;
+  ownerUid: string;
   role: 'owner' | 'editor' | 'viewer';
   created_at: string;
   updated_at: string;
@@ -100,8 +100,8 @@ export interface WorkspaceMembersResponse {
 
 // Collection types
 export interface Collection {
-  id: string;
-  workspace_id: string;
+  uid: string;
+  workspaceUid: string;
   name: string;
   description?: string;
   created_at: string;
@@ -127,46 +127,42 @@ export interface CloneCollectionRequest {
 
 export interface ResequenceItemsRequest {
   items: Array<{
-    id: string;
+    uid: string;
     sort_order: number;
   }>;
 }
 
 export interface CollectionItem {
-  id: string;
-  workspace_id: string;
+  uid: string;
+  collectionUid: string;
+  parentUid?: string | null;
   type: 'request' | 'folder';
   name: string;
-  path: string;
-  method?: string;
-  url?: string;
-  headers?: Record<string, string>;
-  body?: any;
-  parent_id?: string;
+  filename?: string | null;
   seq?: number;
+  request?: any;
+  settings?: any;
   created_at: string;
   updated_at: string;
 }
 
 export interface CollectionItemCreateRequest {
-  type: 'request' | 'folder';
   name: string;
-  path: string;
   method?: string;
   url?: string;
-  headers?: Record<string, string>;
-  body?: any;
-  parent_id?: string;
   seq?: number;
+  parentUid?: string | null;
 }
 
 export interface CollectionItemUpdateRequest {
   name?: string;
   method?: string;
   url?: string;
-  headers?: Record<string, string>;
-  body?: any;
   seq?: number;
+  request?: any;
+  settings?: any;
+  docs?: string;
+  root?: any;
 }
 
 // Environment types
@@ -174,13 +170,14 @@ export interface EnvVariable {
   key: string;
   value: string;
   enabled: boolean;
+  secret?: boolean;
 }
 
 export interface Environment {
-  id: string;
+  uid: string;
   name: string;
-  workspace_id?: string;
-  collection_id?: string;
+  workspaceUid?: string;
+  collectionUid?: string;
   variables: EnvVariable[];
   created_at: string;
   updated_at: string;

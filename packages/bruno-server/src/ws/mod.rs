@@ -25,10 +25,10 @@ const CHANNEL_CAPACITY: usize = 256;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]
 pub enum WsEvent {
-    CollectionChanged { action: String, data: Value },
-    ItemChanged { action: String, item_id: String, data: Value },
-    EnvironmentChanged { action: String, environment_id: String, data: Value },
-    ExampleChanged { action: String, example_id: String, data: Value },
+    CollectionChanged { action: String, collection_uid: String, data: Value },
+    ItemChanged { action: String, item_uid: String, data: Value },
+    EnvironmentChanged { action: String, environment_uid: String, data: Value },
+    ExampleChanged { action: String, example_uid: String, data: Value },
 }
 
 #[derive(Debug, Clone)]

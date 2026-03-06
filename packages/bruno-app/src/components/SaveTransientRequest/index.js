@@ -15,16 +15,11 @@ import FolderBreadcrumbs from './FolderBreadcrumbs';
 import useCollectionFolderTree from 'hooks/useCollectionFolderTree';
 import { removeSaveTransientRequestModal } from 'providers/ReduxStore/slices/collections';
 import { newItem as _newItem } from 'providers/ReduxStore/slices/collections';
-import { insertTaskIntoQueue } from 'providers/ReduxStore/slices/app';
 import { addTab } from 'providers/ReduxStore/slices/tabs';
 import { getDefaultRequestPaneTab } from 'utils/collections';
 import { newFolder, closeTabs, mountCollection } from 'providers/ReduxStore/slices/collections/actions';
 import { sanitizeName, validateName, validateNameError } from 'utils/common/regex';
-import { resolveRequestFilename } from 'utils/common/platform';
-import path from 'utils/common/path';
 import { transformRequestToSaveToFilesystem, findCollectionByUid, findItemInCollection, areItemsLoading } from 'utils/collections';
-import { DEFAULT_COLLECTION_FORMAT } from 'utils/common/constants';
-import { itemSchema } from '@usebruno/schema';
 import { uuid } from 'utils/common';
 import { formatIpcError } from 'utils/common/error';
 
@@ -184,7 +179,6 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
 
     try {
       const selectedFolder = getCurrentSelectedFolder();
-      const targetDirname = selectedFolder ? selectedFolder.pathname : targetCollection.pathname;
 
       const trimmedName = requestName.trim();
       if (!trimmedName || trimmedName.length === 0) {
@@ -207,6 +201,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
 
       if (storage.isCloudMode()) {
         // Cloud mode: save to server, then update Redux with created item
+        const targetDirname = selectedFolder ? selectedFolder.pathname : targetCollection.pathname;
         const createdItem = await storage.saveTransientRequest({
           sourcePathname: item.pathname,
           targetDirname,
@@ -219,41 +214,19 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
         dispatch(_newItem({ collectionUid: targetCollection.uid, currentItemUid: null, item: createdItem }));
         dispatch(addTab({ uid: createdItem.uid, collectionUid: targetCollection.uid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
       } else {
-        await itemSchema.validate(transformedItem);
-
-        const targetFormat = targetCollection.format || DEFAULT_COLLECTION_FORMAT;
-        const sourceFormat = collection.format || DEFAULT_COLLECTION_FORMAT;
-        const targetFilename = resolveRequestFilename(sanitizedFilename, targetFormat);
-        const targetPathname = path.join(targetDirname, targetFilename);
-
-        await storage.saveTransientRequest({
-          sourcePathname: item.pathname,
-          targetDirname,
-          targetFilename,
-          request: transformedItem,
-          format: targetFormat,
-          sourceFormat
+        // Local IDB mode: create request in IDB, update Redux directly
+        const createdItem = await storage.saveTransientRequest({
+          sourceItemUid: item.uid,
+          sourceCollectionUid: collection.uid,
+          targetCollectionUid: targetCollection.uid,
+          targetFolderUid: selectedFolder?.uid || null,
+          request: { ...transformedItem, name: sanitizedFilename }
         });
-
-        dispatch(
-          insertTaskIntoQueue({
-            uid: uuid(),
-            type: 'OPEN_REQUEST',
-            collectionUid: targetCollection.uid,
-            itemPathname: targetPathname,
-            preview: false
-          })
-        );
 
         dispatch(closeTabs({ tabUids: [item.uid] }));
-
-        dispatch({
-          type: 'collections/deleteItem',
-          payload: {
-            itemUid: item.uid,
-            collectionUid: collection.uid
-          }
-        });
+        dispatch({ type: 'collections/deleteItem', payload: { itemUid: item.uid, collectionUid: collection.uid } });
+        dispatch(_newItem({ collectionUid: targetCollection.uid, currentItemUid: null, item: createdItem }));
+        dispatch(addTab({ uid: createdItem.uid, collectionUid: targetCollection.uid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
       }
 
       toast.success('Request saved successfully');

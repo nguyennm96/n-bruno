@@ -54,6 +54,9 @@ export const workspacesSlice = createSlice({
           c.uid === collection.uid || c.path === collection.path);
         if (!existingCollection) {
           workspace.collections.push(collection);
+        } else if (!existingCollection.path && collection.path) {
+          // Ensure path is set (e.g. when full IDB object was stored without path)
+          existingCollection.path = collection.path;
         }
       }
     },

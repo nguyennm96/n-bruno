@@ -4,4 +4,5 @@ pub mod collection;
 pub mod item;
 pub mod environment;
 pub mod example;
+pub mod sync;
 pub mod import_export;

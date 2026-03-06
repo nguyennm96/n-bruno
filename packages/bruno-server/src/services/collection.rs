@@ -9,7 +9,7 @@ use crate::{
     errors::{AppError, AppResult},
     models::{
         collection::{Collection as CollectionModel, CollectionResponse},
-        item::{generate_client_id, Item},
+        item::{generate_uid, Item},
     },
     services::workspace::WorkspaceService,
 };
@@ -19,53 +19,57 @@ pub struct CollectionService {
     collections: Collection<CollectionModel>,
     items: Collection<Item>,
     ws_service: WorkspaceService,
+    ws_manager: crate::ws::WsManager,
 }
 
 impl CollectionService {
-    pub fn new(db: &Database, ws_service: WorkspaceService) -> Self {
+    pub fn new(db: &Database, ws_service: WorkspaceService, ws_manager: crate::ws::WsManager) -> Self {
         Self {
             collections: db.collection("collections"),
             items: db.collection("items"),
             ws_service,
+            ws_manager,
         }
     }
 
-    pub async fn create(&self, workspace_id: &str, user_id: ObjectId, name: String, description: Option<String>) -> AppResult<CollectionResponse> {
-        let (_, role) = self.ws_service.get_with_role(workspace_id, user_id).await?;
+    pub async fn create(&self, workspace_uid: &str, user_id: ObjectId, name: String, description: Option<String>) -> AppResult<CollectionResponse> {
+        let (_, role) = self.ws_service.get_with_role(workspace_uid, user_id).await?;
         if !role.can_write() {
             return Err(AppError::Forbidden("Editor or Owner role required".into()));
         }
-
-        let ws_oid = ObjectId::parse_str(workspace_id)
-            .map_err(|_| AppError::BadRequest("Invalid workspace ID".into()))?;
-        let mut col = CollectionModel::new(name, description, ws_oid);
+        let mut col = CollectionModel::new(name, description, workspace_uid.to_string());
         let res = self.collections.insert_one(&col).await.map_err(AppError::from)?;
         col.id = res.inserted_id.as_object_id();
-        Ok(CollectionResponse::from(col))
+        let resp = CollectionResponse::from(col);
+        self.ws_manager.broadcast(
+            workspace_uid,
+            &user_id.to_hex(),
+            crate::ws::WsEvent::CollectionChanged {
+                action: "created".into(),
+                collection_uid: resp.uid.clone(),
+                data: serde_json::to_value(&resp).unwrap_or_default(),
+            },
+        );
+        Ok(resp)
     }
 
-    pub async fn list(&self, workspace_id: &str, user_id: ObjectId) -> AppResult<Vec<CollectionResponse>> {
-        self.ws_service.get_with_role(workspace_id, user_id).await?;
-        let ws_oid = ObjectId::parse_str(workspace_id)
-            .map_err(|_| AppError::BadRequest("Invalid workspace ID".into()))?;
-
-        let mut cursor = self.collections.find(doc! { "workspace_id": ws_oid }).await.map_err(AppError::from)?;
+    pub async fn list(&self, workspace_uid: &str, user_id: ObjectId) -> AppResult<Vec<CollectionResponse>> {
+        self.ws_service.get_with_role(workspace_uid, user_id).await?;
+        let mut cursor = self.collections.find(doc! { "workspaceUid": workspace_uid, "deletedAt": { "$exists": false } }).await.map_err(AppError::from)?;
         let mut result = Vec::new();
-        while let Some(Ok(c)) = cursor.next().await {
-            result.push(CollectionResponse::from(c));
-        }
+        while let Some(Ok(c)) = cursor.next().await { result.push(CollectionResponse::from(c)); }
         Ok(result)
     }
 
-    pub async fn get(&self, collection_id: &str, user_id: ObjectId) -> AppResult<CollectionResponse> {
-        let col = self.get_collection_raw(collection_id).await?;
-        self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+    pub async fn get(&self, collection_uid: &str, user_id: ObjectId) -> AppResult<CollectionResponse> {
+        let col = self.get_collection_raw(collection_uid).await?;
+        self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
         Ok(CollectionResponse::from(col))
     }
 
-    pub async fn update(&self, collection_id: &str, user_id: ObjectId, name: Option<String>, description: Option<String>, bruno_config: Option<JsonValue>, root: Option<JsonValue>) -> AppResult<CollectionResponse> {
-        let col = self.get_collection_raw(collection_id).await?;
-        let (_, role) = self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+    pub async fn update(&self, collection_uid: &str, user_id: ObjectId, name: Option<String>, description: Option<String>, bruno_config: Option<JsonValue>, root: Option<JsonValue>) -> AppResult<CollectionResponse> {
+        let col = self.get_collection_raw(collection_uid).await?;
+        let (_, role) = self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
         if !role.can_write() {
             return Err(AppError::Forbidden("Editor or Owner role required".into()));
         }
@@ -84,218 +88,170 @@ impl CollectionService {
 
         self.collections.update_one(doc! { "_id": col_oid }, doc! { "$set": update }).await.map_err(AppError::from)?;
 
-        Ok(CollectionResponse {
-            id: col_oid.to_hex(),
+        let resp = CollectionResponse {
+            uid: col.uid,
             name: name.unwrap_or(col.name),
             description: description.or(col.description),
-            workspace_id: col.workspace_id.to_hex(),
+            workspace_uid: col.workspace_uid,
             bruno_config: bruno_config.or(col.bruno_config),
             root: root.or(col.root),
             created_at: col.created_at,
             updated_at: now,
-        })
+        };
+        self.ws_manager.broadcast(
+            &resp.workspace_uid,
+            &user_id.to_hex(),
+            crate::ws::WsEvent::CollectionChanged {
+                action: "updated".into(),
+                collection_uid: resp.uid.clone(),
+                data: serde_json::to_value(&resp).unwrap_or_default(),
+            },
+        );
+        Ok(resp)
     }
 
-    pub async fn delete(&self, collection_id: &str, user_id: ObjectId) -> AppResult<()> {
-        let col = self.get_collection_raw(collection_id).await?;
-        let (_, role) = self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+    pub async fn delete(&self, collection_uid: &str, user_id: ObjectId) -> AppResult<()> {
+        let col = self.get_collection_raw(collection_uid).await?;
+        let (_, role) = self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
         if !role.can_write() {
             return Err(AppError::Forbidden("Editor or Owner role required".into()));
         }
-        self.collections.delete_one(doc! { "_id": col.id.unwrap() }).await.map_err(AppError::from)?;
+        let workspace_uid = col.workspace_uid.clone();
+        let deleted_uid = col.uid.clone();
+        self.collections.update_one(
+            doc! { "_id": col.id.unwrap() },
+            doc! { "$set": { "deletedAt": chrono::Utc::now().to_rfc3339() } },
+        ).await.map_err(AppError::from)?;
+        self.ws_manager.broadcast(
+            &workspace_uid,
+            &user_id.to_hex(),
+            crate::ws::WsEvent::CollectionChanged {
+                action: "deleted".into(),
+                collection_uid: deleted_uid.clone(),
+                data: serde_json::json!({ "uid": deleted_uid }),
+            },
+        );
         Ok(())
     }
 
-    async fn get_collection_raw(&self, collection_id: &str) -> AppResult<CollectionModel> {
-        let col_oid = ObjectId::parse_str(collection_id)
-            .map_err(|_| AppError::BadRequest("Invalid collection ID".into()))?;
+    async fn get_collection_raw(&self, collection_uid: &str) -> AppResult<CollectionModel> {
         self.collections
-            .find_one(doc! { "_id": col_oid })
+            .find_one(doc! { "uid": collection_uid, "deletedAt": { "$exists": false } })
             .await
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::NotFound("Collection not found".into()))
     }
 
-    /// Clone a collection with all its items (deep clone)
-    /// Creates new ObjectIds for collection and all items
-    /// Preserves tree structure (parent-child relationships)
     pub async fn clone_collection(
         &self,
-        collection_id: &str,
+        collection_uid: &str,
         user_id: ObjectId,
         new_name: String,
-        target_workspace_id: Option<String>,
+        target_workspace_uid: Option<String>,
     ) -> AppResult<CollectionResponse> {
-        // Get source collection and verify permissions
-        let source_col = self.get_collection_raw(collection_id).await?;
-        let (_, role) = self.ws_service.get_with_role(&source_col.workspace_id.to_hex(), user_id).await?;
+        let source_col = self.get_collection_raw(collection_uid).await?;
+        let (_, role) = self.ws_service.get_with_role(&source_col.workspace_uid, user_id).await?;
         if !role.can_write() {
             return Err(AppError::Forbidden("Editor or Owner role required".into()));
         }
 
-        // Determine target workspace (same as source if not specified)
-        let target_ws_id = match target_workspace_id {
-            Some(ws_id) => {
-                let ws_oid = ObjectId::parse_str(&ws_id)
-                    .map_err(|_| AppError::BadRequest("Invalid workspace ID".into()))?;
-                // Verify user has write access to target workspace
-                let (_, target_role) = self.ws_service.get_with_role(&ws_id, user_id).await?;
+        let target_ws_uid = match target_workspace_uid {
+            Some(ws_uid) => {
+                let (_, target_role) = self.ws_service.get_with_role(&ws_uid, user_id).await?;
                 if !target_role.can_write() {
                     return Err(AppError::Forbidden("Editor or Owner role required in target workspace".into()));
                 }
-                ws_oid
+                ws_uid
             }
-            None => source_col.workspace_id,
+            None => source_col.workspace_uid.clone(),
         };
 
-        // Create new collection
-        let mut new_col = CollectionModel::new(new_name, source_col.description.clone(), target_ws_id);
+        let mut new_col = CollectionModel::new(new_name, source_col.description.clone(), target_ws_uid);
         let col_result = self.collections.insert_one(&new_col).await.map_err(AppError::from)?;
-        let new_col_id = col_result.inserted_id.as_object_id().unwrap();
-        new_col.id = Some(new_col_id);
+        new_col.id = col_result.inserted_id.as_object_id();
 
         // Clone all items from source collection
-        let source_col_id = source_col.id.unwrap();
-        self.clone_items_recursive(source_col_id, new_col_id).await?;
+        self.clone_items_recursive(&source_col.uid, &new_col.uid).await?;
 
-        Ok(CollectionResponse::from(new_col))
+        let resp = CollectionResponse::from(new_col);
+        self.ws_manager.broadcast(
+            &resp.workspace_uid,
+            &user_id.to_hex(),
+            crate::ws::WsEvent::CollectionChanged {
+                action: "created".into(),
+                collection_uid: resp.uid.clone(),
+                data: serde_json::to_value(&resp).unwrap_or_default(),
+            },
+        );
+        Ok(resp)
     }
 
-    /// Recursively clone all items from source collection to new collection
-    /// Maintains parent-child relationships with new ObjectIds
-    async fn clone_items_recursive(
-        &self,
-        source_collection_id: ObjectId,
-        new_collection_id: ObjectId,
-    ) -> AppResult<()> {
-        // Fetch all items from source collection
-        let mut cursor = self.items
-            .find(doc! { "collection_id": source_collection_id })
-            .await
-            .map_err(AppError::from)?;
-
+    async fn clone_items_recursive(&self, source_collection_uid: &str, new_collection_uid: &str) -> AppResult<()> {
+        let mut cursor = self.items.find(doc! { "collectionUid": source_collection_uid, "deletedAt": { "$exists": false } }).await.map_err(AppError::from)?;
         let mut source_items = Vec::new();
-        while let Some(Ok(item)) = cursor.next().await {
-            source_items.push(item);
-        }
+        while let Some(Ok(item)) = cursor.next().await { source_items.push(item); }
+        if source_items.is_empty() { return Ok(()); }
 
-        if source_items.is_empty() {
-            return Ok(());
-        }
-
-        // Build ID mapping: old_id -> new_id
-        let mut id_map: HashMap<ObjectId, ObjectId> = HashMap::new();
+        // Build uid mapping: old_uid -> new_uid
+        let mut uid_map: HashMap<String, String> = HashMap::new();
         for item in &source_items {
-            let old_id = item.id.unwrap();
-            let new_id = ObjectId::new();
-            id_map.insert(old_id, new_id);
+            uid_map.insert(item.uid.clone(), generate_uid());
         }
 
-        // Clone each item with mapped parent_item_id
         let now = Utc::now();
         for source_item in source_items {
-            let old_id = source_item.id.unwrap();
-            let new_id = *id_map.get(&old_id).unwrap();
-
-            // Map parent_item_id to new ID (or None if root item)
-            let new_parent_id = source_item.parent_item_id.and_then(|old_parent_id| {
-                id_map.get(&old_parent_id).copied()
-            });
+            let new_uid = uid_map.get(&source_item.uid).unwrap().clone();
+            let new_parent_uid = source_item.parent_uid.as_ref().and_then(|old| uid_map.get(old).cloned());
 
             let new_item = Item {
-                id: Some(new_id),
-                client_id: generate_client_id(),
+                id: None,
+                uid: new_uid,
                 item_type: source_item.item_type.clone(),
                 name: source_item.name.clone(),
-                collection_id: new_collection_id,
-                parent_item_id: new_parent_id,
-                sort_order: source_item.sort_order,
+                collection_uid: new_collection_uid.to_string(),
+                parent_uid: new_parent_uid,
+                seq: source_item.seq,
                 request: source_item.request.clone(),
                 settings: source_item.settings.clone(),
                 filename: source_item.filename.clone(),
-                method: source_item.method.clone(),
-                url: source_item.url.clone(),
-                headers: source_item.headers.clone(),
-                query_params: source_item.query_params.clone(),
-                body: source_item.body.clone(),
-                auth: source_item.auth.clone(),
-                pre_request_script: source_item.pre_request_script.clone(),
-                post_response_script: source_item.post_response_script.clone(),
+                docs: source_item.docs.clone(),
                 created_at: now,
                 updated_at: now,
+                deleted_at: None,
             };
-
             self.items.insert_one(&new_item).await.map_err(AppError::from)?;
         }
-
         Ok(())
     }
 
-    /// Resequence items (bulk update sort_order)
-    /// All items must belong to same parent (atomic operation)
-    pub async fn resequence_items(
-        &self,
-        collection_id: &str,
-        user_id: ObjectId,
-        updates: Vec<(String, f64)>, // Vec of (item_id, new_sort_order)
-    ) -> AppResult<usize> {
-        if updates.is_empty() {
-            return Ok(0);
-        }
+    pub async fn resequence_items(&self, collection_uid: &str, user_id: ObjectId, updates: Vec<(String, f64)>) -> AppResult<usize> {
+        if updates.is_empty() { return Ok(0); }
 
-        // Verify permissions
-        let col = self.get_collection_raw(collection_id).await?;
-        let (_, role) = self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+        let col = self.get_collection_raw(collection_uid).await?;
+        let (_, role) = self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
         if !role.can_write() {
             return Err(AppError::Forbidden("Editor or Owner role required".into()));
         }
 
-        let col_oid = col.id.unwrap();
         let now = Utc::now();
-
-        // Validate all items exist and belong to collection, resolve client_id -> ObjectId
-        let mut resolved_updates: Vec<(ObjectId, f64)> = Vec::new();
-        for (item_id, sort_order) in &updates {
-            // Try ObjectId first, then fall back to client_id lookup
-            let item = if let Ok(item_oid) = ObjectId::parse_str(item_id) {
-                self.items
-                    .find_one(doc! { "_id": item_oid })
-                    .await
-                    .map_err(AppError::from)?
-                    .ok_or_else(|| AppError::NotFound(format!("Item not found: {}", item_id)))?
-            } else {
-                // client_id lookup (21-char nanoid)
-                self.items
-                    .find_one(doc! { "client_id": item_id })
-                    .await
-                    .map_err(AppError::from)?
-                    .ok_or_else(|| AppError::NotFound(format!("Item not found: {}", item_id)))?
-            };
-
-            if item.collection_id != col_oid {
-                return Err(AppError::BadRequest(format!(
-                    "Item {} does not belong to collection {}",
-                    item_id, collection_id
-                )));
-            }
-
-            resolved_updates.push((item.id.unwrap(), *sort_order));
-        }
-
-        // Update each item's sort_order
         let mut updated_count = 0;
-        for (item_oid, new_sort_order) in resolved_updates {
+        for (item_uid, new_seq) in &updates {
+            // Verify item belongs to this collection
+            let item = self.items
+                .find_one(doc! { "uid": item_uid, "collectionUid": collection_uid })
+                .await
+                .map_err(AppError::from)?
+                .ok_or_else(|| AppError::NotFound(format!("Item not found: {}", item_uid)))?;
+
             let result = self.items
                 .update_one(
-                    doc! { "_id": item_oid },
-                    doc! { "$set": { "sort_order": new_sort_order, "updated_at": now.to_rfc3339() } },
+                    doc! { "_id": item.id.unwrap() },
+                    doc! { "$set": { "seq": new_seq, "updated_at": now.to_rfc3339() } },
                 )
                 .await
                 .map_err(AppError::from)?;
-
             updated_count += result.modified_count as usize;
         }
-
         Ok(updated_count)
     }
 }

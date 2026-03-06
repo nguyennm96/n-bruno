@@ -41,7 +41,7 @@ pub async fn import_postman(
 
     Ok((StatusCode::CREATED, Json(json!({
         "data": {
-            "collection_id": result.collection_id,
+            "collectionUid": result.collection_uid,
             "collection_name": result.collection_name,
             "imported": {
                 "folders": result.stats.folders_created,
@@ -65,7 +65,7 @@ pub async fn import_insomnia(
 
     Ok((StatusCode::CREATED, Json(json!({
         "data": {
-            "collection_id": result.collection_id,
+            "collectionUid": result.collection_uid,
             "collection_name": result.collection_name,
             "imported": {
                 "folders": result.stats.folders_created,

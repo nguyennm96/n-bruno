@@ -2,77 +2,89 @@ use bson::oid::ObjectId;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::models::item::generate_uid;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvVariable {
-    pub key: String,
+    pub uid: Option<String>,
+    /// Variable name (was `key` in previous schema).
+    pub name: String,
     pub value: String,
     pub enabled: bool,
+    pub secret: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Environment {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
+    /// External nanoid UID.
+    pub uid: String,
     pub name: String,
 
-    // Scope: Either workspace-level or collection-level (not both)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub workspace_id: Option<ObjectId>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub collection_id: Option<ObjectId>,
+    /// Workspace-level environments set this field.
+    #[serde(rename = "workspaceUid", skip_serializing_if = "Option::is_none")]
+    pub workspace_uid: Option<String>,
+    /// Collection-level environments set this field.
+    #[serde(rename = "collectionUid", skip_serializing_if = "Option::is_none")]
+    pub collection_uid: Option<String>,
 
     pub variables: Vec<EnvVariable>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(rename = "deletedAt", skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Environment {
-    /// Create workspace-level environment
-    pub fn new_workspace(name: String, workspace_id: ObjectId, variables: Vec<EnvVariable>) -> Self {
+    pub fn new_workspace(name: String, workspace_uid: String, variables: Vec<EnvVariable>) -> Self {
         let now = Utc::now();
         Self {
             id: None,
+            uid: generate_uid(),
             name,
-            workspace_id: Some(workspace_id),
-            collection_id: None,
+            workspace_uid: Some(workspace_uid),
+            collection_uid: None,
             variables,
             color: None,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         }
     }
 
-    /// Create collection-level environment
-    pub fn new_collection(name: String, collection_id: ObjectId, variables: Vec<EnvVariable>) -> Self {
+    pub fn new_collection(name: String, collection_uid: String, variables: Vec<EnvVariable>) -> Self {
         let now = Utc::now();
         Self {
             id: None,
+            uid: generate_uid(),
             name,
-            workspace_id: None,
-            collection_id: Some(collection_id),
+            workspace_uid: None,
+            collection_uid: Some(collection_uid),
             variables,
             color: None,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         }
     }
 
-    /// Legacy constructor for backward compatibility (workspace-scoped)
-    pub fn new(name: String, workspace_id: ObjectId, variables: Vec<EnvVariable>) -> Self {
-        Self::new_workspace(name, workspace_id, variables)
+    /// Legacy constructor — workspace-scoped.
+    pub fn new(name: String, workspace_uid: String, variables: Vec<EnvVariable>) -> Self {
+        Self::new_workspace(name, workspace_uid, variables)
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvironmentResponse {
-    pub id: String,
+    pub uid: String,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub workspace_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub collection_id: Option<String>,
+    #[serde(rename = "workspaceUid", skip_serializing_if = "Option::is_none")]
+    pub workspace_uid: Option<String>,
+    #[serde(rename = "collectionUid", skip_serializing_if = "Option::is_none")]
+    pub collection_uid: Option<String>,
     pub variables: Vec<EnvVariable>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
@@ -83,10 +95,10 @@ pub struct EnvironmentResponse {
 impl From<Environment> for EnvironmentResponse {
     fn from(e: Environment) -> Self {
         Self {
-            id: e.id.unwrap_or_default().to_hex(),
+            uid: e.uid,
             name: e.name,
-            workspace_id: e.workspace_id.map(|id| id.to_hex()),
-            collection_id: e.collection_id.map(|id| id.to_hex()),
+            workspace_uid: e.workspace_uid,
+            collection_uid: e.collection_uid,
             variables: e.variables,
             color: e.color,
             created_at: e.created_at,

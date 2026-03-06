@@ -3,7 +3,6 @@ use mongodb::bson::doc;
 use mongodb::options::{ClientOptions, IndexOptions};
 use std::time::Duration;
 use bson::Document;
-
 use crate::config::Config;
 
 pub async fn connect(config: &Config) -> anyhow::Result<Database> {
@@ -43,28 +42,36 @@ pub async fn create_indexes(db: &Database) -> anyhow::Result<()> {
     create_index(db, "refresh_tokens", "token_hash").await?;
     create_index(db, "refresh_tokens", "user_id").await?;
 
+    // ── workspaces: unique uid ──
+    create_unique_index(db, "workspaces", "uid").await?;
+
     // ── workspace_members ──
     create_index(db, "workspace_members", "workspace_id").await?;
     create_index(db, "workspace_members", "user_id").await?;
 
-    // ── collections ──
-    create_index(db, "collections", "workspace_id").await?;
+    // ── collections: unique uid, index on workspaceUid ──
+    create_unique_index(db, "collections", "uid").await?;
+    create_index(db, "collections", "workspaceUid").await?;
 
-    // ── items ──
-    create_index(db, "items", "collection_id").await?;
-    create_index(db, "items", "parent_item_id").await?;
+    // ── items: unique uid, indexes on collectionUid + parentUid ──
+    create_unique_index(db, "items", "uid").await?;
+    create_index(db, "items", "collectionUid").await?;
+    create_index(db, "items", "parentUid").await?;
 
-    // ── environments: unique {workspace_id, name} ──
-    let col = db.collection::<Document>("environments");
-    let opts = IndexOptions::builder().unique(true).build();
-    let idx = IndexModel::builder()
-        .keys(doc! { "workspace_id": 1, "name": 1 })
-        .options(opts)
-        .build();
-    col.create_index(idx).await?;
+    // ── environments: unique uid, indexes on workspaceUid / collectionUid ──
+    create_unique_index(db, "environments", "uid").await?;
+    create_index(db, "environments", "workspaceUid").await?;
+    create_index(db, "environments", "collectionUid").await?;
 
-    // ── examples ──
-    create_index(db, "examples", "item_id").await?;
+    // ── examples: unique uid, index on requestUid ──
+    create_unique_index(db, "examples", "uid").await?;
+    create_index(db, "examples", "requestUid").await?;
+
+    // ── soft-delete indexes ──
+    create_index(db, "collections", "deletedAt").await?;
+    create_index(db, "items", "deletedAt").await?;
+    create_index(db, "environments", "deletedAt").await?;
+    create_index(db, "examples", "deletedAt").await?;
 
     tracing::info!("✅ All indexes created");
     Ok(())

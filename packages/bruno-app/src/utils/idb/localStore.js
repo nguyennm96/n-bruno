@@ -8,7 +8,7 @@
  */
 
 const DB_NAME = 'bruno-local';
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 
 export const STORES = {
   WORKSPACES: 'workspaces',
@@ -18,7 +18,9 @@ export const STORES = {
   ENVIRONMENTS: 'environments',
   GLOBAL_ENVIRONMENTS: 'global_environments',
   PREFERENCES: 'preferences',
-  UI_STATE: 'ui_state'
+  UI_STATE: 'ui_state',
+  API_SPECS: 'api_specs',
+  WORKSPACE_LINKS: 'workspace_links'
 };
 
 // ─── DB Init ──────────────────────────────────────────────────────────────────
@@ -40,6 +42,26 @@ export const initLocalDB = () => {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
+      const tx = event.target.transaction;
+      const oldVersion = event.oldVersion;
+
+      if (oldVersion < 3) {
+        // Migrate: rename data→request, remove draft in REQUESTS store
+        const store = tx.objectStore(STORES.REQUESTS);
+        const cursorReq = store.openCursor();
+        cursorReq.onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (!cursor) return;
+          const rec = cursor.value;
+          if ('data' in rec || 'draft' in rec) {
+            const updated = { ...rec, request: rec.data ?? rec.request ?? {} };
+            delete updated.data;
+            delete updated.draft;
+            cursor.update(updated);
+          }
+          cursor.continue();
+        };
+      }
 
       // workspaces: { uid, name, createdAt, updatedAt }
       if (!db.objectStoreNames.contains(STORES.WORKSPACES)) {
@@ -59,7 +81,7 @@ export const initLocalDB = () => {
         s.createIndex('parentUid', 'parentUid', { unique: false });
       }
 
-      // requests: { uid, collectionUid, folderUid (null = root), name, seq, type, data, draft, createdAt, updatedAt }
+      // requests: { uid, collectionUid, folderUid (null = root), name, seq, type, request, createdAt, updatedAt }
       if (!db.objectStoreNames.contains(STORES.REQUESTS)) {
         const s = db.createObjectStore(STORES.REQUESTS, { keyPath: 'uid' });
         s.createIndex('collectionUid', 'collectionUid', { unique: false });
@@ -86,6 +108,17 @@ export const initLocalDB = () => {
       // ui_state: { key, value } — tabs, active_workspace, collection_env, etc.
       if (!db.objectStoreNames.contains(STORES.UI_STATE)) {
         db.createObjectStore(STORES.UI_STATE, { keyPath: 'key' });
+      }
+
+      // api_specs: { uid, workspaceUid, name, filename, raw, json, createdAt, updatedAt }
+      if (!db.objectStoreNames.contains(STORES.API_SPECS)) {
+        const s = db.createObjectStore(STORES.API_SPECS, { keyPath: 'uid' });
+        s.createIndex('workspaceUid', 'workspaceUid', { unique: false });
+      }
+
+      // workspace_links: { collectionUid, workspaceId, collectionName, linkedAt }
+      if (!db.objectStoreNames.contains(STORES.WORKSPACE_LINKS)) {
+        db.createObjectStore(STORES.WORKSPACE_LINKS, { keyPath: 'collectionUid' });
       }
     };
   });

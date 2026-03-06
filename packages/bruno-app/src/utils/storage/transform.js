@@ -16,7 +16,7 @@
  *    Cloud:  id → Local: uid
  *
  * 3. Pathname
- *    Cloud:  client_id (21-char alphanumeric, no slashes — doubles as API ID)
+ *    Cloud:  uid (21-char nanoid, no slashes — doubles as API ID)
  *    Local:  actual filesystem path (always contains '/')
  */
 
@@ -36,15 +36,11 @@ export function transformCloudItemToLocal(cloudItem, collectionId) {
   const itemType = cloudItem.item_subtype || (isRequest ? 'http-request' : 'folder');
 
   const baseItem = {
-    // Use client_id (21-char nanoid-compatible) as uid so it passes uidSchema validation.
-    // Fall back to id only for data that predates client_id.
-    uid: cloudItem.client_id || cloudItem.id || cloudItem.uid,
+    uid: cloudItem.uid,
     type: itemType,
     name: cloudItem.name,
-    // pathname IS the API item ID in cloud mode (client_id, no slashes).
-    // This lets all storage calls use item.pathname directly without parsing.
-    pathname: cloudItem.client_id || cloudItem.id,
-    seq: cloudItem.sort_order || cloudItem.seq || 1
+    pathname: cloudItem.uid,
+    seq: cloudItem.seq || 1
   };
 
   // For requests, create nested structure
@@ -86,9 +82,13 @@ export function transformCloudItemToLocal(cloudItem, collectionId) {
     baseItem.filename = cloudItem.filename || `${cloudItem.name.toLowerCase().replace(/\s+/g, '-')}.bru`;
   }
 
-  // For folders, just include items array
+  // For folders, just include items array and docs
   if (!isRequest) {
     baseItem.items = (cloudItem.items || []).map((child) => transformCloudItemToLocal(child, collectionId));
+    // Map server-side docs field to root.docs so FolderSettings/Documentation can read it
+    if (cloudItem.docs) {
+      baseItem.root = { docs: cloudItem.docs, request: {} };
+    }
   }
 
   return baseItem;
@@ -104,9 +104,9 @@ export function transformLocalItemToCloud(localItem) {
   const cloudItem = {
     name: localItem.name,
     type: isRequest ? 'request' : 'folder',
-    item_subtype: isRequest ? localItem.type : undefined, // preserve sub-type (http-request, graphql-request, etc.)
-    parent_item_id: localItem.parentItemId || null,
-    sort_order: localItem.seq || 1
+    item_subtype: isRequest ? localItem.type : undefined,
+    parentUid: localItem.parentItemId || null,
+    seq: localItem.seq || 1
   };
 
   if (isRequest && localItem.request) {
@@ -141,15 +141,15 @@ export function transformLocalItemToCloud(localItem) {
  */
 export function transformCloudCollectionToLocal(cloudCollection) {
   const collection = {
-    uid: cloudCollection.id,
+    uid: cloudCollection.uid,
     version: '1',
     name: cloudCollection.name,
     type: 'collection',
-    pathname: `cloud://${cloudCollection.id}`,
+    pathname: `cloud://${cloudCollection.uid}`,
     isCloud: true,
 
     // Transform items recursively
-    items: (cloudCollection.items || []).map((item) => transformCloudItemToLocal(item, cloudCollection.id)),
+    items: (cloudCollection.items || []).map((item) => transformCloudItemToLocal(item, cloudCollection.uid)),
 
     // Environments
     environments: cloudCollection.environments || [],
@@ -193,7 +193,7 @@ export function transformLocalCollectionToCloud(localCollection) {
  */
 export function transformCloudEnvironmentToLocal(cloudEnv) {
   return {
-    uid: cloudEnv.id,
+    uid: cloudEnv.uid,
     name: cloudEnv.name,
     variables: cloudEnv.variables || [],
     color: cloudEnv.color || null

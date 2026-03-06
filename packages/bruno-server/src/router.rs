@@ -7,7 +7,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
     handlers::{
-        auth, collection, environment, example, health, import_export, item, workspace,
+        auth, collection, environment, example, health, import_export, item, sync, workspace,
     },
     middleware::auth_middleware,
     state::AppState,
@@ -75,6 +75,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/collections/:id/export", get(import_export::export_collection))
         // Export entire workspace (all collections as Postman)
         .route("/api/workspaces/:workspace_id/export", get(import_export::export_workspace))
+        // Sync
+        .route("/api/workspaces/:id/changes", get(sync::get_workspace_changes))
         // Apply auth middleware to all protected routes
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 

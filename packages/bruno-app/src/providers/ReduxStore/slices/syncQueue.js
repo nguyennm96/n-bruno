@@ -144,22 +144,28 @@ export const syncQueueItem = createAsyncThunk(
       switch (item.action) {
         case 'create':
           if (item.type === 'request') {
-            result = await brunoApi.collections.createItem(item.workspaceId, item.data);
+            result = await brunoApi.collections.createRequest(item.data.collectionUid, item.data);
           } else if (item.type === 'folder') {
-            result = await brunoApi.collections.createFolder(item.workspaceId, item.data);
+            result = await brunoApi.collections.createFolder(item.data.collectionUid, item.data);
+          } else if (item.type === 'environment') {
+            result = await brunoApi.environments.createEnvironment(item.data.workspaceUid, item.data);
           }
           break;
 
         case 'update':
-          if (item.type === 'request') {
-            result = await brunoApi.collections.updateItem(item.data.id, item.data);
-          } else if (item.type === 'folder') {
-            result = await brunoApi.collections.updateFolder(item.data.id, item.data);
+          if (item.type === 'request' || item.type === 'folder') {
+            result = await brunoApi.collections.updateItem(item.data.uid, item.data);
+          } else if (item.type === 'environment') {
+            result = await brunoApi.environments.updateEnvironment(item.data.uid, item.data);
           }
           break;
 
         case 'delete':
-          result = await brunoApi.collections.deleteItem(item.data.id);
+          if (item.type === 'request' || item.type === 'folder') {
+            result = await brunoApi.collections.deleteItem(item.data.uid);
+          } else if (item.type === 'environment') {
+            result = await brunoApi.environments.deleteEnvironment(item.data.uid);
+          }
           break;
 
         default:

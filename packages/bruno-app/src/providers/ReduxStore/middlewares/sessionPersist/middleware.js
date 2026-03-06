@@ -79,15 +79,11 @@ export const sessionPersistMiddleware = (store) => (next) => (action) => {
     const currentState = store.getState();
     const { tabs, activeTabUid } = currentState.tabs;
 
-    // Identify the scratch collection uid so we can separate workspace-level tabs
-    const activeWorkspace = currentState.workspaces?.workspaces?.find((w) => w.uid === workspaceUid);
-    const scratchCollectionUid = activeWorkspace?.scratchCollectionUid;
-
     const WORKSPACE_TAB_TYPES = new Set(['workspaceOverview', 'workspaceEnvironments']);
 
     // Regular collection tabs (stable collectionUid — safe to restore by uid)
     const collectionTabs = tabs
-      .filter((t) => !WORKSPACE_TAB_TYPES.has(t.type) && t.collectionUid !== scratchCollectionUid)
+      .filter((t) => !WORKSPACE_TAB_TYPES.has(t.type))
       .map((t) => ({
         uid: t.uid,
         collectionUid: t.collectionUid,
@@ -95,9 +91,9 @@ export const sessionPersistMiddleware = (store) => (next) => (action) => {
         requestPaneTab: t.requestPaneTab
       }));
 
-    // Workspace-level tabs (scratch collection — UID changes each session, save type only)
+    // Workspace-level tabs (keyed by workspaceUid — stable across sessions)
     const workspaceTabs = tabs
-      .filter((t) => WORKSPACE_TAB_TYPES.has(t.type) || t.collectionUid === scratchCollectionUid)
+      .filter((t) => WORKSPACE_TAB_TYPES.has(t.type))
       .map((t) => ({
         type: t.type,
         requestPaneTab: t.requestPaneTab
@@ -116,7 +112,7 @@ export const sessionPersistMiddleware = (store) => (next) => (action) => {
       const { expandedCollections, expandedFolders } = getExpandedState(currentState.collections?.collections || []);
       // Mark whether active tab was a workspace-level tab
       const activeTab = tabs.find((t) => t.uid === activeTabUid);
-      const activeIsWorkspaceTab = activeTab && (WORKSPACE_TAB_TYPES.has(activeTab.type) || activeTab.collectionUid === scratchCollectionUid);
+      const activeIsWorkspaceTab = activeTab && WORKSPACE_TAB_TYPES.has(activeTab.type);
       const sessionData = {
         tabs: collectionTabs,
         workspaceTabs,
@@ -125,7 +121,6 @@ export const sessionPersistMiddleware = (store) => (next) => (action) => {
         expandedCollections,
         expandedFolders
       };
-      console.log(`[Session Save] workspace=${workspaceUid} scratchUid=${scratchCollectionUid}`, sessionData);
       setUiState(`session_${workspaceUid}`, sessionData).catch((e) => {
         console.error('[Session Save] Failed to save session:', e);
       });

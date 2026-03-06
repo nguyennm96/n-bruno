@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { get } from 'lodash';
 import { useDispatch, useSelector } from 'react-redux';
-import { refreshScreenWidth, updatePreferences } from 'providers/ReduxStore/slices/app';
+import { refreshScreenWidth } from 'providers/ReduxStore/slices/app';
 import { loadSavedAuth, selectIsAuthInitializing } from 'providers/ReduxStore/slices/auth';
 import { setupNetworkListeners } from 'providers/ReduxStore/slices/network';
 import { initializeBrunoCloudApi } from 'services/brunoApi';
@@ -47,18 +47,6 @@ export const AppProvider = (props) => {
 
   useEffect(() => {
     dispatch(refreshScreenWidth());
-  }, []);
-
-  // Load preferences from IDB in local mode (replaces main:load-preferences IPC)
-  useEffect(() => {
-    const isAuthenticated = store.getState().auth?.isAuthenticated;
-    if (!isAuthenticated) {
-      import('utils/idb/localStore').then(({ getPreferences }) =>
-        getPreferences().then((prefs) => {
-          if (prefs) dispatch(updatePreferences(prefs));
-        })
-      ).catch(() => {});
-    }
   }, []);
 
   // Bootstrap IDB workspaces in local mode.

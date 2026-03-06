@@ -1,12 +1,16 @@
-use bson::{oid::ObjectId, Document};
+use bson::oid::ObjectId;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Generate a 21-character alphanumeric client ID compatible with the frontend's
-/// nanoid-based `uid` format (satisfies `uidSchema` Yup validation).
-pub fn generate_client_id() -> String {
+/// Generate a 21-character alphanumeric UID compatible with nanoid.
+pub fn generate_uid() -> String {
     uuid::Uuid::new_v4().simple().to_string()[..21].to_string()
+}
+
+/// Backward-compatible alias.
+pub fn generate_client_id() -> String {
+    generate_uid()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -16,9 +20,7 @@ pub enum ItemType {
     Request,
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Request Schema - Matching Local Structure
-// ──────────────────────────────────────────────────────────────────────────────
+// ── Request sub-structures ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct KeyValue {
@@ -36,13 +38,13 @@ pub struct RequestParam {
     pub value: Option<String>,
     pub description: Option<String>,
     #[serde(rename = "type")]
-    pub param_type: String, // "query" or "path"
+    pub param_type: String,
     pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RequestBody {
-    pub mode: String, // "none", "json", "text", "xml", "formUrlEncoded", "multipartForm", "graphql"
+    pub mode: String,
     pub json: Option<String>,
     pub text: Option<String>,
     pub xml: Option<String>,
@@ -57,7 +59,7 @@ pub struct RequestBody {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Auth {
-    pub mode: String, // "inherit", "none", "awsv4", "basic", "bearer", "digest", "oauth2", "wsse", "apikey"
+    pub mode: String,
     pub awsv4: Option<Value>,
     pub basic: Option<Value>,
     pub bearer: Option<Value>,
@@ -98,7 +100,6 @@ pub struct Assertion {
     pub operator: Option<String>,
 }
 
-// Complete request object matching local schema
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Request {
     pub url: String,
@@ -125,83 +126,73 @@ pub struct Settings {
     pub timeout: Option<i32>,
 }
 
+// ── Item (Folder or Request) ─────────────────────────────────────────────────
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Item {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
-    /// Client-facing UID (21-char alphanumeric, nanoid-compatible). Used by the
-    /// frontend as the item `uid` — avoids any coupling to MongoDB ObjectIDs.
-    pub client_id: String,
+    /// External nanoid UID — used by the frontend as `item.uid`.
+    pub uid: String,
     #[serde(rename = "type")]
     pub item_type: ItemType,
     pub name: String,
-    pub collection_id: ObjectId,
-    pub parent_item_id: Option<ObjectId>,
-    pub sort_order: f64,
+    #[serde(rename = "collectionUid")]
+    pub collection_uid: String,
+    #[serde(rename = "parentUid", skip_serializing_if = "Option::is_none")]
+    pub parent_uid: Option<String>,
+    /// Ordering within the parent (fractional for easy reordering).
+    pub seq: f64,
 
-    // NEW: Request-specific fields - nested structure (preferred)
     pub request: Option<Request>,
     pub settings: Option<Settings>,
     pub filename: Option<String>,
-
-    // OLD: Kept for backward compatibility during migration
-    // These are used by import/export services
-    pub method: Option<String>,
-    pub url: Option<String>,
-    pub headers: Option<Document>,
-    pub query_params: Option<Document>,
-    pub body: Option<Value>,
-    pub auth: Option<Value>,
-    pub pre_request_script: Option<String>,
-    pub post_response_script: Option<String>,
+    /// Markdown documentation for folders (request-level docs lives in request.docs)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub docs: Option<String>,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(rename = "deletedAt", skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Item {
     pub fn new_folder(
         name: String,
-        collection_id: ObjectId,
-        parent_item_id: Option<ObjectId>,
-        sort_order: f64,
+        collection_uid: String,
+        parent_uid: Option<String>,
+        seq: f64,
     ) -> Self {
         let now = Utc::now();
         Self {
             id: None,
-            client_id: generate_client_id(),
+            uid: generate_uid(),
             item_type: ItemType::Folder,
             name,
-            collection_id,
-            parent_item_id,
-            sort_order,
+            collection_uid,
+            parent_uid,
+            seq,
             request: None,
             settings: None,
             filename: None,
-            method: None,
-            url: None,
-            headers: None,
-            query_params: None,
-            body: None,
-            auth: None,
-            pre_request_script: None,
-            post_response_script: None,
+            docs: None,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         }
     }
 
     pub fn new_request(
         name: String,
-        collection_id: ObjectId,
-        parent_item_id: Option<ObjectId>,
-        sort_order: f64,
+        collection_uid: String,
+        parent_uid: Option<String>,
+        seq: f64,
         method: String,
         url: String,
     ) -> Self {
         let now = Utc::now();
-        
-        // Create nested request object
+
         let request = Request {
             method: method.clone(),
             url: url.clone(),
@@ -229,35 +220,28 @@ impl Item {
             timeout: None,
         };
 
-        // Generate filename from name
         let filename = name
             .to_lowercase()
-            .replace(" ", "-")
+            .replace(' ', "-")
             .chars()
             .filter(|c| c.is_alphanumeric() || *c == '-')
             .collect::<String>();
 
         Self {
             id: None,
-            client_id: generate_client_id(),
+            uid: generate_uid(),
             item_type: ItemType::Request,
             name,
-            collection_id,
-            parent_item_id,
-            sort_order,
+            collection_uid,
+            parent_uid,
+            seq,
             request: Some(request),
             settings: Some(settings),
             filename: Some(format!("{}.bru", filename)),
-            method: Some(method),
-            url: Some(url),
-            headers: None,
-            query_params: None,
-            body: None,
-            auth: None,
-            pre_request_script: None,
-            post_response_script: None,
+            docs: None,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         }
     }
 
@@ -268,22 +252,20 @@ impl Item {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemResponse {
-    pub id: String,
-    /// Client-facing UID (21-char alphanumeric). The frontend uses this as the
-    /// item `uid` — it satisfies the Yup `uidSchema` without any special casing.
-    pub client_id: String,
+    pub uid: String,
     #[serde(rename = "type")]
     pub item_type: ItemType,
     pub name: String,
-    pub collection_id: String,
-    pub parent_item_id: Option<String>,
-    pub sort_order: f64,
-    
-    // Nested structure - matching local schema
+    #[serde(rename = "collectionUid")]
+    pub collection_uid: String,
+    #[serde(rename = "parentUid", skip_serializing_if = "Option::is_none")]
+    pub parent_uid: Option<String>,
+    pub seq: f64,
     pub request: Option<Request>,
     pub settings: Option<Settings>,
     pub filename: Option<String>,
-    
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub docs: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -291,16 +273,16 @@ pub struct ItemResponse {
 impl From<Item> for ItemResponse {
     fn from(i: Item) -> Self {
         Self {
-            id: i.id.unwrap_or_default().to_hex(),
-            client_id: i.client_id,
+            uid: i.uid,
             item_type: i.item_type,
             name: i.name,
-            collection_id: i.collection_id.to_hex(),
-            parent_item_id: i.parent_item_id.map(|id| id.to_hex()),
-            sort_order: i.sort_order,
+            collection_uid: i.collection_uid,
+            parent_uid: i.parent_uid,
+            seq: i.seq,
             request: i.request,
             settings: i.settings,
             filename: i.filename,
+            docs: i.docs,
             created_at: i.created_at,
             updated_at: i.updated_at,
         }

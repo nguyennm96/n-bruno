@@ -10,6 +10,7 @@ import { nanoid } from 'nanoid';
 import {
   STORES,
   idbGet,
+  idbGetAll,
   idbPut,
   idbDelete,
   idbGetByIndex,
@@ -19,6 +20,18 @@ import {
   getUiState,
   setUiState
 } from 'utils/idb/localStore';
+
+const _updateChildrenCollectionUid = async (parentFolderUid, newCollectionUid) => {
+  const subFolders = await idbGetByIndex(STORES.FOLDERS, 'parentUid', parentFolderUid);
+  for (const f of subFolders) {
+    await idbPut(STORES.FOLDERS, { ...f, collectionUid: newCollectionUid, updatedAt: Date.now() });
+    await _updateChildrenCollectionUid(f.uid, newCollectionUid);
+  }
+  const subRequests = await idbGetByIndex(STORES.REQUESTS, 'folderUid', parentFolderUid);
+  for (const r of subRequests) {
+    await idbPut(STORES.REQUESTS, { ...r, collectionUid: newCollectionUid, updatedAt: Date.now() });
+  }
+};
 import { loadWorkspaceCollectionsFromIdb } from 'utils/idb/collectionTree';
 
 const { ipcRenderer } = window;
@@ -245,9 +258,8 @@ const flattenItemsToIdb = async (items, collectionUid, parentFolderUid, now) => 
         seq: item.seq || i + 1,
         type: item.type || 'http-request',
         filename: item.filename || item.name,
-        data: item.request || {},
+        request: item.request || {},
         settings: item.settings || { encodeUrl: true },
-        draft: null,
         createdAt: now,
         updatedAt: now
       });
@@ -321,9 +333,8 @@ export const createRequest = async (collectionUid, requestData, getState) => {
     seq,
     type,
     filename: name,
-    data: { method, url, auth: { mode: 'inherit' }, headers: [], params: [], body: { mode: 'none', json: null, text: null, xml: null, sparql: null, multipartForm: [], formUrlEncoded: [], file: [] }, script: { req: null, res: null }, vars: { req: [], res: [] }, assertions: [], tests: null },
+    request: { method, url, auth: { mode: 'inherit' }, headers: [], params: [], body: { mode: 'none', json: null, text: null, xml: null, sparql: null, multipartForm: [], formUrlEncoded: [], file: [] }, script: { req: null, res: null }, vars: { req: [], res: [] }, assertions: [], tests: null },
     settings: { encodeUrl: true },
-    draft: null,
     createdAt: now,
     updatedAt: now
   });
@@ -351,10 +362,9 @@ export const saveRequest = async (pathname, itemData, format) => {
   }
   await idbPut(STORES.REQUESTS, {
     ...existing,
-    data: itemData.request || itemData,
+    request: itemData.request || itemData,
     name: itemData.name || existing.name,
     settings: itemData.settings || existing.settings,
-    draft: null,
     updatedAt: Date.now()
   });
 };
@@ -402,7 +412,11 @@ export const moveItem = async (params, getState) => {
   if (folder) {
     const targetFolder = await idbGet(STORES.FOLDERS, targetUid);
     const newParentUid = targetFolder ? targetFolder.uid : null;
-    await idbPut(STORES.FOLDERS, { ...folder, parentUid: newParentUid, updatedAt: Date.now() });
+    const newCollectionUid = targetFolder ? targetFolder.collectionUid : targetUid;
+    await idbPut(STORES.FOLDERS, { ...folder, parentUid: newParentUid, collectionUid: newCollectionUid, updatedAt: Date.now() });
+    if (newCollectionUid !== folder.collectionUid) {
+      await _updateChildrenCollectionUid(folder.uid, newCollectionUid);
+    }
   }
 };
 
@@ -446,9 +460,8 @@ export const newRequest = async (containerPathname, item) => {
     seq: item.seq || 1,
     type: item.type || 'http-request',
     filename: item.filename || item.name,
-    data: item.request || {},
+    request: item.request || {},
     settings: item.settings || { encodeUrl: true },
-    draft: null,
     createdAt: now,
     updatedAt: now
   });
@@ -714,10 +727,9 @@ export const saveMultipleRequests = async (itemsToSave) => {
     if (existing) {
       await idbPut(STORES.REQUESTS, {
         ...existing,
-        data: item.request || item,
+        request: item.request || item,
         name: item.name || existing.name,
         settings: item.settings || existing.settings,
-        draft: null,
         updatedAt: Date.now()
       });
     }
@@ -780,9 +792,9 @@ export const updateVariableInFile = async (pathname, variable, scopeType, collec
   } else if (scopeType === 'request') {
     const record = await idbGet(STORES.REQUESTS, pathname);
     if (record) {
-      const data = record.data || {};
-      const vars = (data.vars?.req || []).map((v) => v.name === variable.name ? { ...v, value: variable.value } : v);
-      await idbPut(STORES.REQUESTS, { ...record, data: { ...data, vars: { ...data.vars, req: vars } }, updatedAt: Date.now() });
+      const req = record.request || {};
+      const vars = (req.vars?.req || []).map((v) => v.name === variable.name ? { ...v, value: variable.value } : v);
+      await idbPut(STORES.REQUESTS, { ...record, request: { ...req, vars: { ...req.vars, req: vars } }, updatedAt: Date.now() });
     }
   }
 };
@@ -835,25 +847,52 @@ export const cancelOAuth2Authorization = async () => {
   return ipcRenderer.invoke('renderer:cancel-oauth2-authorization-request');
 };
 
-// Dotenv operations
-export const saveDotenvVariables = async (pathname, variables, filename) => {
-  console.log('[LocalStorage] saveDotenvVariables:', { pathname, filename });
-  return ipcRenderer.invoke('renderer:save-dotenv-variables', pathname, variables, filename);
+// Dotenv operations — stored in IDB collection record
+export const saveDotenvVariables = async (collectionUid, variables, filename) => {
+  const collection = await idbGet(STORES.COLLECTIONS, collectionUid);
+  if (!collection) return null;
+  const dotEnvFiles = collection.dotEnvFiles || [];
+  const idx = dotEnvFiles.findIndex((f) => f.filename === filename);
+  if (idx >= 0) {
+    dotEnvFiles[idx] = { filename, variables, exists: true };
+  } else {
+    dotEnvFiles.push({ filename, variables, exists: true });
+  }
+  await idbPut(STORES.COLLECTIONS, { ...collection, dotEnvFiles, updatedAt: Date.now() });
+  return { collectionUid, variables, filename, exists: true };
 };
 
-export const saveDotenvRaw = async (pathname, content, filename) => {
-  console.log('[LocalStorage] saveDotenvRaw:', { pathname, filename });
-  return ipcRenderer.invoke('renderer:save-dotenv-raw', pathname, content, filename);
+export const saveDotenvRaw = async (collectionUid, content, filename) => {
+  // Parse raw dotenv content into variables key=value pairs
+  const variables = content
+    .split('\n')
+    .filter((line) => line.trim() && !line.trim().startsWith('#'))
+    .map((line) => {
+      const eqIdx = line.indexOf('=');
+      if (eqIdx < 0) return null;
+      return { name: line.slice(0, eqIdx).trim(), value: line.slice(eqIdx + 1).trim(), enabled: true, secret: false };
+    })
+    .filter(Boolean);
+  return saveDotenvVariables(collectionUid, variables, filename);
 };
 
-export const createDotenvFile = async (pathname, filename) => {
-  console.log('[LocalStorage] createDotenvFile:', { pathname, filename });
-  return ipcRenderer.invoke('renderer:create-dotenv-file', pathname, filename);
+export const createDotenvFile = async (collectionUid, filename) => {
+  const collection = await idbGet(STORES.COLLECTIONS, collectionUid);
+  if (!collection) return null;
+  const dotEnvFiles = collection.dotEnvFiles || [];
+  if (!dotEnvFiles.find((f) => f.filename === filename)) {
+    dotEnvFiles.push({ filename, variables: [], exists: true });
+    await idbPut(STORES.COLLECTIONS, { ...collection, dotEnvFiles, updatedAt: Date.now() });
+  }
+  return { collectionUid, filename, exists: true };
 };
 
-export const deleteDotenvFile = async (pathname, filename) => {
-  console.log('[LocalStorage] deleteDotenvFile:', { pathname, filename });
-  return ipcRenderer.invoke('renderer:delete-dotenv-file', pathname, filename);
+export const deleteDotenvFile = async (collectionUid, filename) => {
+  const collection = await idbGet(STORES.COLLECTIONS, collectionUid);
+  if (!collection) return null;
+  const dotEnvFiles = (collection.dotEnvFiles || []).filter((f) => f.filename !== filename);
+  await idbPut(STORES.COLLECTIONS, { ...collection, dotEnvFiles, updatedAt: Date.now() });
+  return { collectionUid, filename, exists: false };
 };
 
 // Git operations
@@ -867,10 +906,9 @@ export const scanForBrunoFiles = async (dir) => {
   return ipcRenderer.invoke('renderer:scan-for-bruno-files', dir);
 };
 
-// Mount collection
-export const mountCollection = async ({ collectionUid, collectionPathname, brunoConfig }) => {
-  console.log('[LocalStorage] mountCollection:', { collectionUid });
-  return ipcRenderer.invoke('renderer:mount-collection', { collectionUid, collectionPathname, brunoConfig });
+// Mount collection — no-op in IDB mode (no filesystem watcher needed)
+export const mountCollection = async ({ collectionUid }) => {
+  return collectionUid;
 };
 
 // New request file operations
@@ -898,8 +936,7 @@ export const clearOAuth2Cache = async (collectionUid, url, credentialsId) => {
 
 // Preferences
 export const savePreferences = async (preferences) => {
-  const { savePreferences: idbSavePrefs } = await import('utils/idb/localStore');
-  return idbSavePrefs(preferences);
+  return ipcRenderer.invoke('renderer:save-preferences', preferences);
 };
 
 // Collection import helper
@@ -970,20 +1007,21 @@ export const clearAuthTokens = async () => {
   return ipcRenderer.invoke('auth:clear-tokens');
 };
 
-// Workspace link operations (local storage for cloud workspace links)
-export const saveWorkspaceLink = async (linkData) => {
-  console.log('[LocalStorage] saveWorkspaceLink:', linkData);
-  return ipcRenderer.invoke('workspace:save-link', linkData);
+// Workspace link operations (IDB — keyed by collectionUid)
+export const saveWorkspaceLink = async ({ collectionUid, workspaceId, collectionName, linkedAt }) => {
+  await idbPut(STORES.WORKSPACE_LINKS, { collectionUid, workspaceId, collectionName, linkedAt: linkedAt || Date.now() });
 };
 
-export const removeWorkspaceLink = async (linkData) => {
-  console.log('[LocalStorage] removeWorkspaceLink:', linkData);
-  return ipcRenderer.invoke('workspace:remove-link', linkData);
+export const removeWorkspaceLink = async ({ collectionUid }) => {
+  await idbDelete(STORES.WORKSPACE_LINKS, collectionUid);
 };
 
 export const getWorkspaceLinks = async () => {
-  console.log('[LocalStorage] getWorkspaceLinks');
-  return ipcRenderer.invoke('workspace:get-links');
+  const links = await idbGetAll(STORES.WORKSPACE_LINKS);
+  // Return as object keyed by collectionUid for backward compatibility
+  return links.reduce((acc, l) => {
+    acc[l.collectionUid] = l; return acc;
+  }, {});
 };
 
 // Workspace operations (local filesystem - not applicable to cloud mode)
@@ -1012,14 +1050,61 @@ export const removeCollectionFromWorkspace = async (workspaceUid, workspacePath,
   }
 };
 
-export const loadWorkspaceApiSpecs = async (workspacePath) => {
-  console.log('[LocalStorage] loadWorkspaceApiSpecs:', { workspacePath });
-  return ipcRenderer.invoke('renderer:load-workspace-apispecs', workspacePath);
+// API Specs — IDB-native (workspaceUid-scoped)
+export const loadWorkspaceApiSpecs = async (workspaceUid) => {
+  return idbGetByIndex(STORES.API_SPECS, 'workspaceUid', workspaceUid);
 };
 
-export const openApiSpecFile = async (apiSpecPath, workspacePath) => {
-  console.log('[LocalStorage] openApiSpecFile:', { apiSpecPath, workspacePath });
-  return ipcRenderer.invoke('renderer:open-api-spec-file', apiSpecPath, workspacePath);
+// Open a file dialog, read the selected spec, persist to IDB, return the record.
+export const openApiSpec = async (workspaceUid) => {
+  const filePaths = await ipcRenderer.invoke('renderer:browse-files', [
+    { name: 'API Spec', extensions: ['yaml', 'yml', 'json'] }
+  ]);
+  if (!filePaths?.length) return null;
+  const filePath = filePaths[0];
+  const raw = await ipcRenderer.invoke('renderer:read-file', filePath);
+  const filename = filePath.split('/').pop().split('\\').pop();
+  const name = filename.replace(/\.[^.]+$/, '');
+  const uid = nanoid();
+  let json = null;
+  try { json = JSON.parse(raw); } catch { /* yaml or invalid */ }
+  const now = Date.now();
+  const spec = { uid, workspaceUid, name, filename, pathname: uid, raw, json, createdAt: now, updatedAt: now };
+  await idbPut(STORES.API_SPECS, spec);
+  return spec;
+};
+
+// Load a spec by uid — in IDB mode pathname === uid
+export const openApiSpecFile = async (specUid) => {
+  return idbGet(STORES.API_SPECS, specUid);
+};
+
+export const createApiSpec = async (name, _location, content = '', workspaceUid) => {
+  const uid = nanoid();
+  const now = Date.now();
+  let json = null;
+  try { json = JSON.parse(content); } catch { /* yaml */ }
+  const spec = { uid, workspaceUid, name, filename: name, pathname: uid, raw: content, json, createdAt: now, updatedAt: now };
+  await idbPut(STORES.API_SPECS, spec);
+  return spec;
+};
+
+export const saveApiSpec = async (uid, content) => {
+  const existing = await idbGet(STORES.API_SPECS, uid);
+  if (!existing) throw new Error('API spec not found');
+  let json = null;
+  try { json = JSON.parse(content); } catch { /* yaml */ }
+  const updated = { ...existing, raw: content, json, updatedAt: Date.now() };
+  await idbPut(STORES.API_SPECS, updated);
+  return updated;
+};
+
+export const removeApiSpec = async (uid) => {
+  await idbDelete(STORES.API_SPECS, uid);
+};
+
+export const ensureApispecFolder = async () => {
+  // No-op in IDB mode — no filesystem folders needed
 };
 
 export const getGlobalEnvironments = async ({ workspaceUid } = {}) => {
@@ -1042,9 +1127,12 @@ export const startWorkspaceWatcher = async (workspacePath) => {
   return ipcRenderer.invoke('renderer:start-workspace-watcher', workspacePath);
 };
 
-export const saveWorkspaceDocs = async (workspacePath, docs) => {
-  console.log('[LocalStorage] saveWorkspaceDocs:', { workspacePath });
-  return ipcRenderer.invoke('renderer:save-workspace-docs', workspacePath, docs);
+export const saveWorkspaceDocs = async (workspaceUid, docs) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (workspace) {
+    await idbPut(STORES.WORKSPACES, { ...workspace, docs, updatedAt: Date.now() });
+  }
+  return docs;
 };
 
 export const renameWorkspace = async (workspaceUid, newName) => {
@@ -1143,34 +1231,83 @@ export const importWorkspace = async (zipFilePath, extractLocation) => {
   return ipcRenderer.invoke('renderer:import-workspace', zipFilePath, extractLocation);
 };
 
-export const mountWorkspaceScratch = async (params) => {
-  console.log('[LocalStorage] mountWorkspaceScratch:', params);
-  return ipcRenderer.invoke('renderer:mount-workspace-scratch', params);
+// IDB mode: create/reuse a stable scratch collection in IDB — no temp directory needed
+export const mountWorkspaceScratch = async ({ workspaceUid }) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) throw new Error(`Workspace ${workspaceUid} not found`);
+
+  // Reuse existing scratch collection uid if already stored
+  if (workspace.scratchCollectionUid) {
+    const existing = await idbGet(STORES.COLLECTIONS, workspace.scratchCollectionUid);
+    if (existing) return { uid: workspace.scratchCollectionUid, idbMode: true };
+  }
+
+  const uid = nanoid();
+  const now = Date.now();
+  await idbPut(STORES.COLLECTIONS, {
+    uid,
+    workspaceUid,
+    name: 'Scratch',
+    pathname: uid,
+    brunoConfig: { opencollection: '1.0.0', name: 'Scratch', type: 'collection', ignore: ['node_modules', '.git'] },
+    items: [],
+    createdAt: now,
+    updatedAt: now
+  });
+
+  // Persist the scratch uid onto the workspace record so it survives restarts
+  await idbPut(STORES.WORKSPACES, { ...workspace, scratchCollectionUid: uid, updatedAt: now });
+
+  return { uid, idbMode: true };
 };
 
-export const addCollectionWatcher = async (params) => {
-  console.log('[LocalStorage] addCollectionWatcher:', params);
-  return ipcRenderer.invoke('renderer:add-collection-watcher', params);
+// No-op in IDB mode — no filesystem watchers needed
+export const addCollectionWatcher = async () => {};
+
+export const saveWorkspaceDotEnvVariables = async ({ workspaceUid, variables, filename = '.env' }) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) return null;
+  const dotEnvFiles = workspace.dotEnvFiles || [];
+  const idx = dotEnvFiles.findIndex((f) => f.filename === filename);
+  if (idx >= 0) {
+    dotEnvFiles[idx] = { filename, variables, exists: true };
+  } else {
+    dotEnvFiles.push({ filename, variables, exists: true });
+  }
+  await idbPut(STORES.WORKSPACES, { ...workspace, dotEnvFiles, updatedAt: Date.now() });
+  return { workspaceUid, variables, filename, exists: true };
 };
 
-export const saveWorkspaceDotEnvVariables = async (params) => {
-  console.log('[LocalStorage] saveWorkspaceDotEnvVariables:', params);
-  return ipcRenderer.invoke('renderer:save-workspace-dotenv-variables', params);
+export const saveWorkspaceDotEnvRaw = async ({ workspaceUid, content, filename = '.env' }) => {
+  const variables = content
+    .split('\n')
+    .filter((line) => line.trim() && !line.trim().startsWith('#'))
+    .map((line) => {
+      const eqIdx = line.indexOf('=');
+      if (eqIdx < 0) return null;
+      return { name: line.slice(0, eqIdx).trim(), value: line.slice(eqIdx + 1).trim(), enabled: true, secret: false };
+    })
+    .filter(Boolean);
+  return saveWorkspaceDotEnvVariables({ workspaceUid, variables, filename });
 };
 
-export const saveWorkspaceDotEnvRaw = async (params) => {
-  console.log('[LocalStorage] saveWorkspaceDotEnvRaw:', params);
-  return ipcRenderer.invoke('renderer:save-workspace-dotenv-raw', params);
+export const createWorkspaceDotEnvFile = async ({ workspaceUid, filename = '.env' }) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) return null;
+  const dotEnvFiles = workspace.dotEnvFiles || [];
+  if (!dotEnvFiles.find((f) => f.filename === filename)) {
+    dotEnvFiles.push({ filename, variables: [], exists: true });
+    await idbPut(STORES.WORKSPACES, { ...workspace, dotEnvFiles, updatedAt: Date.now() });
+  }
+  return { workspaceUid, filename, exists: true };
 };
 
-export const createWorkspaceDotEnvFile = async (params) => {
-  console.log('[LocalStorage] createWorkspaceDotEnvFile:', params);
-  return ipcRenderer.invoke('renderer:create-workspace-dotenv-file', params);
-};
-
-export const deleteWorkspaceDotEnvFile = async (params) => {
-  console.log('[LocalStorage] deleteWorkspaceDotEnvFile:', params);
-  return ipcRenderer.invoke('renderer:delete-workspace-dotenv-file', params);
+export const deleteWorkspaceDotEnvFile = async ({ workspaceUid, filename = '.env' }) => {
+  const workspace = await idbGet(STORES.WORKSPACES, workspaceUid);
+  if (!workspace) return null;
+  const dotEnvFiles = (workspace.dotEnvFiles || []).filter((f) => f.filename !== filename);
+  await idbPut(STORES.WORKSPACES, { ...workspace, dotEnvFiles, updatedAt: Date.now() });
+  return { workspaceUid, filename, exists: false };
 };
 
 export const fetchNotifications = async () => {
@@ -1227,29 +1364,23 @@ export const getCollectionJson = async (collectionLocation) => {
   return ipcRenderer.invoke('renderer:get-collection-json', collectionLocation);
 };
 
-export const openApiSpec = async (workspacePath) => {
-  console.log('[LocalStorage] openApiSpec:', { workspacePath });
-  return ipcRenderer.invoke('renderer:open-api-spec', workspacePath);
-};
-
-export const createApiSpec = async (apiSpecName, apiSpecLocation, content, workspacePath) => {
-  console.log('[LocalStorage] createApiSpec:', { apiSpecName, apiSpecLocation, workspacePath });
-  return ipcRenderer.invoke('renderer:create-api-spec', apiSpecName, apiSpecLocation, content, workspacePath);
-};
-
-export const saveApiSpec = async (pathname, content) => {
-  console.log('[LocalStorage] saveApiSpec:', { pathname });
-  return ipcRenderer.invoke('renderer:save-api-spec', pathname, content);
-};
-
-export const removeApiSpec = async (pathname, workspacePath) => {
-  console.log('[LocalStorage] removeApiSpec:', { pathname, workspacePath });
-  return ipcRenderer.invoke('renderer:remove-api-spec', pathname, workspacePath);
-};
-
-export const saveTransientRequest = async (params) => {
-  console.log('[LocalStorage] saveTransientRequest:', params);
-  return ipcRenderer.invoke('renderer:save-transient-request', params);
+export const saveTransientRequest = async ({ sourceItemUid, sourceCollectionUid, targetCollectionUid, targetFolderUid, request }) => {
+  const { idbGet, idbPut, idbDelete, STORES } = await import('utils/idb/localStore');
+  const source = await idbGet(STORES.REQUESTS, sourceItemUid);
+  const newUid = nanoid();
+  const now = Date.now();
+  const newRecord = {
+    ...(source || {}),
+    ...request,
+    uid: newUid,
+    collectionUid: targetCollectionUid,
+    folderUid: targetFolderUid || null,
+    createdAt: now,
+    updatedAt: now
+  };
+  await idbPut(STORES.REQUESTS, newRecord);
+  await idbDelete(STORES.REQUESTS, sourceItemUid);
+  return newRecord;
 };
 
 export const ensureCollectionsFolder = async (workspacePath) => {
@@ -1265,11 +1396,6 @@ export const exportCollectionZip = async (collectionPath, collectionName) => {
 export const isBrunoCollectionZip = async (filePath) => {
   console.log('[LocalStorage] isBrunoCollectionZip:', { filePath });
   return ipcRenderer.invoke('renderer:is-bruno-collection-zip', filePath);
-};
-
-export const ensureApispecFolder = async (workspacePath) => {
-  console.log('[LocalStorage] ensureApispecFolder:', { workspacePath });
-  return ipcRenderer.invoke('renderer:ensure-apispec-folder', workspacePath);
 };
 
 export const appReady = async () => {

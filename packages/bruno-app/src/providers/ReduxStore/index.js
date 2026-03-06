@@ -16,6 +16,7 @@ import authReducer from './slices/auth';
 import syncStatusReducer from './slices/syncStatus';
 import globalLoadingReducer from './slices/globalLoading';
 import networkReducer from './slices/network';
+import cloudSyncReducer from './slices/cloudSync';
 import syncQueueReducer from './slices/syncQueue';
 import { draftDetectMiddleware } from './middlewares/draft/middleware';
 import { autosaveMiddleware } from './middlewares/autosave/middleware';
@@ -53,7 +54,8 @@ export const store = configureStore({
     syncStatus: syncStatusReducer,
     globalLoading: globalLoadingReducer,
     network: networkReducer,
-    syncQueue: syncQueueReducer
+    syncQueue: syncQueueReducer,
+    cloudSync: cloudSyncReducer
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(middleware)
 });

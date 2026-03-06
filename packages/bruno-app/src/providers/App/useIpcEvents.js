@@ -3,6 +3,7 @@ import { storage } from 'utils/storage';
 import {
   updateCookies,
   updatePreferences,
+  savePreferences,
   setGitVersion
 } from 'providers/ReduxStore/slices/app';
 import {
@@ -350,7 +351,7 @@ const useIpcEvents = () => {
       );
     });
 
-    const removePreferencesUpdatesListener = ipcRenderer.on('main:load-preferences', (val) => {
+    const removePreferencesUpdatesListener = ipcRenderer.on('main:load-preferences', async (val) => {
       dispatch(updatePreferences(val));
     });
 
@@ -401,6 +402,13 @@ const useIpcEvents = () => {
     //   ...workspace linking logic removed...
     // });
 
+    // Zoom changed from Electron menu — update Redux and save to file
+    const removeZoomChangedListener = ipcRenderer.on('main:zoom-changed', (percentage) => {
+      const currentPrefs = store.getState().app.preferences;
+      const updatedPrefs = { ...currentPrefs, display: { ...(currentPrefs.display || {}), zoomPercentage: percentage } };
+      dispatch(savePreferences(updatedPrefs));
+    });
+
     return () => {
       removeCollectionTreeUpdateListener();
       removeCollectionTreeBatchUpdateListener();
@@ -424,6 +432,7 @@ const useIpcEvents = () => {
       removeConfigUpdatesListener();
       removeShowPreferencesListener();
       removePreferencesUpdatesListener();
+      removeZoomChangedListener();
       removeCookieUpdateListener();
       removeGlobalEnvironmentsUpdatesListener();
       removeSnapshotHydrationListener();

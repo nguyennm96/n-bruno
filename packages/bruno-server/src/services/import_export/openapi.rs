@@ -42,19 +42,16 @@ impl OpenApiService {
         user_id: ObjectId,
         server_url: Option<String>,
     ) -> AppResult<OpenApi3> {
-        let col_oid = ObjectId::parse_str(collection_id)
-            .map_err(|_| AppError::BadRequest("Invalid collection ID".into()))?;
-
         let col = self.collections
-            .find_one(doc! { "_id": col_oid })
+            .find_one(doc! { "uid": collection_id })
             .await
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::NotFound("Collection not found".into()))?;
 
-        self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+        self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
 
         // Load items and examples
-        let all_items = self.load_items(col_oid).await?;
+        let all_items = self.load_items(collection_id).await?;
         let all_examples = self.load_examples().await?;
 
         let mut paths: HashMap<String, OpenApiPathItem> = HashMap::new();
@@ -103,19 +100,18 @@ impl OpenApiService {
         &self,
         all_items: &[Item],
         all_examples: &[Example],
-        parent_id: Option<ObjectId>,
+        parent_uid: Option<String>,
         current_tag: Option<String>,
         paths: &mut HashMap<String, OpenApiPathItem>,
         tags: &mut Vec<OpenApiTag>,
     ) {
         let mut children: Vec<&Item> = all_items
             .iter()
-            .filter(|i| i.parent_item_id == parent_id)
+            .filter(|i| i.parent_uid == parent_uid)
             .collect();
-        children.sort_by(|a, b| a.sort_order.partial_cmp(&b.sort_order).unwrap_or(std::cmp::Ordering::Equal));
+        children.sort_by(|a, b| a.seq.partial_cmp(&b.seq).unwrap_or(std::cmp::Ordering::Equal));
 
         for item in children {
-            let item_id = item.id.unwrap();
             match item.item_type {
                 ItemType::Folder => {
                     tags.push(OpenApiTag {
@@ -125,20 +121,21 @@ impl OpenApiService {
                     self.collect_paths_openapi3(
                         all_items,
                         all_examples,
-                        Some(item_id),
+                        Some(item.uid.clone()),
                         Some(item.name.clone()),
                         paths,
                         tags,
                     );
                 }
                 ItemType::Request => {
-                    let url_str = item.url.as_deref().unwrap_or("/");
+                    let request = item.request.as_ref();
+                    let url_str = request.map(|r| r.url.as_str()).unwrap_or("/");
                     let path = extract_path(url_str);
-                    let method = item.method.as_deref().unwrap_or("GET");
+                    let method = request.map(|r| r.method.as_str()).unwrap_or("GET");
 
                     // Build responses from examples
                     let mut responses: HashMap<String, OpenApiResponse> = HashMap::new();
-                    for ex in all_examples.iter().filter(|e| e.item_id == item_id) {
+                    for ex in all_examples.iter().filter(|e| e.request_uid == item.uid) {
                         let content_type = ex.headers.get("Content-Type")
                             .and_then(|v| v.as_str())
                             .unwrap_or("application/json")
@@ -173,18 +170,14 @@ impl OpenApiService {
 
                     // Build request body for methods that have body
                     let request_body = if matches!(method, "POST" | "PUT" | "PATCH") {
-                        item.body.as_ref().map(|b| {
-                            let mode = b.get("mode")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("text");
-                            let ct = if mode == "json" {
-                                "application/json"
-                            } else {
-                                "text/plain"
+                        request.map(|r| {
+                            let mode = r.body.mode.as_str();
+                            let ct = if mode == "json" { "application/json" } else { "text/plain" };
+                            let content_text = match mode {
+                                "json" => r.body.json.as_deref(),
+                                "text" => r.body.text.as_deref(),
+                                _ => None,
                             };
-                            let content_text = b.get("raw")
-                                .or_else(|| b.get("text"))
-                                .and_then(|v| v.as_str());
                             let example = content_text
                                 .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
                             let mut content: HashMap<String, OpenApiMediaType> = HashMap::new();
@@ -234,18 +227,15 @@ impl OpenApiService {
         host: Option<String>,
         base_path: Option<String>,
     ) -> AppResult<Swagger2> {
-        let col_oid = ObjectId::parse_str(collection_id)
-            .map_err(|_| AppError::BadRequest("Invalid collection ID".into()))?;
-
         let col = self.collections
-            .find_one(doc! { "_id": col_oid })
+            .find_one(doc! { "uid": collection_id })
             .await
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::NotFound("Collection not found".into()))?;
 
-        self.ws_service.get_with_role(&col.workspace_id.to_hex(), user_id).await?;
+        self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
 
-        let all_items = self.load_items(col_oid).await?;
+        let all_items = self.load_items(collection_id).await?;
         let all_examples = self.load_examples().await?;
 
         let mut paths: HashMap<String, Swagger2PathItem> = HashMap::new();
@@ -273,31 +263,31 @@ impl OpenApiService {
         &self,
         all_items: &[Item],
         all_examples: &[Example],
-        parent_id: Option<ObjectId>,
+        parent_uid: Option<String>,
         current_tag: Option<String>,
         paths: &mut HashMap<String, Swagger2PathItem>,
         tags: &mut Vec<OpenApiTag>,
     ) {
         let mut children: Vec<&Item> = all_items
             .iter()
-            .filter(|i| i.parent_item_id == parent_id)
+            .filter(|i| i.parent_uid == parent_uid)
             .collect();
-        children.sort_by(|a, b| a.sort_order.partial_cmp(&b.sort_order).unwrap_or(std::cmp::Ordering::Equal));
+        children.sort_by(|a, b| a.seq.partial_cmp(&b.seq).unwrap_or(std::cmp::Ordering::Equal));
 
         for item in children {
-            let item_id = item.id.unwrap();
             match item.item_type {
                 ItemType::Folder => {
                     tags.push(OpenApiTag { name: item.name.clone(), description: None });
-                    self.collect_paths_swagger2(all_items, all_examples, Some(item_id), Some(item.name.clone()), paths, tags);
+                    self.collect_paths_swagger2(all_items, all_examples, Some(item.uid.clone()), Some(item.name.clone()), paths, tags);
                 }
                 ItemType::Request => {
-                    let url_str = item.url.as_deref().unwrap_or("/");
+                    let request = item.request.as_ref();
+                    let url_str = request.map(|r| r.url.as_str()).unwrap_or("/");
                     let path = extract_path(url_str);
-                    let method = item.method.as_deref().unwrap_or("GET");
+                    let method = request.map(|r| r.method.as_str()).unwrap_or("GET");
 
                     let mut responses: HashMap<String, OpenApiResponse> = HashMap::new();
-                    for ex in all_examples.iter().filter(|e| e.item_id == item_id) {
+                    for ex in all_examples.iter().filter(|e| e.request_uid == item.uid) {
                         responses.insert(ex.status_code.to_string(), OpenApiResponse {
                             description: ex.name.clone(),
                             content: None,
@@ -346,9 +336,9 @@ impl OpenApiService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    async fn load_items(&self, col_oid: ObjectId) -> AppResult<Vec<Item>> {
+    async fn load_items(&self, col_uid: &str) -> AppResult<Vec<Item>> {
         let mut cursor = self.items
-            .find(doc! { "collection_id": col_oid })
+            .find(doc! { "collectionUid": col_uid })
             .await
             .map_err(AppError::from)?;
         let mut items = Vec::new();

@@ -9,7 +9,6 @@ class LastOpenedCollections {
       name: 'preferences',
       clearInvalidConfig: true
     });
-    console.log(`Preferences file is located at: ${this.store.path}`);
   }
 
   getAll() {

@@ -66,8 +66,7 @@ const buildRequestItem = (r) => ({
   type: r.type || 'http-request',
   filename: r.filename || r.name,
   seq: r.seq || 0,
-  draft: r.draft || null,
-  request: r.data || r.request || {},
+  request: r.request || {},
   settings: r.settings || { encodeUrl: true }
 });
 
