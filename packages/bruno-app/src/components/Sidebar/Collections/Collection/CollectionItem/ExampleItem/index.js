@@ -152,7 +152,7 @@ const ExampleItem = ({ example, item, collection }) => {
       {
         id: 'generate-code',
         leftSection: IconCode,
-        label: 'Generate Code',
+        label: 'Code Snippet',
         onClick: handleGenerateCode,
         testId: 'response-example-generate-code-option'
       },

@@ -1,13 +1,9 @@
 import Modal from 'components/Modal/index';
 import { useMemo } from 'react';
 import CodeView from './CodeView';
-import CodeViewToolbar from './CodeViewToolbar';
 import StyledWrapper from './StyledWrapper';
 import { isValidUrl } from 'utils/url';
 import { get } from 'lodash';
-import {
-  findEnvironmentInCollection
-} from 'utils/collections';
 import { interpolateUrl, interpolateUrlPathParams } from 'utils/url/index';
 import { getLanguages } from 'utils/codegenerator/targets';
 import { useSelector } from 'react-redux';
@@ -22,6 +18,17 @@ const validateURLWithVars = (url) => {
   return isValid && !hasMissingInterpolations;
 };
 
+const truncateUrl = (url, maxLen = 48) => {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    const path = u.pathname + (u.search || '');
+    return path.length > maxLen ? path.slice(0, maxLen) + '…' : path;
+  } catch {
+    return url.length > maxLen ? url.slice(0, maxLen) + '…' : url;
+  }
+};
+
 const GenerateCodeItem = ({ collectionUid, item, onClose, isExample = false, exampleUid = null }) => {
   const languages = getLanguages();
   const collection = useSelector((state) => state.collections.collections?.find((c) => c.uid === collectionUid));
@@ -31,18 +38,7 @@ const GenerateCodeItem = ({ collectionUid, item, onClose, isExample = false, exa
     globalEnvironments,
     activeGlobalEnvironmentUid
   });
-  const environment = findEnvironmentInCollection(collection, collection?.activeEnvironmentUid);
 
-  let envVars = {};
-  if (environment) {
-    const vars = get(environment, 'variables', []);
-    envVars = vars.reduce((acc, curr) => {
-      acc[curr.name] = curr.value;
-      return acc;
-    }, {});
-  }
-
-  // Function to handle normal request data
   const getNormalRequestData = () => {
     const requestUrl = get(item, 'draft.request.url') !== undefined ? get(item, 'draft.request.url') : get(item, 'request.url');
     const requestParams = get(item, 'draft.request.params') !== undefined ? get(item, 'draft.request.params') : get(item, 'request.params');
@@ -54,13 +50,11 @@ const GenerateCodeItem = ({ collectionUid, item, onClose, isExample = false, exa
     };
   };
 
-  // Function to handle request example data
   const getExampleRequestData = () => {
     if (!isExample || !exampleUid) {
       return getNormalRequestData();
     }
 
-    // Find the specific example - check both draft and non-draft examples
     const examples = item.draft ? get(item, 'draft.examples', []) : get(item, 'examples', []);
     const example = examples.find((e) => e.uid === exampleUid);
 
@@ -68,19 +62,13 @@ const GenerateCodeItem = ({ collectionUid, item, onClose, isExample = false, exa
       return getNormalRequestData();
     }
 
-    // Use example request data
-    const requestUrl = get(example, 'request.url');
-    const requestParams = get(example, 'request.params');
-    const requestData = get(example, 'request');
-
     return {
-      url: requestUrl,
-      params: requestParams,
-      request: requestData
+      url: get(example, 'request.url'),
+      params: get(example, 'request.params'),
+      request: get(example, 'request')
     };
   };
 
-  // Get the appropriate request data based on mode
   const requestData = isExample ? getExampleRequestData() : getNormalRequestData();
 
   const variables = useMemo(() => {
@@ -92,18 +80,14 @@ const GenerateCodeItem = ({ collectionUid, item, onClose, isExample = false, exa
     variables
   });
 
-  // interpolate the path params
   const finalUrl = interpolateUrlPathParams(
     interpolatedUrl,
     requestData.params,
     variables
   );
 
-  // Raw URL: path params resolved via string replacement (no new URL() encoding),
-  // preserving the user's original encoding choices for snippet generation.
   const rawUrl = interpolateUrlPathParams(interpolatedUrl, requestData.params, variables, { raw: true });
 
-  // Get the full language object based on current preferences
   const selectedLanguage = useMemo(() => {
     const fullName = generateCodePrefs.library === 'default'
       ? generateCodePrefs.mainLanguage
@@ -112,12 +96,8 @@ const GenerateCodeItem = ({ collectionUid, item, onClose, isExample = false, exa
     return languages.find((lang) => lang.name === fullName) || languages[0];
   }, [generateCodePrefs.mainLanguage, generateCodePrefs.library, languages]);
 
-  // Resolve auth inheritance
   const resolvedRequest = resolveInheritedAuth(item, collection);
 
-  // requestData.request contains either the normal request or example request data.
-  // We explicitly set auth from resolvedRequest to ensure inherited auth
-  // (from folders/collection) is resolved correctly in generated code.
   const finalItem = {
     ...item,
     request: {
@@ -128,28 +108,31 @@ const GenerateCodeItem = ({ collectionUid, item, onClose, isExample = false, exa
     rawUrl
   };
 
-  // Update modal title based on mode
-  const modalTitle = isExample ? `Generate Code - ${get(item, 'draft.examples', []).find((e) => e.uid === exampleUid)?.name || 'Example'}` : 'Generate Code';
+  // Build modal title with method + truncated URL
+  const method = get(requestData, 'request.method', '');
+  const urlDisplay = truncateUrl(finalUrl);
+  const titleBase = isExample
+    ? `Code Snippet — ${get(item, 'draft.examples', []).find((e) => e.uid === exampleUid)?.name || 'Example'}`
+    : 'Code Snippet';
+  const modalTitle = (method && urlDisplay)
+    ? `${titleBase} · ${method} ${urlDisplay}`
+    : titleBase;
 
   return (
     <Modal size="lg" title={modalTitle} handleCancel={onClose} hideFooter={true}>
       <StyledWrapper>
         <div className="code-generator">
-          <CodeViewToolbar />
-
-          <div className="editor-container">
-            {validateURLWithVars(finalUrl) ? (
-              <CodeView
-                language={selectedLanguage}
-                item={finalItem}
-              />
-            ) : (
-              <div className="error-message">
-                <h1>Invalid URL: {finalUrl}</h1>
-                <p>Please check the URL and try again</p>
-              </div>
-            )}
-          </div>
+          {validateURLWithVars(finalUrl) ? (
+            <CodeView
+              language={selectedLanguage}
+              item={finalItem}
+            />
+          ) : (
+            <div className="error-message">
+              <h1>Invalid URL: {finalUrl}</h1>
+              <p>Please check the URL and try again</p>
+            </div>
+          )}
         </div>
       </StyledWrapper>
     </Modal>

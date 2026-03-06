@@ -205,7 +205,7 @@ const ResponseExampleTopBar = ({
               size="sm"
               icon={<IconCode size={16} color={theme.examples.buttonIconColor} />}
               onClick={handleGenerateCode}
-              title="Generate Code"
+              title="Code Snippet"
               data-testid="response-example-generate-code-btn"
             />
             <Button

@@ -1,14 +1,9 @@
 import React from 'react';
-import { Validator } from 'jsonschema';
-import toast from 'react-hot-toast';
 import themes from 'themes/index';
-import themeSchema from 'themes/schema';
 import useLocalStorage from 'hooks/useLocalStorage/index';
 
 import { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { ThemeProvider as SCThemeProvider } from 'styled-components';
-
-const validator = new Validator();
 
 // Helper: Get effective theme ('light' or 'dark') based on storedTheme
 const getEffectiveTheme = (storedTheme) => {
@@ -29,8 +24,6 @@ export const ThemeContext = createContext();
 export const ThemeProvider = (props) => {
   const [storedTheme, setStoredTheme] = useLocalStorage('bruno.theme', 'system');
   const [displayedTheme, setDisplayedTheme] = useState(() => getEffectiveTheme(storedTheme));
-  const [themeVariantLight, setThemeVariantLight] = useLocalStorage('bruno.themeVariantLight', 'light');
-  const [themeVariantDark, setThemeVariantDark] = useLocalStorage('bruno.themeVariantDark', 'dark');
 
   // Listen for system theme changes (only affects 'system' mode)
   useEffect(() => {
@@ -56,53 +49,18 @@ export const ThemeProvider = (props) => {
     }
   }, [storedTheme]);
 
-  // storedTheme can have 3 values: 'light', 'dark', 'system'
-  // displayedTheme can have 2 values: 'light', 'dark'
-
-  // Compute theme object directly from storedTheme to avoid race conditions
+  // storedTheme: 'light' | 'dark' | 'system'
+  // displayedTheme: 'light' | 'dark'
   const theme = useMemo(() => {
-    const isLightMode = getEffectiveTheme(storedTheme) === 'light';
-    const variantName = isLightMode ? themeVariantLight : themeVariantDark;
-    const fallbackTheme = isLightMode ? themes.light : themes.dark;
-    const fallbackName = isLightMode ? 'light' : 'dark';
-
-    // Check if the variant exists in themes
-    const selectedTheme = themes[variantName];
-    if (!selectedTheme) {
-      // Only show toast if using a non-default variant that doesn't exist
-      if (variantName !== fallbackName) {
-        toast.error(`Theme "${variantName}" not found. Using default ${fallbackName} theme.`, {
-          duration: 4000,
-          id: `theme-not-found-${variantName}` // Prevent duplicate toasts
-        });
-      }
-      return fallbackTheme;
-    }
-
-    // Validate the theme against the schema
-    const validationResult = validator.validate(selectedTheme, themeSchema);
-    if (!validationResult.valid) {
-      const errors = validationResult.errors?.map((e) => e.stack).join(', ') || 'Unknown validation error';
-      console.error(`Theme "${variantName}" validation failed:`, errors);
-      toast.error(`Invalid theme "${variantName}". Using default ${fallbackName} theme.`, {
-        duration: 4000,
-        id: `theme-invalid-${variantName}` // Prevent duplicate toasts
-      });
-      return fallbackTheme;
-    }
-
-    return selectedTheme;
-  }, [storedTheme, themeVariantLight, themeVariantDark]);
+    const effective = getEffectiveTheme(storedTheme);
+    return effective === 'light' ? themes.light : themes.dark;
+  }, [storedTheme]);
 
   const value = {
     theme,
     storedTheme,
     displayedTheme,
-    setStoredTheme,
-    themeVariantLight,
-    setThemeVariantLight,
-    themeVariantDark,
-    setThemeVariantDark
+    setStoredTheme
   };
 
   return (

@@ -368,7 +368,7 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
       items.push({
         id: 'generate-code',
         leftSection: IconCode,
-        label: 'Generate Code',
+        label: 'Code Snippet',
         onClick: handleGenerateCode
       });
     }

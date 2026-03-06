@@ -395,14 +395,14 @@ const QueryUrl = ({ item, collection, handleRun }) => {
       </div>
       <div className="flex items-center h-full mx-2 gap-3 cursor-pointer" id="send-request" onClick={handleRun}>
         <div
-          title="Generate Code"
+          title="Code Snippet"
           className="infotip"
           onClick={(e) => {
             handleGenerateCode(e);
           }}
         >
           <IconCode color={theme.requestTabs.icon.color} strokeWidth={1.5} size={20} className="cursor-pointer" />
-          <span className="infotiptext text-xs">Generate Code</span>
+          <span className="infotiptext text-xs">Code Snippet</span>
         </div>
         <div
           title="Save Request"

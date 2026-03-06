@@ -50,7 +50,8 @@ const initialState = {
   generateCode: {
     mainLanguage: 'Shell',
     library: 'curl',
-    shouldInterpolate: true
+    shouldInterpolate: true,
+    lastLibraryByLanguage: {}
   },
   cookies: [],
   taskQueue: [],
@@ -127,10 +128,25 @@ export const appSlice = createSlice({
       state.systemProxyVariables = action.payload;
     },
     updateGenerateCode: (state, action) => {
+      const { mainLanguage, library, ...rest } = action.payload;
       state.generateCode = {
         ...state.generateCode,
-        ...action.payload
+        ...rest
       };
+      if (mainLanguage !== undefined) {
+        state.generateCode.mainLanguage = mainLanguage;
+      }
+      if (library !== undefined) {
+        state.generateCode.library = library;
+        // Persist the chosen library per language
+        const lang = mainLanguage || state.generateCode.mainLanguage;
+        if (lang && library !== 'default') {
+          state.generateCode.lastLibraryByLanguage = {
+            ...state.generateCode.lastLibraryByLanguage,
+            [lang]: library
+          };
+        }
+      }
     },
     toggleSidebarCollapse: (state) => {
       state.sidebarCollapsed = !state.sidebarCollapsed;

@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 
 const StyledWrapper = styled.div`
-  height: 50vh;
+  height: 70vh;
   display: flex;
   flex-direction: column;
   background-color: ${(props) => props.theme.modal.bg};
@@ -10,15 +10,6 @@ const StyledWrapper = styled.div`
     display: flex;
     flex-direction: column;
     height: 100%;
-  }
-
-  .editor-container {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-    position: relative;
-    background: ${(props) => props.theme.modal.bg};
-    margin-top: 0.5rem;
   }
 
   .error-message {
