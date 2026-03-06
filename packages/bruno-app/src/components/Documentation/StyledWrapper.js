@@ -2,6 +2,11 @@ import styled from 'styled-components';
 
 const StyledWrapper = styled.div`
   padding: 8px 4px;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  max-width: 720px;
+  width: 720px;
 
   /* ── Request Header ─────────────────────────────────────────────────── */
   .doc-request-header {
@@ -15,28 +20,6 @@ const StyledWrapper = styled.div`
     margin-bottom: 16px;
     font-family: var(--font-code, 'JetBrains Mono', monospace);
   }
-
-  .doc-method {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    min-width: 40px;
-    text-align: center;
-    padding: 3px 8px;
-    border-radius: 4px;
-    background-color: ${({ theme }) => theme.border.border0};
-  }
-
-  .method-get    { color: ${({ theme }) => theme.request.methods.get}; }
-  .method-post   { color: ${({ theme }) => theme.request.methods.post}; }
-  .method-put    { color: ${({ theme }) => theme.request.methods.put}; }
-  .method-delete { color: ${({ theme }) => theme.request.methods.delete}; }
-  .method-patch  { color: ${({ theme }) => theme.request.methods.patch}; }
-  .method-head   { color: ${({ theme }) => theme.request.methods.head}; }
-  .method-options{ color: ${({ theme }) => theme.request.methods.options}; }
-  .method-grpc   { color: ${({ theme }) => theme.request.grpc}; }
-  .method-ws     { color: ${({ theme }) => theme.request.ws}; }
-  .method-graphql{ color: ${({ theme }) => theme.request.gql}; }
 
   .doc-url {
     font-size: 13px;

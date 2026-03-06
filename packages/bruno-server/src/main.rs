@@ -23,6 +23,7 @@ use services::{
         postman::PostmanService,
     },
     item::ItemService,
+    public_docs::PublicDocsService,
     sync::SyncService,
     workspace::WorkspaceService,
 };
@@ -62,6 +63,9 @@ async fn main() -> anyhow::Result<()> {
     let insomnia_service = InsomniaService::new(&db, workspace_service.clone());
     let sync_service = SyncService::new(&db, workspace_service.clone());
 
+    // Public Documentation service
+    let public_docs_service = PublicDocsService::new(&db, workspace_service.clone(), config.clone());
+
     let state = AppState {
         config: config.clone(),
         auth_service,
@@ -75,6 +79,7 @@ async fn main() -> anyhow::Result<()> {
         openapi_service,
         insomnia_service,
         sync_service,
+        public_docs_service,
     };
 
     // ── Router ────────────────────────────────────────────────────────────────

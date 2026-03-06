@@ -1347,7 +1347,12 @@ export const newHttpRequest = (params) => (dispatch, getState) => {
           req: [],
           res: []
         },
+        script: {
+          req: '',
+          res: ''
+        },
         assertions: [],
+        tests: '',
         auth: auth ?? {
           mode: 'inherit'
         }

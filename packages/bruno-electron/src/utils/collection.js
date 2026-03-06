@@ -158,6 +158,11 @@ const mergeScripts = (collection, request, requestTreePath, scriptFlow) => {
   let collectionPostResScript = get(collectionRoot, 'request.script.res', '');
   let collectionTests = get(collectionRoot, 'request.tests', '');
 
+  // Ensure request.script exists for backward compatibility
+  if (!request.script) {
+    request.script = {};
+  }
+
   let combinedPreReqScript = [];
   let combinedPostResScript = [];
   let combinedTests = [];

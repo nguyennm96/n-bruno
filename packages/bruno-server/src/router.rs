@@ -7,7 +7,8 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
     handlers::{
-        auth, collection, environment, example, health, import_export, item, sync, workspace,
+        auth, collection, environment, example, health, import_export, item, public_docs, sync,
+        workspace,
     },
     middleware::auth_middleware,
     state::AppState,
@@ -21,6 +22,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/auth/register", post(auth::register))
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/refresh", post(auth::refresh))
+        // Public Documentation - public access
+        .route("/api/public/docs/:slug", get(public_docs::get_public_docs))
+        .route(
+            "/api/public/docs/:slug/verify-password",
+            post(public_docs::verify_password),
+        )
+        .route(
+            "/api/collections/docs/check-slug/:slug",
+            get(public_docs::check_slug_availability),
+        )
         // WebSocket
         .route("/ws", get(ws::ws_handler));
 
@@ -45,6 +56,36 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/collections/:id", delete(collection::delete_collection))
         .route("/api/collections/:id/clone", post(collection::clone_collection))
         .route("/api/collections/:id/resequence", patch(collection::resequence_items))
+        // Public Documentation - protected endpoints
+        .route(
+            "/api/collections/:id/docs/publish",
+            post(public_docs::publish_docs),
+        )
+        .route("/api/collections/:id/docs", patch(public_docs::update_docs))
+        .route(
+            "/api/collections/:id/docs/unpublish",
+            delete(public_docs::unpublish_docs),
+        )
+        .route(
+            "/api/collections/:id/docs/status",
+            get(public_docs::get_docs_status),
+        )
+        .route(
+            "/api/collections/:id/docs/upload-css",
+            post(public_docs::upload_custom_css),
+        )
+        .route(
+            "/api/collections/:id/docs/upload-logo",
+            post(public_docs::upload_custom_logo),
+        )
+        .route(
+            "/api/collections/:id/docs/custom-css",
+            delete(public_docs::delete_custom_css),
+        )
+        .route(
+            "/api/collections/:id/docs/custom-logo",
+            delete(public_docs::delete_custom_logo),
+        )
         // Items (Folders & Requests)
         .route("/api/collections/:id/folders", post(item::create_folder))
         .route("/api/collections/:id/requests", post(item::create_request))

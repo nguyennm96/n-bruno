@@ -63,6 +63,9 @@ utoipa-swagger-ui = { version = "6", features = ["axum"] }
 # Import/Export helpers (Phase 10)
 url = "2"
 
+# Base64 encoding
+base64 = "0.21"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 axum-test = "15"

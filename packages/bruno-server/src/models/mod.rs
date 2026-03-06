@@ -6,3 +6,4 @@ pub mod item;
 pub mod environment;
 pub mod example;
 pub mod formats;
+pub mod public_docs;

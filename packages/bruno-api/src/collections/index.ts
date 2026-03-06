@@ -268,6 +268,78 @@ export class CollectionService {
     return response.data.data;
   }
 
+  // ── Public Documentation ──────────────────────────────────────────────────
+
+  /**
+   * Publish collection documentation
+   */
+  async publishDocs(
+    collectionId: string,
+    data: {
+      visibility: any;
+      settings?: any;
+    }
+  ): Promise<{
+    slug: string;
+    public_url: string;
+    published_at: string;
+  }> {
+    const response = await this.client.getClient().post<ApiResponse<{
+      slug: string;
+      public_url: string;
+      published_at: string;
+    }>>(
+      `/api/collections/${collectionId}/docs/publish`,
+      data
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Update documentation settings/visibility
+   */
+  async updateDocs(
+    collectionId: string,
+    data: {
+      visibility?: any;
+      settings?: any;
+    }
+  ): Promise<void> {
+    await this.client.getClient().patch(
+      `/api/collections/${collectionId}/docs`,
+      data
+    );
+  }
+
+  /**
+   * Unpublish documentation
+   */
+  async unpublishDocs(collectionId: string): Promise<void> {
+    await this.client.getClient().delete(
+      `/api/collections/${collectionId}/docs/unpublish`
+    );
+  }
+
+  /**
+   * Get documentation status
+   */
+  async getDocsStatus(collectionId: string): Promise<{
+    enabled: boolean;
+    slug?: string;
+    public_url?: string;
+    analytics?: any;
+  }> {
+    const response = await this.client.getClient().get<ApiResponse<{
+      enabled: boolean;
+      slug?: string;
+      public_url?: string;
+      analytics?: any;
+    }>>(
+      `/api/collections/${collectionId}/docs/status`
+    );
+    return response.data.data;
+  }
+
   // ── Stub Methods (Not Yet Implemented in Backend) ─────────────────────────
 
   /**

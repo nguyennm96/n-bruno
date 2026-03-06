@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 use crate::models::item::generate_uid;
+use crate::models::public_docs::PublicDocs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Collection {
@@ -23,6 +24,9 @@ pub struct Collection {
     pub updated_at: DateTime<Utc>,
     #[serde(rename = "deletedAt", skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<DateTime<Utc>>,
+    /// Public documentation settings (if published)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_docs: Option<PublicDocs>,
 }
 
 impl Collection {
@@ -39,6 +43,7 @@ impl Collection {
             created_at: now,
             updated_at: now,
             deleted_at: None,
+            public_docs: None,
         }
     }
 }
@@ -56,6 +61,8 @@ pub struct CollectionResponse {
     pub root: Option<JsonValue>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_docs: Option<PublicDocs>,
 }
 
 impl From<Collection> for CollectionResponse {
@@ -69,6 +76,7 @@ impl From<Collection> for CollectionResponse {
             root: c.root,
             created_at: c.created_at,
             updated_at: c.updated_at,
+            public_docs: c.public_docs,
         }
     }
 }

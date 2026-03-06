@@ -97,6 +97,7 @@ impl CollectionService {
             root: root.or(col.root),
             created_at: col.created_at,
             updated_at: now,
+            public_docs: col.public_docs,
         };
         self.ws_manager.broadcast(
             &resp.workspace_uid,

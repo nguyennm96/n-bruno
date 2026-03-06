@@ -23,6 +23,7 @@ use services::{
         postman::PostmanService,
     },
     item::ItemService,
+    public_docs::PublicDocsService,
     sync::SyncService,
     workspace::WorkspaceService,
 };
@@ -49,6 +50,7 @@ pub async fn build_app(
         postman_service: PostmanService::new(&db, workspace_service.clone()),
         openapi_service: OpenApiService::new(&db, workspace_service.clone()),
         insomnia_service: InsomniaService::new(&db, workspace_service.clone()),
+        public_docs_service: PublicDocsService::new(&db, workspace_service.clone(), cfg.clone()),
         workspace_service,
         ws_manager,
         config: cfg,

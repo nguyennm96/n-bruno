@@ -7,3 +7,4 @@ pub mod example;
 pub mod health;
 pub mod import_export;
 pub mod sync;
+pub mod public_docs;

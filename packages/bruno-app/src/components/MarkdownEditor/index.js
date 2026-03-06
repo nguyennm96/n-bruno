@@ -1,12 +1,165 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
+import { useEditor, EditorContent, ReactNodeViewRenderer } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import { Markdown } from 'tiptap-markdown';
+import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table';
+import { columnResizing, tableEditing, TableMap } from '@tiptap/pm/tables';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import Placeholder from '@tiptap/extension-placeholder';
+import { createLowlight, common } from 'lowlight';
 import { useTheme } from 'providers/Theme';
-import { markdownToHtml, htmlToMarkdown } from './serializer';
 import Toolbar from './Toolbar';
-import CodeBlockPanel, { hljs, CAN_FORMAT, formatCodeByLanguage, getCodeLanguage, highlightCodeElement } from './CodeBlockPanel';
-import StyledWrapper, { CodeBlockPanelGlobalStyle } from './StyledWrapper';
+import CodeBlockView from './CodeBlockView';
+import StyledWrapper, { LangDropdownGlobalStyle, MethodBadgeGlobalStyle, TableControlsGlobalStyle } from './StyledWrapper';
+import TableControls from './TableControls';
+
+const lowlight = createLowlight(common);
 
 /**
- * Custom WYSIWYG editor — Postman-style click-to-edit.
+ * ProseMirror plugin for initial table column width distribution.
+ * Only fires when a table has auto-sized columns (newly inserted or after add/delete column).
+ * Distributes them equally to fill the editor width.
+ * Does NOT scale down tables that overflow — those scroll instead.
+ */
+function clampTableResizePlugin() {
+  let viewRef = null;
+  return new Plugin({
+    key: new PluginKey('clampTableResize'),
+    view(editorView) {
+      viewRef = editorView;
+      return { destroy() { viewRef = null; } };
+    },
+    appendTransaction(transactions, oldState, newState) {
+      if (!viewRef || oldState.doc === newState.doc) return null;
+      const maxWidth = viewRef.dom.clientWidth;
+      const { nodes } = newState.schema;
+      let resultTr = null;
+
+      newState.doc.descendants((node, tablePos) => {
+        if (node.type !== nodes.table) return;
+
+        // Collect per-column widths from the first row (0 = auto)
+        const colWidths = [];
+        let measured = false;
+        node.descendants((child) => {
+          if (measured) return false;
+          if (child.type === nodes.tableRow) {
+            child.forEach((cell) => {
+              const cw = cell.attrs.colwidth;
+              colWidths.push(cw && cw[0] > 0 ? cw[0] : 0);
+            });
+            measured = true;
+            return false;
+          }
+        });
+
+        if (!measured || !colWidths.length) return false;
+
+        // Only act when there are auto-sized columns (new table or add/delete column)
+        const hasAuto = colWidths.some((w) => w === 0);
+        if (!hasAuto) return false;
+
+        const totalCols = colWidths.length;
+        const base = Math.floor(maxWidth / totalCols);
+        const targetWidths = Array(totalCols).fill(base);
+        // Last column absorbs rounding remainder
+        targetWidths[totalCols - 1] = Math.max(80, maxWidth - base * (totalCols - 1));
+
+        const map = TableMap.get(node);
+        if (!resultTr) resultTr = newState.tr;
+
+        for (let row = 0; row < map.height; row++) {
+          for (let col = 0; col < map.width; col++) {
+            const cellOffset = map.map[row * map.width + col];
+            if (col > 0 && cellOffset === map.map[row * map.width + col - 1]) continue;
+            if (row > 0 && cellOffset === map.map[(row - 1) * map.width + col]) continue;
+
+            const cell = node.nodeAt(cellOffset);
+            if (!cell) continue;
+
+            const colspan = cell.attrs.colspan || 1;
+            const newCw = Array.from({ length: colspan }, (_, i) =>
+              Math.max(80, targetWidths[col + i] ?? targetWidths[col])
+            );
+            const cw = cell.attrs.colwidth;
+            if (cw && cw.length === newCw.length && cw.every((v, i) => v === newCw[i])) continue;
+
+            resultTr.setNodeMarkup(tablePos + 1 + cellOffset, undefined, {
+              ...cell.attrs,
+              colwidth: newCw
+            });
+          }
+        }
+
+        return false;
+      });
+
+      return resultTr?.docChanged ? resultTr : null;
+    }
+  });
+}
+
+// Table extension with:
+//  - column resizing always enabled (not gated on editor.isEditable at init time)
+//  - insertTable override to create with equal widths filling the editor
+const ResizableTable = Table.extend({
+  addCommands() {
+    return {
+      ...this.parent?.(),
+      insertTable: ({ rows = 3, cols = 3, withHeaderRow = true } = {}) =>
+        ({ tr, dispatch, editor }) => {
+          const editorWidth = editor.view.dom.clientWidth;
+          const colWidth = Math.floor(editorWidth / cols);
+          const { schema } = editor;
+          const { tableCell, tableHeader, tableRow, table } = schema.nodes;
+
+          // Last column absorbs rounding remainder so total = editorWidth exactly
+          const lastColWidth = editorWidth - colWidth * (cols - 1);
+          const makeCell = (isHeader, colIdx) => {
+            const CellType = isHeader ? tableHeader : tableCell;
+            const w = colIdx === cols - 1 ? lastColWidth : colWidth;
+            return CellType.createAndFill({ colwidth: [w] });
+          };
+          const makeRow = (isHeader) =>
+            tableRow.create(null, Array.from({ length: cols }, (_, i) => makeCell(isHeader, i)));
+
+          const rowNodes = [];
+          if (withHeaderRow) rowNodes.push(makeRow(true));
+          for (let r = withHeaderRow ? 1 : 0; r < rows; r++) rowNodes.push(makeRow(false));
+
+          const tableNode = table.create(null, rowNodes);
+          if (dispatch) {
+            const offset = tr.selection.from + 1;
+            tr.replaceSelectionWith(tableNode).scrollIntoView();
+            tr.setSelection(TextSelection.near(tr.doc.resolve(offset)));
+          }
+          return true;
+        }
+    };
+  },
+  addProseMirrorPlugins() {
+    return [
+      columnResizing({
+        handleWidth: this.options.handleWidth,
+        cellMinWidth: this.options.cellMinWidth,
+        defaultCellMinWidth: this.options.cellMinWidth,
+        lastColumnResizable: this.options.lastColumnResizable
+      }),
+      tableEditing({
+        allowTableNodeSelection: this.options.allowTableNodeSelection
+      }),
+      clampTableResizePlugin()
+    ];
+  }
+});
+
+/**
+ * WYSIWYG Markdown editor powered by Tiptap + ProseMirror.
  *
  * Props:
  *   value       {string}   markdown string (controlled)
@@ -17,7 +170,6 @@ import StyledWrapper, { CodeBlockPanelGlobalStyle } from './StyledWrapper';
  */
 const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) => {
   const { displayedTheme } = useTheme();
-  const editorRef = useRef(null);
   const containerRef = useRef(null);
   const onEditRef = useRef(onEdit);
   const onSaveRef = useRef(onSave);
@@ -25,45 +177,206 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
   onSaveRef.current = onSave;
 
   const [isEditing, setIsEditing] = useState(false);
-  const [savedRange, setSavedRange] = useState(null);
-  const [isEmpty, setIsEmpty] = useState(!value?.trim());
-  const [activeCodeBlock, setActiveCodeBlock] = useState(null);
+  const [isSourceMode, setIsSourceMode] = useState(false);
+  const [sourceValue, setSourceValue] = useState('');
+  const [editorHeight, setEditorHeight] = useState(height);
+  const [stats, setStats] = useState({ words: 0, chars: 0 });
 
-  // ── Load/sync content from outside ──────────────────────────────────────────
-  useEffect(() => {
-    if (!editorRef.current || isEditing) return;
-    const html = markdownToHtml(value);
-    editorRef.current.innerHTML = html;
-    setIsEmpty(!value?.trim());
-  }, [value]);
+  // Sync height prop
+  useEffect(() => { setEditorHeight(height); }, [height]);
 
-  // ── Enter / exit edit mode ───────────────────────────────────────────────────
-  const enterEdit = useCallback(() => {
-    if (isEditing) return;
-    setIsEditing(true);
-    requestAnimationFrame(() => {
-      if (editorRef.current) {
-        editorRef.current.focus();
+  // ── Tiptap editor setup ────────────────────────────────────────────────────
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        // Disable built-in code block — we use CodeBlockLowlight instead
+        codeBlock: false,
+        // Use built-in history
+        history: true
+      }),
+      CodeBlockLowlight.extend({
+        addNodeView() {
+          return ReactNodeViewRenderer(CodeBlockView);
+        },
+        addKeyboardShortcuts() {
+          // Tab width by language convention; default 2
+          const TAB_WIDTH = {
+            'python': 4, 'py': 4,
+            'java': 4, 'kotlin': 4, 'scala': 4,
+            'c': 4, 'cpp': 4, 'c++': 4, 'cs': 4, 'csharp': 4,
+            'rust': 4, 'rs': 4,
+            'go': 4,
+            'php': 4,
+            'swift': 4,
+            'ruby': 2, 'rb': 2
+          };
+
+          const getIndent = (lang) => ' '.repeat(TAB_WIDTH[lang?.toLowerCase()] ?? 2);
+
+          const inCodeBlock = () => {
+            const { $from } = this.editor.state.selection;
+            for (let d = $from.depth; d > 0; d--) {
+              if ($from.node(d).type.name === 'codeBlock') return { depth: d, $from };
+            }
+            return null;
+          };
+
+          return {
+            // Cmd/Ctrl+A → select only code block content
+            'Mod-a': () => {
+              const loc = inCodeBlock();
+              if (!loc) return false;
+              const { depth, $from } = loc;
+              this.editor.chain().setTextSelection({
+                from: $from.start(depth),
+                to: $from.end(depth)
+              }).run();
+              return true;
+            },
+
+            // Tab → insert language-aware spaces
+            'Tab': () => {
+              const loc = inCodeBlock();
+              if (!loc) return false;
+              const lang = loc.$from.node(loc.depth).attrs.language;
+              const { state, view } = this.editor;
+              view.dispatch(state.tr.insertText(getIndent(lang)));
+              return true;
+            },
+
+            // Shift+Tab → remove one indent level from line start
+            'Shift-Tab': () => {
+              const loc = inCodeBlock();
+              if (!loc) return false;
+              const lang = loc.$from.node(loc.depth).attrs.language;
+              const indent = getIndent(lang);
+              const { state, view } = this.editor;
+              const { $from } = state.selection;
+              const blockStart = $from.start(loc.depth);
+              const textBeforeCursor = $from.node(loc.depth).textContent.slice(0, $from.pos - blockStart);
+              const lineStart = blockStart + textBeforeCursor.lastIndexOf('\n') + 1;
+              const lineText = state.doc.textBetween(lineStart, $from.end(loc.depth));
+              if (lineText.startsWith(indent)) {
+                view.dispatch(state.tr.delete(lineStart, lineStart + indent.length));
+              } else {
+                const spaces = lineText.match(/^( +)/)?.[1];
+                if (spaces) view.dispatch(state.tr.delete(lineStart, lineStart + spaces.length));
+              }
+              return true;
+            },
+
+            // Enter → newline + preserve current line indentation
+            'Enter': () => {
+              const loc = inCodeBlock();
+              if (!loc) return false;
+              const { state, view } = this.editor;
+              const { $from, empty } = state.selection;
+              if (!empty) return false;
+              const blockStart = $from.start(loc.depth);
+              const textBeforeCursor = $from.node(loc.depth).textContent.slice(0, $from.pos - blockStart);
+              const currentLine = textBeforeCursor.slice(textBeforeCursor.lastIndexOf('\n') + 1);
+              const indent = currentLine.match(/^(\s*)/)[1];
+              view.dispatch(state.tr.insertText('\n' + indent));
+              return true;
+            }
+          };
+        }
+      }).configure({ lowlight }),
+      Markdown.configure({
+        html: true,
+        tightLists: true,
+        tightListClass: 'tight',
+        bulletListMarker: '-',
+        linkify: false,
+        breaks: false,
+        transformPastedText: true,
+        transformCopiedText: false
+      }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' }
+      }),
+      Image.configure({ inline: false, allowBase64: true }),
+      ResizableTable.configure({
+        resizable: true,
+        cellMinWidth: 80 // 24px padding + 56px minimum readable content
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Placeholder.configure({
+        placeholder: placeholder || 'Click to add documentation…'
+      })
+    ],
+    content: value ? { type: 'doc', content: [] } : '',
+    editable: false,
+    onUpdate: ({ editor: e }) => {
+      if (!isEditing) return;
+      const markdown = e.storage.markdown.getMarkdown();
+      onEditRef.current?.(markdown);
+      const text = e.getText().trim();
+      const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+      setStats({ words, chars: text.length });
+    },
+    onCreate: ({ editor: e }) => {
+      if (value) {
+        e.commands.setContent(value);
       }
-    });
-  }, [isEditing]);
+    }
+  });
+
+  // ── Load external value changes (when not editing) ──────────────────────────
+  useEffect(() => {
+    if (!editor || isEditing) return;
+    const current = editor.storage.markdown.getMarkdown();
+    if (current !== value) {
+      editor.commands.setContent(value || '');
+    }
+  }, [value, editor, isEditing]);
+
+  // ── Stats in view mode ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isEditing && !isSourceMode) {
+      const text = (value || '').replace(/[#*_~`[\]()>!|-]/g, '').trim();
+      const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+      setStats({ words, chars: (value || '').length });
+    }
+  }, [value, isEditing, isSourceMode]);
+
+  // ── Enter / exit edit mode ─────────────────────────────────────────────────
+  const enterEdit = useCallback(() => {
+    if (isEditing || !editor) return;
+    setIsEditing(true);
+    editor.setEditable(true);
+    requestAnimationFrame(() => editor.commands.focus('end'));
+  }, [isEditing, editor]);
 
   const exitEdit = useCallback(() => {
-    if (!isEditing) return;
+    if (!isEditing || !editor) return;
     setIsEditing(false);
-    setActiveCodeBlock(null);
-    if (editorRef.current) {
-      const markdown = htmlToMarkdown(editorRef.current.innerHTML);
+    setIsSourceMode(false);
+    editor.setEditable(false);
+    if (isSourceMode) {
+      editor.commands.setContent(sourceValue || '');
+      onEditRef.current?.(sourceValue);
+    } else {
+      const markdown = editor.storage.markdown.getMarkdown();
       onEditRef.current?.(markdown);
     }
-  }, [isEditing]);
+  }, [isEditing, editor, isSourceMode, sourceValue]);
 
-  // ── Click outside → exit ─────────────────────────────────────────────────────
+  // ── Click outside → exit ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isEditing) return;
     const handler = (e) => {
-      // Ignore clicks inside the code block panel (portal renders to document.body)
-      if (e.target.closest?.('.code-block-panel')) return;
+      // Ignore clicks inside portal-rendered dropdowns (they live in document.body)
+      if (e.target.closest?.('.cbv-portal-dropdown')) return;
+      if (e.target.closest?.('.toolbar-dropdown-menu')) return;
+      if (e.target.closest?.('.toolbar-popover')) return;
+      if (e.target.closest?.('.tc-portal')) return;
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         exitEdit();
       }
@@ -72,239 +385,124 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
     return () => document.removeEventListener('mousedown', handler);
   }, [isEditing, exitEdit]);
 
-  // ── Track selection so Toolbar can restore it + detect active code block ────
-  const trackSelection = useCallback(() => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      setSavedRange(sel.getRangeAt(0).cloneRange());
-
-      // Detect if cursor is inside a <pre> code block
-      let node = sel.getRangeAt(0).startContainer;
-      if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
-      let pre = null;
-      let cur = node;
-      while (cur && cur !== editorRef.current) {
-        if (cur.nodeName === 'PRE') {
-          pre = cur; break;
-        }
-        cur = cur.parentNode;
-      }
-      setActiveCodeBlock(pre);
-    }
-  }, []);
-
-  // ── Apply hljs syntax highlighting in preview mode ──────────────────────────
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
-    if (isEditing || !editorRef.current) return;
-    editorRef.current.querySelectorAll('pre code').forEach((block) => {
-      // Reset any prior highlighting before re-highlighting
-      block.removeAttribute('data-highlighted');
-      hljs.highlightElement(block);
-    });
-  }, [isEditing, value]);
+    if (!isEditing) return;
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        onSaveRef.current?.();
+        return;
+      }
+      if (e.key === 'Escape') exitEdit();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isEditing, exitEdit]);
 
-  // ── Input handler — emit markdown on each keystroke ──────────────────────────
-  const handleInput = useCallback(() => {
-    if (!editorRef.current) return;
-    const text = editorRef.current.textContent?.trim() || '';
-    setIsEmpty(!text);
-    const markdown = htmlToMarkdown(editorRef.current.innerHTML);
-    onEditRef.current?.(markdown);
+  const handleSourceToggle = useCallback(() => {
+    if (!editor) return;
+    if (!isSourceMode) {
+      const markdown = editor.storage.markdown.getMarkdown();
+      setSourceValue(markdown);
+      editor.setEditable(false);
+    } else {
+      editor.commands.setContent(sourceValue || '');
+      editor.setEditable(true);
+      onEditRef.current?.(sourceValue);
+      requestAnimationFrame(() => editor.commands.focus());
+    }
+    setIsSourceMode((v) => !v);
+  }, [editor, isSourceMode, sourceValue]);
+
+  // ── Source textarea change ────────────────────────────────────────────────
+  const handleSourceChange = useCallback((e) => {
+    const md = e.target.value;
+    setSourceValue(md);
+    onEditRef.current?.(md);
+    const text = md.trim();
+    setStats({ words: text ? text.split(/\s+/).filter(Boolean).length : 0, chars: text.length });
   }, []);
 
-  const autoFormatCodeBlock = useCallback((preEl) => {
-    if (!preEl) return;
-    const codeEl = preEl.querySelector('code') || preEl;
-    const lang = getCodeLanguage(codeEl);
-    if (!CAN_FORMAT.has(lang)) return;
-    try {
-      const formatted = formatCodeByLanguage(codeEl.textContent || '', lang);
-      codeEl.textContent = formatted;
-      highlightCodeElement(codeEl);
-      handleInput();
-      requestAnimationFrame(() => {
-        trackSelection();
-      });
-    } catch {
-      // keep typing smooth when formatter can't parse intermediate code
-    }
-  }, [handleInput, trackSelection]);
+  // ── Drag resize ───────────────────────────────────────────────────────────
+  const handleResizeMouseDown = useCallback((e) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = editorHeight;
+    const onMove = (ev) => setEditorHeight(Math.max(80, startH + ev.clientY - startY));
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [editorHeight]);
 
-  // ── Keyboard shortcuts ────────────────────────────────────────────────────────
-  const handleKeyDown = useCallback((e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      onSaveRef.current?.();
-      return;
-    }
-    if (e.key === 'Escape') {
-      exitEdit();
-      return;
-    }
-
-    // Cmd/Ctrl+A inside blockquote or pre → select only that block's content
-    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0) {
-        let node = sel.getRangeAt(0).startContainer;
-        if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
-        let container = null;
-        let cur = node;
-        while (cur && cur !== editorRef.current) {
-          if (cur.nodeName === 'BLOCKQUOTE' || cur.nodeName === 'PRE') {
-            container = cur;
-            break;
-          }
-          cur = cur.parentNode;
-        }
-        if (container) {
-          e.preventDefault();
-          const range = document.createRange();
-          range.selectNodeContents(container);
-          sel.removeAllRanges();
-          sel.addRange(range);
-          return;
-        }
-      }
-    }
-
-    // Tab inside code block: insert indentation + auto format
-    if (e.key === 'Tab') {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      const startNode = sel.getRangeAt(0).startContainer;
-      const el = startNode.nodeType === Node.TEXT_NODE ? startNode.parentNode : startNode;
-      let pre = null;
-      let cur = el;
-      while (cur && cur !== editorRef.current) {
-        if (cur.nodeName === 'PRE') {
-          pre = cur; break;
-        }
-        cur = cur.parentNode;
-      }
-      if (pre) {
-        e.preventDefault();
-        document.execCommand('insertText', false, '  ');
-        requestAnimationFrame(() => autoFormatCodeBlock(pre));
-        return;
-      }
-    }
-
-    // Handle Enter key
-    if (e.key === 'Enter') {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      const startNode = sel.getRangeAt(0).startContainer;
-      const el = startNode.nodeType === Node.TEXT_NODE ? startNode.parentNode : startNode;
-
-      // Find nearest special block ancestor (BLOCKQUOTE or PRE)
-      let specialBlock = null;
-      let cur = el;
-      while (cur && cur !== editorRef.current) {
-        if (cur.nodeName === 'BLOCKQUOTE' || cur.nodeName === 'PRE') {
-          specialBlock = cur;
-          break;
-        }
-        cur = cur.parentNode;
-      }
-
-      if (specialBlock) {
-        // Cmd/Ctrl+Enter → exit the block, insert paragraph after
-        if (e.metaKey || e.ctrlKey) {
-          e.preventDefault();
-          const p = document.createElement('p');
-          p.innerHTML = '<br>';
-          if (specialBlock.nextSibling) {
-            specialBlock.parentNode.insertBefore(p, specialBlock.nextSibling);
-          } else {
-            specialBlock.parentNode.appendChild(p);
-          }
-          const range = document.createRange();
-          range.setStart(p, 0);
-          range.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(range);
-          handleInput();
-          return;
-        }
-        // Enter or Shift+Enter → stay inside, add line break
-        e.preventDefault();
-        document.execCommand('insertLineBreak');
-        handleInput();
-        if (specialBlock.nodeName === 'PRE') {
-          requestAnimationFrame(() => autoFormatCodeBlock(specialBlock));
-        }
-        return;
-      }
-
-      // Enter in a heading (not Shift+Enter) → next line is a paragraph
-      if (!e.shiftKey) {
-        let headingNode = el;
-        while (headingNode && headingNode !== editorRef.current) {
-          if (/^H[1-6]$/.test(headingNode.nodeName)) break;
-          headingNode = headingNode.parentNode;
-        }
-        if (headingNode && /^H[1-6]$/.test(headingNode.nodeName)) {
-          requestAnimationFrame(() => {
-            document.execCommand('formatBlock', false, 'p');
-            handleInput();
-          });
-        }
-      }
-    }
-  }, [autoFormatCodeBlock, exitEdit, handleInput]);
+  const isEmpty = !value?.trim();
+  const colorMode = displayedTheme === 'dark' ? 'dark' : 'light';
 
   return (
-    <StyledWrapper
-      ref={containerRef}
-      data-editing={isEditing}
-      data-color-mode={displayedTheme === 'dark' ? 'dark' : 'light'}
-    >
-      <CodeBlockPanelGlobalStyle />
-      {/* Toolbar — only visible while editing */}
-      {isEditing && (
-        <Toolbar
-          editorRef={editorRef}
-          savedRange={savedRange}
-          onContentChange={handleInput}
-        />
-      )}
-
-      {/* Code block panel — shown when cursor is in a <pre> */}
-      {isEditing && activeCodeBlock && (
-        <CodeBlockPanel
-          preEl={activeCodeBlock}
-          onUpdate={handleInput}
-          onSelectionSync={trackSelection}
-          colorMode={displayedTheme === 'dark' ? 'dark' : 'light'}
-        />
-      )}
-
-      {/* Editing surface */}
-      <div
-        className="editor-area"
-        style={{ minHeight: height }}
-        onClick={!isEditing ? enterEdit : undefined}
+    <>
+      <LangDropdownGlobalStyle />
+      <TableControlsGlobalStyle />
+      <MethodBadgeGlobalStyle />
+      {editor && isEditing && <TableControls editor={editor} />}
+      <StyledWrapper
+        ref={containerRef}
+        data-editing={isEditing}
+        data-color-mode={colorMode}
       >
-        {/* Placeholder — shown when empty and not editing */}
-        {isEmpty && !isEditing && (
-          <div className="editor-placeholder">
-            {placeholder || 'Click to add documentation…'}
+        <Toolbar
+          editor={isSourceMode ? null : editor}
+          isSourceMode={isSourceMode}
+          onSourceToggle={handleSourceToggle}
+          isDisabled={!isEditing}
+        />
+
+        {/* Editing surface */}
+        <div
+          className="editor-area"
+          style={{ minHeight: editorHeight }}
+          onClick={!isEditing ? enterEdit : undefined}
+        >
+          {/* Placeholder shown in view mode when empty */}
+          {isEmpty && !isEditing && (
+            <div className="editor-placeholder">
+              {placeholder || 'Click to add documentation…'}
+            </div>
+          )}
+
+          {/* Tiptap editor — hidden in source mode */}
+          <div style={{ display: isSourceMode ? 'none' : undefined }}>
+            <EditorContent editor={editor} className="editor-content" />
           </div>
+
+          {/* Source mode textarea */}
+          {isSourceMode && (
+            <div className="source-editor-wrapper">
+              <textarea
+                className="source-editor"
+                value={sourceValue}
+                onChange={handleSourceChange}
+                autoFocus
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Resize handle */}
+        {isEditing && (
+          <div className="editor-resize-handle" onMouseDown={handleResizeMouseDown} />
         )}
 
-        <div
-          ref={editorRef}
-          contentEditable={isEditing}
-          suppressContentEditableWarning
-          className={`editor-content${isEditing ? ' is-editing' : ''}`}
-          onInput={handleInput}
-          onKeyDown={handleKeyDown}
-          onMouseUp={trackSelection}
-          onKeyUp={trackSelection}
-        />
-      </div>
-    </StyledWrapper>
+        {/* Status bar */}
+        {isEditing && (
+          <div className="editor-status-bar">
+            {stats.words} word{stats.words !== 1 ? 's' : ''} · {stats.chars} char{stats.chars !== 1 ? 's' : ''}
+          </div>
+        )}
+      </StyledWrapper>
+    </>
   );
 };
 

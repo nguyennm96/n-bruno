@@ -6,3 +6,4 @@ pub mod environment;
 pub mod example;
 pub mod sync;
 pub mod import_export;
+pub mod public_docs;

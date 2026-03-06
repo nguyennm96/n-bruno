@@ -11,6 +11,7 @@ pub struct Config {
     pub jwt_access_expires_minutes: i64,
     pub jwt_refresh_expires_days: i64,
     pub cors_allowed_origins: Vec<String>,
+    pub public_docs_base_url: String,
 }
 
 impl Config {
@@ -43,6 +44,8 @@ impl Config {
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect(),
+            public_docs_base_url: env::var("PUBLIC_DOCS_BASE_URL")
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
         })
     }
 
@@ -59,6 +62,7 @@ impl Config {
             jwt_access_expires_minutes: 15,
             jwt_refresh_expires_days: 30,
             cors_allowed_origins: vec!["http://localhost:3000".to_string()],
+            public_docs_base_url: "http://localhost:3000".to_string(),
         }
     }
 

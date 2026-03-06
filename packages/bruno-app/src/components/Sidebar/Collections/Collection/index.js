@@ -43,6 +43,7 @@ import CloneCollection from './CloneCollection';
 import { scrollToTheActiveTab } from 'utils/tabs';
 import ShareCollection from 'components/ShareCollection/index';
 import GenerateDocumentation from './GenerateDocumentation';
+import PublishDocumentation from './PublishDocumentation';
 import { CollectionItemDragPreview } from './CollectionItem/CollectionItemDragPreview/index';
 import { sortByNameThenSequence } from 'utils/common/index';
 import { getRevealInFolderLabel } from 'utils/common/platform';
@@ -62,6 +63,7 @@ const Collection = ({ collection, searchText }) => {
   const [showCloneCollectionModalOpen, setShowCloneCollectionModalOpen] = useState(false);
   const [showShareCollectionModal, setShowShareCollectionModal] = useState(false);
   const [showGenerateDocumentationModal, setShowGenerateDocumentationModal] = useState(false);
+  const [showPublishDocumentationModal, setShowPublishDocumentationModal] = useState(false);
   const [showRemoveCollectionModal, setShowRemoveCollectionModal] = useState(false);
   const [dropType, setDropType] = useState(null);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
@@ -356,6 +358,19 @@ const Collection = ({ collection, searchText }) => {
         setShowGenerateDocumentationModal(true);
       }
     },
+    ...(isAuthenticated
+      ? [
+          {
+            id: 'publish-docs',
+            leftSection: IconCloud,
+            label: 'Publish Docs',
+            onClick: () => {
+              ensureCollectionIsMounted();
+              setShowPublishDocumentationModal(true);
+            }
+          }
+        ]
+      : []),
     {
       id: 'collapse',
       leftSection: IconFoldDown,
@@ -407,6 +422,13 @@ const Collection = ({ collection, searchText }) => {
       {showGenerateDocumentationModal && (
         <GenerateDocumentation collectionUid={collection.uid} onClose={() => setShowGenerateDocumentationModal(false)} />
       )}
+      {showPublishDocumentationModal && (
+        <PublishDocumentation
+          collectionUid={collection.uid}
+          collection={collection}
+          onClose={() => setShowPublishDocumentationModal(false)}
+        />
+      )}
       {showCloneCollectionModalOpen && (
         <CloneCollection collectionUid={collection.uid} onClose={() => setShowCloneCollectionModalOpen(false)} />
       )}
@@ -439,8 +461,30 @@ const Collection = ({ collection, searchText }) => {
               onDoubleClick={handleCollectionDoubleClick}
             />
           </ActionIcon>
-          <div className="ml-1 w-full" id="sidebar-collection-name" title={collection.name}>
-            {collection.name}
+          <div className="ml-1 w-full flex items-center gap-2">
+            <span id="sidebar-collection-name" title={collection.name}>
+              {collection.name}
+            </span>
+            {collection.publicDocs?.enabled && (
+              <span
+                className="published-badge"
+                title={`Published: ${collection.publicDocs.publicUrl || ''}`}
+                style={{
+                  fontSize: '10px',
+                  padding: '2px 6px',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  borderRadius: '3px',
+                  fontWeight: '500',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px'
+                }}
+              >
+                <IconCloud size={10} />
+                Published
+              </span>
+            )}
           </div>
           {isLoading ? <IconLoader2 className="animate-spin mx-1" size={18} strokeWidth={1.5} /> : null}
         </div>

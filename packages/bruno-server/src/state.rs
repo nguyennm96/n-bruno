@@ -11,6 +11,7 @@ use crate::{
             postman::PostmanService,
         },
         item::ItemService,
+        public_docs::PublicDocsService,
         sync::SyncService,
         workspace::WorkspaceService,
     },
@@ -32,4 +33,6 @@ pub struct AppState {
     pub postman_service: PostmanService,
     pub openapi_service: OpenApiService,
     pub insomnia_service: InsomniaService,
+    // Public Documentation
+    pub public_docs_service: PublicDocsService,
 }

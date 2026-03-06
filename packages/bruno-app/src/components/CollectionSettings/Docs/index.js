@@ -1,10 +1,8 @@
-import 'github-markdown-css/github-markdown.css';
 import get from 'lodash/get';
 import { updateCollectionDocs } from 'providers/ReduxStore/slices/collections';
 import { useDispatch } from 'react-redux';
 import { saveCollectionSettings } from 'providers/ReduxStore/slices/collections/actions';
 import MarkdownEditor from 'components/MarkdownEditor';
-import StyledWrapper from './StyledWrapper';
 import { IconFileText } from '@tabler/icons';
 import Button from 'ui/Button/index';
 
@@ -37,7 +35,7 @@ const Docs = ({ collection }) => {
   };
 
   return (
-    <StyledWrapper className="h-full w-full relative flex flex-col">
+    <div className="h-full w-full relative flex flex-col">
       <div className="flex flex-row w-full justify-between items-center mb-4">
         <div className="text-lg font-medium flex items-center gap-2">
           <IconFileText size={20} strokeWidth={1.5} />
@@ -56,7 +54,7 @@ const Docs = ({ collection }) => {
           placeholder={documentationPlaceholder}
         />
       </div>
-    </StyledWrapper>
+    </div>
   );
 };
 

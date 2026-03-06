@@ -1,16 +1,9 @@
-import 'github-markdown-css/github-markdown.css';
 import get from 'lodash/get';
 import { updateRequestDocs } from 'providers/ReduxStore/slices/collections';
 import { useDispatch } from 'react-redux';
 import { saveRequest } from 'providers/ReduxStore/slices/collections/actions';
 import MarkdownEditor from 'components/MarkdownEditor';
 import StyledWrapper from './StyledWrapper';
-
-// Method badge colors via inline class (matches sidebar RequestMethod)
-const getMethodClass = (method = '') => {
-  const m = method.toLowerCase();
-  return `method-${m}`;
-};
 
 const ParamsTable = ({ title, rows }) => {
   if (!rows || rows.length === 0) return null;
@@ -41,8 +34,12 @@ const ParamsTable = ({ title, rows }) => {
 
 const Documentation = ({ item, collection }) => {
   const dispatch = useDispatch();
-  const request = item.draft ? get(item, 'draft.request') : get(item, 'request');
+
+  // Guard after hooks so React hook call order is always stable
+  if (!item) return null;
+
   const docs = item.draft ? get(item, 'draft.request.docs') : get(item, 'request.docs');
+  const request = item.draft ? get(item, 'draft.request') : get(item, 'request');
 
   const onEdit = (value) => {
     dispatch(updateRequestDocs({ itemUid: item.uid, collectionUid: collection.uid, docs: value }));
@@ -50,27 +47,12 @@ const Documentation = ({ item, collection }) => {
 
   const onSave = () => dispatch(saveRequest(item.uid, collection.uid));
 
-  if (!item) return null;
-
-  const method = request?.method || 'GET';
-  const url = request?.url || '';
   const queryParams = (request?.params || []).filter((p) => p.type === 'query' && p.name);
   const pathParams = (request?.params || []).filter((p) => p.type === 'path' && p.name);
   const headers = (request?.headers || []).filter((h) => h.name);
-  const isGrpc = item.type === 'grpc-request';
-  const isWS = item.type === 'ws-request';
-  const isGraphQL = item.type === 'graphql-request';
-  const methodLabel = isGrpc ? 'GRPC' : isWS ? 'WS' : isGraphQL ? 'GQL' : method;
-  const methodClass = isGrpc ? 'method-grpc' : isWS ? 'method-ws' : isGraphQL ? 'method-graphql' : getMethodClass(method);
 
   return (
     <StyledWrapper className="doc-root">
-      {/* Request header */}
-      <div className="doc-request-header">
-        <span className={`doc-method ${methodClass}`}>{methodLabel}</span>
-        <span className="doc-url">{url || <em className="doc-url-empty">No URL set</em>}</span>
-      </div>
-
       {/* Docs editor */}
       <div className="doc-editor-section">
         <MarkdownEditor
