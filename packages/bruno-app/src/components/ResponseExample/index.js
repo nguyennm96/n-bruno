@@ -2,12 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { updateRequestPaneTabWidth } from 'providers/ReduxStore/slices/tabs';
 import { saveRequest } from 'providers/ReduxStore/slices/collections/actions';
-import { cancelResponseExampleEdit } from 'providers/ReduxStore/slices/collections';
+import {
+  cancelResponseExampleEdit,
+  cloneResponseExample,
+  updateResponseExampleRequest
+} from 'providers/ReduxStore/slices/collections';
+import { insertTaskIntoQueue } from 'providers/ReduxStore/slices/app';
 import ResponseExampleTopBar from './ResponseExampleTopBar';
 import ResponseExampleRequestPane from './ResponseExampleRequestPane';
 import ResponseExampleResponsePane from './ResponseExampleResponsePane';
 import GenerateCodeItem from 'components/Sidebar/Collections/Collection/CollectionItem/GenerateCodeItem';
 import StyledWrapper from './StyledWrapper';
+import { uuid } from 'utils/common';
+import { buildExampleRequestSnapshot } from 'utils/examples';
 
 const MIN_LEFT_PANE_WIDTH = 300;
 const MIN_RIGHT_PANE_WIDTH = 350;
@@ -115,6 +122,39 @@ const ResponseExample = ({ item, collection, example }) => {
     setShowGenerateCodeModal(true);
   };
 
+  const handleSyncRequestSnapshot = async () => {
+    dispatch(updateResponseExampleRequest({
+      itemUid: item.uid,
+      collectionUid: collection.uid,
+      exampleUid: example.uid,
+      request: buildExampleRequestSnapshot(item.draft?.request || item.request || {})
+    }));
+    await dispatch(saveRequest(item.uid, collection.uid, true));
+  };
+
+  const handleDuplicate = async () => {
+    const existingExamples = item.draft?.examples || item.examples || [];
+    const clonedExampleIndex = existingExamples.length;
+    const clonedExampleUid = uuid();
+
+    dispatch(cloneResponseExample({
+      itemUid: item.uid,
+      collectionUid: collection.uid,
+      exampleUid: example.uid,
+      clonedUid: clonedExampleUid
+    }));
+
+    await dispatch(saveRequest(item.uid, collection.uid, true));
+
+    dispatch(insertTaskIntoQueue({
+      uid: clonedExampleUid,
+      type: 'OPEN_EXAMPLE',
+      collectionUid: collection.uid,
+      itemUid: item.uid,
+      exampleIndex: clonedExampleIndex
+    }));
+  };
+
   const handleCloseGenerateCodeModal = () => {
     setShowGenerateCodeModal(false);
   };
@@ -167,6 +207,8 @@ const ResponseExample = ({ item, collection, example }) => {
           onCancel={handleCancel}
           onGenerateCode={handleGenerateCode}
           onTryExample={handleTryExample}
+          onSyncRequestSnapshot={handleSyncRequestSnapshot}
+          onDuplicate={handleDuplicate}
         />
         <section ref={mainSectionRef} className={`main wrapper flex mt-4 ${isVerticalLayout ? 'flex-col' : ''} flex-grow pb-4 relative overflow-auto scrollbar-hover`}>
           <section className="request-pane">

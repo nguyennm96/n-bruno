@@ -171,6 +171,7 @@ const ResizableTable = Table.extend({
 const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) => {
   const { displayedTheme } = useTheme();
   const containerRef = useRef(null);
+  const sourceTextareaRef = useRef(null);
   const onEditRef = useRef(onEdit);
   const onSaveRef = useRef(onSave);
   onEditRef.current = onEdit;
@@ -179,12 +180,6 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
   const [isEditing, setIsEditing] = useState(false);
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [sourceValue, setSourceValue] = useState('');
-  const [editorHeight, setEditorHeight] = useState(height);
-  const [stats, setStats] = useState({ words: 0, chars: 0 });
-
-  // Sync height prop
-  useEffect(() => { setEditorHeight(height); }, [height]);
-
   // ── Tiptap editor setup ────────────────────────────────────────────────────
   const editor = useEditor({
     extensions: [
@@ -317,9 +312,6 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
       if (!isEditing) return;
       const markdown = e.storage.markdown.getMarkdown();
       onEditRef.current?.(markdown);
-      const text = e.getText().trim();
-      const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
-      setStats({ words, chars: text.length });
     },
     onCreate: ({ editor: e }) => {
       if (value) {
@@ -336,15 +328,6 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
       editor.commands.setContent(value || '');
     }
   }, [value, editor, isEditing]);
-
-  // ── Stats in view mode ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isEditing && !isSourceMode) {
-      const text = (value || '').replace(/[#*_~`[\]()>!|-]/g, '').trim();
-      const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
-      setStats({ words, chars: (value || '').length });
-    }
-  }, [value, isEditing, isSourceMode]);
 
   // ── Enter / exit edit mode ─────────────────────────────────────────────────
   const enterEdit = useCallback(() => {
@@ -400,19 +383,23 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
     return () => document.removeEventListener('keydown', handler);
   }, [isEditing, exitEdit]);
 
-  const handleSourceToggle = useCallback(() => {
+  const handleModeChange = useCallback((mode) => {
     if (!editor) return;
-    if (!isSourceMode) {
+    if (mode === 'markdown') {
+      if (isSourceMode) return;
       const markdown = editor.storage.markdown.getMarkdown();
       setSourceValue(markdown);
       editor.setEditable(false);
-    } else {
-      editor.commands.setContent(sourceValue || '');
-      editor.setEditable(true);
-      onEditRef.current?.(sourceValue);
-      requestAnimationFrame(() => editor.commands.focus());
+      setIsSourceMode(true);
+      return;
     }
-    setIsSourceMode((v) => !v);
+
+    if (!isSourceMode) return;
+    editor.commands.setContent(sourceValue || '');
+    editor.setEditable(true);
+    onEditRef.current?.(sourceValue);
+    setIsSourceMode(false);
+    requestAnimationFrame(() => editor.commands.focus());
   }, [editor, isSourceMode, sourceValue]);
 
   // ── Source textarea change ────────────────────────────────────────────────
@@ -420,23 +407,28 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
     const md = e.target.value;
     setSourceValue(md);
     onEditRef.current?.(md);
-    const text = md.trim();
-    setStats({ words: text ? text.split(/\s+/).filter(Boolean).length : 0, chars: text.length });
   }, []);
 
-  // ── Drag resize ───────────────────────────────────────────────────────────
-  const handleResizeMouseDown = useCallback((e) => {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startH = editorHeight;
-    const onMove = (ev) => setEditorHeight(Math.max(80, startH + ev.clientY - startY));
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  }, [editorHeight]);
+  const applyMarkdownTransform = useCallback((transform) => {
+    const textarea = sourceTextareaRef.current;
+    if (!textarea || !transform) return;
+
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? start;
+    const selectedText = sourceValue.slice(start, end);
+    const replacement = transform({ selectedText, value: sourceValue, start, end });
+    if (typeof replacement !== 'string') return;
+
+    const nextValue = `${sourceValue.slice(0, start)}${replacement}${sourceValue.slice(end)}`;
+    const nextCursor = start + replacement.length;
+    setSourceValue(nextValue);
+    onEditRef.current?.(nextValue);
+
+    requestAnimationFrame(() => {
+      sourceTextareaRef.current?.focus();
+      sourceTextareaRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
+  }, [sourceValue]);
 
   const isEmpty = !value?.trim();
   const colorMode = displayedTheme === 'dark' ? 'dark' : 'light';
@@ -455,14 +447,16 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
         <Toolbar
           editor={isSourceMode ? null : editor}
           isSourceMode={isSourceMode}
-          onSourceToggle={handleSourceToggle}
+          mode={isSourceMode ? 'markdown' : 'rich'}
+          onModeChange={handleModeChange}
+          onApplyMarkdown={applyMarkdownTransform}
           isDisabled={!isEditing}
         />
 
         {/* Editing surface */}
         <div
           className="editor-area"
-          style={{ minHeight: editorHeight }}
+          style={{ height }}
           onClick={!isEditing ? enterEdit : undefined}
         >
           {/* Placeholder shown in view mode when empty */}
@@ -481,6 +475,7 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
           {isSourceMode && (
             <div className="source-editor-wrapper">
               <textarea
+                ref={sourceTextareaRef}
                 className="source-editor"
                 value={sourceValue}
                 onChange={handleSourceChange}
@@ -490,17 +485,6 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
           )}
         </div>
 
-        {/* Resize handle */}
-        {isEditing && (
-          <div className="editor-resize-handle" onMouseDown={handleResizeMouseDown} />
-        )}
-
-        {/* Status bar */}
-        {isEditing && (
-          <div className="editor-status-bar">
-            {stats.words} word{stats.words !== 1 ? 's' : ''} · {stats.chars} char{stats.chars !== 1 ? 's' : ''}
-          </div>
-        )}
       </StyledWrapper>
     </>
   );

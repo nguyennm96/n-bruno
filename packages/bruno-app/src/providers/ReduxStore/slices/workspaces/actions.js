@@ -869,12 +869,21 @@ export const switchWorkspace = (workspaceUid) => {
                 if (!itemExists) continue;
               }
 
+              // For response-example tabs, validate that the parent item and example still exist
+              if (tab.type === 'response-example') {
+                const parentItem = findItemInCollection(collection, tab.itemUid);
+                const exampleExists = parentItem?.examples?.find((ex) => ex.uid === tab.uid);
+                if (!parentItem || !exampleExists) continue;
+              }
+
               dispatch(addTab({
                 uid: tab.uid,
                 collectionUid: tab.collectionUid,
                 type: tab.type,
                 requestPaneTab: tab.requestPaneTab,
-                preview: false
+                preview: false,
+                ...(tab.itemUid ? { itemUid: tab.itemUid } : {}),
+                ...(tab.exampleUid ? { exampleUid: tab.exampleUid } : {})
               }));
 
               if (tab.uid === savedState.activeTabUid) {
@@ -884,7 +893,9 @@ export const switchWorkspace = (workspaceUid) => {
           }
 
           // 3. Restore workspace-level tabs using workspaceUid directly
-          const workspaceTabs = savedState.workspaceTabs?.length
+          // Use savedState.workspaceTabs if it was explicitly saved (even if empty = user closed all),
+          // fallback to defaults only when session data is from an old format that didn't save workspaceTabs
+          const workspaceTabs = savedState.workspaceTabs !== undefined
             ? savedState.workspaceTabs
             : [{ type: 'workspaceOverview' }, { type: 'workspaceEnvironments' }];
 
@@ -897,6 +908,8 @@ export const switchWorkspace = (workspaceUid) => {
             dispatch(focusTab({ uid: restoredCollectionActiveUid }));
           } else if (savedState.activeWorkspaceTabType) {
             dispatch(focusTab({ uid: `${workspaceUid}-${savedState.activeWorkspaceTabType}` }));
+          } else if (workspaceTabs.length > 0) {
+            dispatch(focusTab({ uid: `${workspaceUid}-${workspaceTabs[0].type}` }));
           } else {
             dispatch(focusTab({ uid: `${workspaceUid}-workspaceOverview` }));
           }

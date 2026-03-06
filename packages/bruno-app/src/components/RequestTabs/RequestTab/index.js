@@ -336,9 +336,9 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
         ) : tab.type === 'global-environment-settings' ? (
           <SpecialTab handleCloseClick={handleCloseGlobalEnvironmentSettings} handleDoubleClick={() => dispatch(makeTabPermanent({ uid: tab.uid }))} type={tab.type} hasDraft={hasGlobalEnvironmentDraft} />
         ) : tab.type === 'workspaceOverview' ? (
-          <SpecialTab handleCloseClick={null} type={tab.type} />
+          <SpecialTab handleCloseClick={handleCloseClick} type={tab.type} />
         ) : tab.type === 'workspaceEnvironments' ? (
-          <SpecialTab handleCloseClick={null} type={tab.type} />
+          <SpecialTab handleCloseClick={handleCloseClick} type={tab.type} />
         ) : (
           <SpecialTab handleCloseClick={handleCloseClick} handleDoubleClick={() => dispatch(makeTabPermanent({ uid: tab.uid }))} type={tab.type} />
         )}

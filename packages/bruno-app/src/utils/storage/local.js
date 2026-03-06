@@ -260,6 +260,7 @@ const flattenItemsToIdb = async (items, collectionUid, parentFolderUid, now) => 
         filename: item.filename || item.name,
         request: item.request || {},
         settings: item.settings || { encodeUrl: true },
+        examples: item.examples || [],
         createdAt: now,
         updatedAt: now
       });
@@ -365,6 +366,7 @@ export const saveRequest = async (pathname, itemData, format) => {
     request: itemData.request || itemData,
     name: itemData.name || existing.name,
     settings: itemData.settings || existing.settings,
+    examples: itemData.examples !== undefined ? itemData.examples : existing.examples,
     updatedAt: Date.now()
   });
 };
@@ -462,6 +464,7 @@ export const newRequest = async (containerPathname, item) => {
     filename: item.filename || item.name,
     request: item.request || {},
     settings: item.settings || { encodeUrl: true },
+    examples: item.examples || [],
     createdAt: now,
     updatedAt: now
   });
@@ -730,6 +733,7 @@ export const saveMultipleRequests = async (itemsToSave) => {
         request: item.request || item,
         name: item.name || existing.name,
         settings: item.settings || existing.settings,
+        examples: item.examples !== undefined ? item.examples : existing.examples,
         updatedAt: Date.now()
       });
     }

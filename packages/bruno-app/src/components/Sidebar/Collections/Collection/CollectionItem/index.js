@@ -89,9 +89,10 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
   const hasSearchText = searchText && searchText?.trim()?.length;
   const itemIsCollapsed = hasSearchText ? false : item.collapsed;
   const isFolder = isItemAFolder(item);
+  const currentExamples = item.draft?.examples || item.examples || [];
 
   // Check if request has examples (only for HTTP requests)
-  const hasExamples = isItemARequest(item) && item.type === 'http-request' && item.examples && item.examples.length > 0;
+  const hasExamples = isItemARequest(item) && item.type === 'http-request' && currentExamples.length > 0;
 
   const [dropType, setDropType] = useState(null); // 'adjacent' or 'inside'
 
@@ -461,7 +462,7 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
     };
 
     // Calculate the index where the example will be saved
-    const existingExamples = item.draft?.examples || item.examples || [];
+    const existingExamples = currentExamples;
     const exampleIndex = existingExamples.length;
     const exampleUid = uuid();
 
@@ -711,7 +712,7 @@ const CollectionItem = ({ item, collectionUid, collectionPathname, searchText })
       {/* Show examples when expanded (only for HTTP requests) */}
       {isItemARequest(item) && item.type === 'http-request' && examplesExpanded && hasExamples && (
         <div>
-          {(item.examples || []).map((example, index) => {
+          {currentExamples.map((example, index) => {
             return (
               <ExampleItem
                 key={example.uid || index}

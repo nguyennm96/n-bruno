@@ -192,19 +192,19 @@ const StyledWrapper = styled.div`
     display: flex;
     align-items: center;
     flex-wrap: nowrap;
-    gap: 1px;
-    padding: 3px 8px;
-    background-color: ${({ theme }) => theme.requestTabs.bg}e8;
+    gap: 0;
+    padding: 2px 6px;
+    background-color: ${({ theme }) => theme.requestTabs.bg}d9;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border-bottom: 1px solid ${({ theme }) => theme.border.border1};
-    border-radius: 7px 7px 0 0;
+    border: 1px solid ${({ theme }) => theme.border.border1};
+    border-radius: 6px;
     user-select: none;
     position: sticky;
     top: 0;
     z-index: 10;
     overflow: visible;
-    margin-bottom: 10px;
+    margin-bottom: 2px;
 
     &.is-readonly {
       visibility: hidden;
@@ -216,15 +216,15 @@ const StyledWrapper = styled.div`
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 2px;
     background: transparent;
     border: none;
     cursor: pointer;
-    height: 28px;
-    padding: 0 7px;
-    border-radius: 5px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 4px;
     color: ${({ theme }) => theme.requestTabs.color};
-    opacity: 0.7;
+    opacity: 0.66;
     transition: opacity 0.1s, background 0.1s, color 0.1s;
     line-height: 1;
     white-space: nowrap;
@@ -251,7 +251,7 @@ const StyledWrapper = styled.div`
   }
 
   .toolbar-label {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     font-family: serif;
     line-height: 1;
@@ -259,16 +259,60 @@ const StyledWrapper = styled.div`
 
   .toolbar-divider {
     width: 1px;
-    height: 14px;
+    height: 12px;
     background-color: ${({ theme }) => theme.border.border1};
-    margin: 0 3px;
-    opacity: 0.7;
+    margin: 0 2px;
+    opacity: 0.55;
     flex-shrink: 0;
     align-self: center;
   }
 
   .toolbar-dropdown { position: relative; }
-  .toolbar-btn-dropdown { gap: 3px; padding-right: 5px; }
+  .toolbar-btn-dropdown { gap: 2px; padding-right: 4px; }
+
+  .toolbar-mode-select {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px;
+    border: 1px solid ${({ theme }) => theme.border.border1};
+    border-radius: 4px;
+    background: ${({ theme }) => theme.requestTabPanel.url.bg};
+    color: ${({ theme }) => theme.requestTabs.color};
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: border-color 0.1s, background 0.1s, color 0.1s;
+
+    &:hover {
+      border-color: ${({ theme }) => theme.border.border2};
+      background: ${({ theme }) => theme.requestTabs.icon.hoverBg};
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px ${({ theme }) => theme.tabs.active.border}33;
+    }
+
+    &:disabled {
+      opacity: 0.32;
+      cursor: default;
+      pointer-events: none;
+    }
+  }
+
+  .toolbar-mode-label {
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .toolbar-mode-menu {
+    right: 0;
+    left: auto;
+    min-width: 148px;
+  }
 
   .toolbar-dropdown-menu {
     position: absolute;
@@ -303,6 +347,11 @@ const StyledWrapper = styled.div`
     &:focus-visible {
       outline: none;
       box-shadow: inset 0 0 0 1px ${({ theme }) => theme.tabs.active.border};
+    }
+
+    &.is-selected {
+      color: ${({ theme }) => theme.tabs.active.color};
+      background-color: ${({ theme }) => theme.tabs.active.border}22;
     }
   }
 
@@ -453,18 +502,23 @@ const StyledWrapper = styled.div`
 
   .editor-area {
     position: relative;
-    padding: 14px 16px;
+    padding: 4px;
     border-radius: 0 0 7px 7px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 80px;
   }
 
   .source-editor-wrapper {
     position: relative;
+    height: 100%;
   }
 
   .source-editor {
     width: 100%;
+    height: 100%;
     box-sizing: border-box;
-    padding: 14px 16px;
+    padding: 0;
     font-family: var(--font-code, 'JetBrains Mono', monospace);
     font-size: 13px;
     line-height: 1.7;
@@ -476,42 +530,7 @@ const StyledWrapper = styled.div`
     caret-color: ${({ theme }) => theme.tabs.active.border};
     white-space: pre-wrap;
     word-break: break-word;
-    min-height: 200px;
-  }
-
-  .editor-status-bar {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 3px 12px 4px;
-    font-size: 11px;
-    color: ${({ theme }) => theme.text};
-    opacity: 0.38;
-    border-top: 1px solid ${({ theme }) => theme.border.border1};
-    user-select: none;
-    border-radius: 0 0 7px 7px;
-  }
-
-  .editor-resize-handle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 10px;
-    cursor: ns-resize;
-    opacity: 0.3;
-    transition: opacity 0.15s;
-    border-radius: 0 0 7px 7px;
-
-    &:hover { opacity: 0.7; }
-
-    &::before {
-      content: '';
-      display: block;
-      width: 32px;
-      height: 3px;
-      border-radius: 2px;
-      background-color: ${({ theme }) => theme.border.border2};
-    }
+    min-height: 100%;
   }
 
   .toolbar-spacer {
@@ -520,8 +539,8 @@ const StyledWrapper = styled.div`
 
   .editor-placeholder {
     position: absolute;
-    top: 14px;
-    left: 16px;
+    top: 4px;
+    left: 4px;
     color: ${({ theme }) => theme.text};
     opacity: 0.38;
     font-size: 14px;

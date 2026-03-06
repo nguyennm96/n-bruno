@@ -49,8 +49,8 @@ const Wrapper = styled.div`
 
     li {
       display: inline-flex;
-      max-width: 180px;
-      min-width: 80px;
+      width: 140px;
+      min-width: 0;
       list-style: none;
       cursor: pointer;
       font-size: 0.8125rem;

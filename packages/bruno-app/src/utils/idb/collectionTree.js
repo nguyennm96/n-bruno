@@ -67,7 +67,8 @@ const buildRequestItem = (r) => ({
   filename: r.filename || r.name,
   seq: r.seq || 0,
   request: r.request || {},
-  settings: r.settings || { encodeUrl: true }
+  settings: r.settings || { encodeUrl: true },
+  examples: r.examples || []
 });
 
 const sortBySeq = (arr) => arr.sort((a, b) => (a.seq || 0) - (b.seq || 0));

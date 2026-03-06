@@ -2,6 +2,7 @@ use bson::{doc, oid::ObjectId, Document};
 use chrono::Utc;
 use futures::StreamExt;
 use mongodb::{Collection, Database};
+use serde_json::Value;
 
 use crate::{
     errors::{AppError, AppResult},
@@ -57,13 +58,28 @@ impl ExampleService {
             .ok_or_else(|| AppError::NotFound("Collection not found".into()))
     }
 
-    pub async fn create(&self, item_uid: &str, user_id: ObjectId, name: String, status_code: u16, headers: Document, body: Option<String>) -> AppResult<ExampleResponse> {
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create(
+        &self,
+        item_uid: &str,
+        user_id: ObjectId,
+        uid: Option<String>,
+        name: String,
+        description: Option<String>,
+        status_code: u16,
+        status_text: Option<String>,
+        headers: Document,
+        body: Option<String>,
+        request_snapshot: Option<Value>,
+        response_time: Option<i64>,
+        response_size: Option<i64>,
+    ) -> AppResult<ExampleResponse> {
         let item = self.get_item_and_check_access(item_uid, user_id).await?;
         let col = self.get_collection(&item.collection_uid).await?;
         let (_, role) = self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
         if !role.can_write() { return Err(AppError::Forbidden("Editor role required".into())); }
 
-        let mut example = Example::new(name, item.uid.clone(), status_code, headers, body);
+        let mut example = Example::new(uid, name, description, item.uid.clone(), status_code, status_text, headers, body, request_snapshot, response_time, response_size);
         let res = self.examples.insert_one(&example).await.map_err(AppError::from)?;
         example.id = res.inserted_id.as_object_id();
         let resp = ExampleResponse::from(example);
@@ -87,7 +103,49 @@ impl ExampleService {
         Ok(result)
     }
 
-    pub async fn update(&self, example_uid: &str, user_id: ObjectId, name: Option<String>, status_code: Option<u16>, body: Option<String>) -> AppResult<ExampleResponse> {
+    /// Load all examples for every request in a collection (bulk load).
+    pub async fn list_for_collection(&self, collection_uid: &str, user_id: ObjectId) -> AppResult<Vec<ExampleResponse>> {
+        let col = self.get_collection(collection_uid).await?;
+        self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
+
+        // Collect all request UIDs belonging to this collection
+        let mut item_cursor = self.items
+            .find(doc! { "collectionUid": collection_uid, "deletedAt": { "$exists": false }, "itemType": "request" })
+            .await
+            .map_err(AppError::from)?;
+        let mut request_uids: Vec<String> = Vec::new();
+        while let Some(Ok(item)) = item_cursor.next().await {
+            request_uids.push(item.uid);
+        }
+
+        if request_uids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut cursor = self.examples
+            .find(doc! { "requestUid": { "$in": &request_uids }, "deletedAt": { "$exists": false } })
+            .await
+            .map_err(AppError::from)?;
+        let mut result = Vec::new();
+        while let Some(Ok(e)) = cursor.next().await { result.push(ExampleResponse::from(e)); }
+        Ok(result)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update(
+        &self,
+        example_uid: &str,
+        user_id: ObjectId,
+        name: Option<String>,
+        description: Option<String>,
+        status_code: Option<u16>,
+        status_text: Option<String>,
+        headers: Option<Document>,
+        body: Option<String>,
+        request_snapshot: Option<Value>,
+        response_time: Option<i64>,
+        response_size: Option<i64>,
+    ) -> AppResult<ExampleResponse> {
         let example = self.get_example_raw(example_uid).await?;
         let item = self.items.find_one(doc! { "uid": &example.request_uid }).await.map_err(AppError::from)?
             .ok_or_else(|| AppError::NotFound("Item not found".into()))?;
@@ -99,8 +157,18 @@ impl ExampleService {
         let now = Utc::now();
         let mut update = doc! { "updated_at": now.to_rfc3339() };
         if let Some(n) = &name { update.insert("name", n); }
+        if let Some(d) = &description { update.insert("description", d); }
         if let Some(sc) = status_code { update.insert("status_code", sc as i32); }
+        if let Some(st) = &status_text { update.insert("status_text", st); }
+        if let Some(h) = headers { update.insert("headers", h); }
         if let Some(b) = &body { update.insert("body", b); }
+        if let Some(rs) = request_snapshot {
+            if let Ok(bson_val) = bson::to_bson(&rs) {
+                update.insert("requestSnapshot", bson_val);
+            }
+        }
+        if let Some(rt) = response_time { update.insert("responseTime", rt); }
+        if let Some(rs) = response_size { update.insert("responseSize", rs); }
 
         self.examples.update_one(doc! { "_id": ex_oid }, doc! { "$set": update }).await.map_err(AppError::from)?;
         let updated = self.get_example_raw(example_uid).await?;

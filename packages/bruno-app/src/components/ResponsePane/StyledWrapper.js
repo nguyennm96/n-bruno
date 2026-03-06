@@ -67,6 +67,44 @@ const StyledWrapper = styled.div`
     flex-grow: 0;
   }
 
+  .response-pane-examples {
+    min-width: 0;
+    flex-shrink: 0;
+  }
+
+  .response-examples-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 7px;
+    border: 1px solid ${(props) => props.theme.workspace.border};
+    border-radius: 4px;
+    background: transparent;
+    color: ${(props) => props.theme.dropdown.iconColor};
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+
+    &:hover {
+      border-color: ${(props) => props.theme.app.collection.toolbar.environmentSelector.hoverBorder};
+      color: ${(props) => props.theme.text};
+    }
+  }
+
+  .response-examples-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: ${(props) => props.theme.requestTabPanel.url.bg};
+    font-size: 10px;
+    line-height: 1;
+  }
+
   .some-tests-failed {
     color: ${(props) => props.theme.colors.text.danger} !important;
   }

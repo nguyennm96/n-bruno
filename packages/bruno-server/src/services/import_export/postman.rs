@@ -179,11 +179,17 @@ impl PostmanService {
                             }
                         }
                         let example = Example::new(
+                            None,
                             resp.name.clone(),
+                            None,
                             item.uid.clone(),
                             resp.code.unwrap_or(200),
+                            None,
                             hdoc,
                             resp.body.clone(),
+                            None,
+                            None,
+                            None,
                         );
                         self.examples.insert_one(&example).await.map_err(AppError::from)?;
                         stats.examples_created += 1;

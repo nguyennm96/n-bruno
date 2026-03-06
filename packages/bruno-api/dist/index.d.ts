@@ -6,6 +6,7 @@ export { EnvironmentService } from './environments';
 export { WsService } from './ws';
 export { SyncService } from './sync';
 export { ImportService } from './import';
+export { ExampleService } from './examples';
 export * from './types';
 import { BrunoApiClient } from './client';
 import { AuthService } from './auth';
@@ -15,6 +16,7 @@ import { EnvironmentService } from './environments';
 import { WsService } from './ws';
 import { SyncService } from './sync';
 import { ImportService } from './import';
+import { ExampleService } from './examples';
 import type { BrunoApiConfig } from './types';
 /**
  * Create a configured Bruno API instance
@@ -28,4 +30,5 @@ export declare function createBrunoApi(config: BrunoApiConfig): {
     ws: WsService;
     sync: SyncService;
     import: ImportService;
+    examples: ExampleService;
 };

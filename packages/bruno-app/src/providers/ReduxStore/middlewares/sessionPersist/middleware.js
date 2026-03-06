@@ -88,7 +88,9 @@ export const sessionPersistMiddleware = (store) => (next) => (action) => {
         uid: t.uid,
         collectionUid: t.collectionUid,
         type: t.type,
-        requestPaneTab: t.requestPaneTab
+        requestPaneTab: t.requestPaneTab,
+        ...(t.itemUid ? { itemUid: t.itemUid } : {}),
+        ...(t.exampleUid ? { exampleUid: t.exampleUid } : {})
       }));
 
     // Workspace-level tabs (keyed by workspaceUid — stable across sessions)

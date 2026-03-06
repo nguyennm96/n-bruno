@@ -24,6 +24,7 @@ import HeightBoundContainer from 'ui/HeightBoundContainer';
 import ResponseStopWatch from 'components/ResponsePane/ResponseStopWatch';
 import WSMessagesList from './WsResponsePane/WSMessagesList';
 import ResponsiveTabs from 'ui/ResponsiveTabs';
+import ResponseExamplesSelect from './ResponseExamplesSelect';
 
 // Width threshold for expanded right-side action buttons
 const RIGHT_CONTENT_EXPANDED_WIDTH = 135;
@@ -234,6 +235,15 @@ const ResponsePane = ({ item, collection }) => {
           onClick={() => setShowScriptErrorCard(true)}
         />
       )}
+      {item.type === 'http-request' ? (
+        <div className="response-pane-examples">
+          <ResponseExamplesSelect
+            item={item}
+            collection={collection}
+            responseSize={responseSize}
+          />
+        </div>
+      ) : null}
       {focusedTab?.responsePaneTab === 'response' && item?.response && !(item.response?.stream ?? false) ? (
         <>
           {/* Result View Tabs (Visualizations + Response Format) */}

@@ -106,6 +106,7 @@ pub fn create_router(state: AppState) -> Router {
         // Examples
         .route("/api/items/:item_id/examples", post(example::create_example))
         .route("/api/items/:item_id/examples", get(example::list_examples))
+        .route("/api/collections/:id/examples", get(example::list_collection_examples))
         .route("/api/examples/:id", patch(example::update_example))
         .route("/api/examples/:id", delete(example::delete_example))
         // ── Phase 10: Import / Export ──────────────────────────────────────

@@ -43,11 +43,6 @@ const HrIcon = () => (
     <line x1="3" y1="12" x2="21" y2="12" />
   </svg>
 );
-const SourceIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
-  </svg>
-);
 const CheckSquareIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="9 11 12 14 22 4" />
@@ -85,6 +80,63 @@ const Btn = ({ onClick, active, title, children, disabled }) => (
     {children}
   </button>
 );
+
+const ModeSelect = ({ value, onChange, disabled }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  const options = [
+    { value: 'rich', label: 'Rich Editor' },
+    { value: 'markdown', label: 'Markdown Editor' }
+  ];
+  const active = options.find((option) => option.value === value) || options[0];
+
+  return (
+    <div className="toolbar-dropdown" ref={ref}>
+      <button
+        className="toolbar-mode-select"
+        disabled={disabled}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
+      >
+        <span className="toolbar-mode-label">{active.label}</span>
+        <ChevronIcon />
+      </button>
+      {open && (
+        <div className="toolbar-dropdown-menu toolbar-mode-menu">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              className={`toolbar-dropdown-item${option.value === value ? ' is-selected' : ''}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const withLinePrefix = (text, prefix) =>
+  text
+    .split('\n')
+    .map((line) => (line ? `${prefix}${line}` : prefix.trimEnd()))
+    .join('\n');
 
 // Dropdown button with a list of items
 const Dropdown = ({ trigger, items, onAction, active, disabled }) => {
@@ -214,11 +266,12 @@ const PopoverBtn = ({ icon, title, fields, onSubmit, align = 'left', btnAttr = {
  * Props:
  *   editor           {Editor}    Tiptap editor instance
  *   isSourceMode     {boolean}
- *   onSourceToggle   {fn}
+ *   mode             {'rich' | 'markdown'}
+ *   onModeChange     {fn}
  */
-const Toolbar = ({ editor, isSourceMode, onSourceToggle, isDisabled = false }) => {
+const Toolbar = ({ editor, isSourceMode, mode = 'rich', onModeChange, onApplyMarkdown, isDisabled = false }) => {
   if (!editor && !isSourceMode) return null;
-  const controlsDisabled = isSourceMode || isDisabled;
+  const controlsDisabled = isDisabled;
 
   const isBold = editor?.isActive('bold') ?? false;
   const isItalic = editor?.isActive('italic') ?? false;
@@ -230,16 +283,20 @@ const Toolbar = ({ editor, isSourceMode, onSourceToggle, isDisabled = false }) =
   const isBlockquote = editor?.isActive('blockquote') ?? false;
   const activeHeading = [1, 2, 3].find((l) => editor?.isActive('heading', { level: l })) ?? null;
 
-  const cmd = useCallback((fn) => {
+  const cmd = useCallback((fn, markdownTransform) => {
+    if (isSourceMode) {
+      onApplyMarkdown?.(markdownTransform);
+      return;
+    }
     if (!editor) return;
     fn(editor.chain().focus());
-  }, [editor]);
+  }, [editor, isSourceMode, onApplyMarkdown]);
 
   const headingItems = [
-    { label: 'Heading 1', action: () => cmd((c) => (activeHeading === 1 ? c.setParagraph() : c.setHeading({ level: 1 })).run()) },
-    { label: 'Heading 2', action: () => cmd((c) => (activeHeading === 2 ? c.setParagraph() : c.setHeading({ level: 2 })).run()) },
-    { label: 'Heading 3', action: () => cmd((c) => (activeHeading === 3 ? c.setParagraph() : c.setHeading({ level: 3 })).run()) },
-    { label: 'Normal text', action: () => cmd((c) => c.setParagraph().run()) }
+    { label: 'Heading 1', action: () => cmd((c) => (activeHeading === 1 ? c.setParagraph() : c.setHeading({ level: 1 })).run(), ({ selectedText }) => `# ${selectedText || 'Heading'}`) },
+    { label: 'Heading 2', action: () => cmd((c) => (activeHeading === 2 ? c.setParagraph() : c.setHeading({ level: 2 })).run(), ({ selectedText }) => `## ${selectedText || 'Heading'}`) },
+    { label: 'Heading 3', action: () => cmd((c) => (activeHeading === 3 ? c.setParagraph() : c.setHeading({ level: 3 })).run(), ({ selectedText }) => `### ${selectedText || 'Heading'}`) },
+    { label: 'Normal text', action: () => cmd((c) => c.setParagraph().run(), ({ selectedText }) => selectedText || 'Text') }
   ];
 
   return (
@@ -255,28 +312,28 @@ const Toolbar = ({ editor, isSourceMode, onSourceToggle, isDisabled = false }) =
       <Divider />
 
       {/* Inline formatting */}
-      <Btn onClick={() => cmd((c) => c.toggleBold().run())} active={isBold} title="Bold (Ctrl+B)" disabled={controlsDisabled}><BoldIcon /></Btn>
-      <Btn onClick={() => cmd((c) => c.toggleItalic().run())} active={isItalic} title="Italic (Ctrl+I)" disabled={controlsDisabled}><ItalicIcon /></Btn>
-      <Btn onClick={() => cmd((c) => c.toggleStrike().run())} active={isStrike} title="Strikethrough" disabled={controlsDisabled}><StrikeIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleBold().run(), ({ selectedText }) => `**${selectedText || 'bold'}**`)} active={isBold} title="Bold (Ctrl+B)" disabled={controlsDisabled}><BoldIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleItalic().run(), ({ selectedText }) => `*${selectedText || 'italic'}*`)} active={isItalic} title="Italic (Ctrl+I)" disabled={controlsDisabled}><ItalicIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleStrike().run(), ({ selectedText }) => `~~${selectedText || 'strikethrough'}~~`)} active={isStrike} title="Strikethrough" disabled={controlsDisabled}><StrikeIcon /></Btn>
       <Divider />
 
       {/* Code */}
-      <Btn onClick={() => cmd((c) => c.toggleCode().run())} active={isCode} title="Inline code" disabled={controlsDisabled}><InlineCodeIcon /></Btn>
-      <Btn onClick={() => cmd((c) => c.toggleCodeBlock().run())} active={isCodeBlock} title="Code block" disabled={controlsDisabled}><CodeBlockIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleCode().run(), ({ selectedText }) => `\`${selectedText || 'code'}\``)} active={isCode} title="Inline code" disabled={controlsDisabled}><InlineCodeIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleCodeBlock().run(), ({ selectedText }) => `\`\`\`\n${selectedText || ''}\n\`\`\``)} active={isCodeBlock} title="Code block" disabled={controlsDisabled}><CodeBlockIcon /></Btn>
 
       {/* Blockquote */}
-      <Btn onClick={() => cmd((c) => c.toggleBlockquote().run())} active={isBlockquote} title="Blockquote" disabled={controlsDisabled}><QuoteIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleBlockquote().run(), ({ selectedText }) => withLinePrefix(selectedText || 'Quote', '> '))} active={isBlockquote} title="Blockquote" disabled={controlsDisabled}><QuoteIcon /></Btn>
       <Divider />
 
       {/* Lists */}
-      <Btn onClick={() => cmd((c) => c.toggleBulletList().run())} active={isUL} title="Bullet list" disabled={controlsDisabled}>
+      <Btn onClick={() => cmd((c) => c.toggleBulletList().run(), ({ selectedText }) => withLinePrefix(selectedText || 'List item', '- '))} active={isUL} title="Bullet list" disabled={controlsDisabled}>
         <span className="toolbar-label" style={{ fontSize: 14 }}>•≡</span>
       </Btn>
-      <Btn onClick={() => cmd((c) => c.toggleOrderedList().run())} active={isOL} title="Ordered list" disabled={controlsDisabled}>
+      <Btn onClick={() => cmd((c) => c.toggleOrderedList().run(), ({ selectedText }) => (selectedText || 'List item').split('\n').map((line, index) => `${index + 1}. ${line}`).join('\n'))} active={isOL} title="Ordered list" disabled={controlsDisabled}>
         <span className="toolbar-label" style={{ fontSize: 11 }}>1≡</span>
       </Btn>
       <Btn
-        onClick={() => cmd((c) => c.toggleTaskList().run())}
+        onClick={() => cmd((c) => c.toggleTaskList().run(), ({ selectedText }) => withLinePrefix(selectedText || 'Task', '- [ ] '))}
         active={editor?.isActive('taskList') ?? false}
         title="Task list"
         disabled={controlsDisabled}
@@ -296,10 +353,12 @@ const Toolbar = ({ editor, isSourceMode, onSourceToggle, isDisabled = false }) =
         btnAttr={{ 'data-toolbar': 'link' }}
         disabled={controlsDisabled}
         onSubmit={({ url, text }) => {
-          if (!url || !editor) return;
-          const chain = editor.chain().focus();
-          if (text) chain.insertContent(`<a href="${url}">${text}</a>`).run();
-          else chain.setLink({ href: url, target: '_blank' }).run();
+          if (!url) return;
+          cmd((c) => {
+            if (!editor) return;
+            if (text) c.insertContent(`<a href="${url}">${text}</a>`).run();
+            else c.setLink({ href: url, target: '_blank' }).run();
+          }, ({ selectedText }) => `[${text || selectedText || url}](${url})`);
         }}
       />
 
@@ -314,19 +373,26 @@ const Toolbar = ({ editor, isSourceMode, onSourceToggle, isDisabled = false }) =
           { key: 'cols', label: 'Columns', placeholder: '3', defaultValue: '3' }
         ]}
         onSubmit={({ rows, cols }) => {
-          if (!editor) return;
           const r = Math.max(1, parseInt(rows) || 3);
           const c = Math.max(1, parseInt(cols) || 3);
-          editor.chain().focus().insertTable({ rows: r, cols: c, withHeaderRow: true }).run();
+          cmd(
+            (chain) => chain.insertTable({ rows: r, cols: c, withHeaderRow: true }).run(),
+            () => {
+              const header = `| ${Array.from({ length: c }, (_, index) => `Column ${index + 1}`).join(' | ')} |`;
+              const separator = `| ${Array.from({ length: c }, () => '---').join(' | ')} |`;
+              const body = Array.from({ length: Math.max(0, r - 1) }, () => `| ${Array.from({ length: c }, () => ' ').join(' | ')} |`);
+              return [header, separator, ...body].join('\n');
+            }
+          );
         }}
       />
 
       {/* Horizontal Rule */}
-      <Btn onClick={() => cmd((c) => c.setHorizontalRule().run())} title="Horizontal Rule" disabled={controlsDisabled}><HrIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.setHorizontalRule().run(), () => '\n---\n')} title="Horizontal Rule" disabled={controlsDisabled}><HrIcon /></Btn>
 
-      {/* Right section: Source toggle */}
+      {/* Right section: Editor mode */}
       <div className="toolbar-spacer" />
-      <Btn onClick={onSourceToggle} active={isSourceMode} title="Markdown source (raw)" disabled={isDisabled}><SourceIcon /></Btn>
+      <ModeSelect value={mode} onChange={onModeChange} disabled={isDisabled} />
     </div>
   );
 };

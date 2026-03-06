@@ -6,6 +6,7 @@ export { EnvironmentService } from './environments';
 export { WsService } from './ws';
 export { SyncService } from './sync';
 export { ImportService } from './import';
+export { ExampleService } from './examples';
 export * from './types';
 
 // Re-export for convenience
@@ -17,6 +18,7 @@ import { EnvironmentService } from './environments';
 import { WsService } from './ws';
 import { SyncService } from './sync';
 import { ImportService } from './import';
+import { ExampleService } from './examples';
 import type { BrunoApiConfig } from './types';
 
 /**
@@ -31,6 +33,7 @@ export function createBrunoApi(config: BrunoApiConfig) {
   const ws = new WsService();
   const sync = new SyncService(client);
   const importService = new ImportService(client);
+  const examples = new ExampleService(client);
 
   return {
     client,
@@ -41,5 +44,6 @@ export function createBrunoApi(config: BrunoApiConfig) {
     ws,
     sync,
     import: importService,
+    examples,
   };
 }

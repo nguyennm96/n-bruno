@@ -14,6 +14,8 @@ import {
   transformCloudItemToLocal,
   transformCloudEnvironmentToLocal,
   transformLocalItemToCloud,
+  transformLocalExampleToCloud,
+  transformCloudExampleToLocal,
   createDefaultRequest,
   createDefaultSettings
 } from './transform';
@@ -90,6 +92,33 @@ export const withErrorHandler = (operationName, fn) => {
 // Export transformError for direct use
 export { transformError };
 
+/**
+ * Recursively attach cloud examples to matching request items in a collection tree.
+ * @param {object} collection - Local collection object with items[]
+ * @param {Array} cloudExamples - Array of cloud example objects from API
+ */
+function attachExamplesToCollection(collection, cloudExamples) {
+  // Group examples by requestUid for O(1) lookup
+  const byRequestUid = {};
+  for (const ex of cloudExamples) {
+    if (!byRequestUid[ex.requestUid]) byRequestUid[ex.requestUid] = [];
+    byRequestUid[ex.requestUid].push(ex);
+  }
+
+  function attachToItems(items) {
+    for (const item of items) {
+      if (item.type !== 'folder' && byRequestUid[item.uid]) {
+        item.examples = byRequestUid[item.uid].map(transformCloudExampleToLocal);
+      }
+      if (item.items?.length) {
+        attachToItems(item.items);
+      }
+    }
+  }
+
+  attachToItems(collection.items || []);
+}
+
 export const getCollections = async (getState) => {
   const brunoApi = getBrunoApi();
   const workspaceId = getSelectedWorkspace(getState);
@@ -100,7 +129,7 @@ export const getCollections = async (getState) => {
   const cloudCollections = await brunoApi.collections.getCollectionsTreeByWorkspace(workspaceId);
 
   // Transform cloud collections to match local format using transformation layer
-  const transformedCollections = cloudCollections.map((collection) => {
+  const transformedCollections = await Promise.all(cloudCollections.map(async (collection) => {
     // First apply schema transformation
     const transformed = transformCloudCollectionToLocal(collection);
 
@@ -117,8 +146,18 @@ export const getCollections = async (getState) => {
     collapseAllItemsInCollection(transformed);
     addDepth(transformed.items);
 
+    // Fetch and attach examples to request items
+    try {
+      const cloudExamples = await brunoApi.examples.listForCollection(collection.uid);
+      if (cloudExamples && cloudExamples.length > 0) {
+        attachExamplesToCollection(transformed, cloudExamples);
+      }
+    } catch (e) {
+      console.warn(`⚠️  [CloudStorage] Failed to fetch examples for collection ${collection.uid}:`, e);
+    }
+
     return transformed;
-  });
+  }));
 
   console.log(`✅ [CloudStorage] Fetched ${transformedCollections.length} collections`);
 
@@ -356,8 +395,10 @@ export const updateRequest = async (itemUid, data, getState) => {
  * @param {string} itemUid - Item UID (pathname in local mode, but uid in cloud)
  * @param {object} itemData - Request data
  * @param {string} format - Collection format (ignored in cloud mode)
+ * @param {object} options - Additional options
+ * @param {Array} options.previousExamples - Previous examples array for diffing
  */
-export const saveRequest = async (itemUid, itemData, format) => {
+export const saveRequest = async (itemUid, itemData, format, options = {}) => {
   const brunoApi = getBrunoApi();
 
   console.log(`☁️  [CloudStorage] Saving request: ${itemUid}`);
@@ -366,6 +407,14 @@ export const saveRequest = async (itemUid, itemData, format) => {
   const updated = await brunoApi.collections.updateItem(itemUid, flatData);
 
   console.log(`✅ [CloudStorage] Request saved`);
+
+  // Sync examples to cloud
+  const newExamples = itemData.examples || [];
+  const prevExamples = options.previousExamples || [];
+
+  if (newExamples.length > 0 || prevExamples.length > 0) {
+    await syncExamplesToCloud(brunoApi, itemUid, prevExamples, newExamples);
+  }
 
   // Update IDB cache
   const collectionUid = itemData.collectionUid || itemData.collection_id;
@@ -377,6 +426,51 @@ export const saveRequest = async (itemUid, itemData, format) => {
 
   return updated;
 };
+
+/**
+ * Sync local examples array to cloud by computing a diff against current cloud state.
+ * Creates new, updates changed, and deletes removed examples.
+ */
+async function syncExamplesToCloud(brunoApi, itemUid, _prevExamples, nextExamples) {
+  // Fetch current cloud examples to compute accurate diff
+  let cloudExamples = [];
+  try {
+    cloudExamples = await brunoApi.examples.list(itemUid);
+  } catch (_) {
+    // If fetch fails, assume empty (will create all)
+  }
+
+  const cloudMap = new Map((cloudExamples || []).map((e) => [e.uid, e]));
+  const nextMap = new Map((nextExamples || []).map((e) => [e.uid, e]));
+
+  const creates = [];
+  const updates = [];
+  const deletes = [];
+
+  for (const [uid, example] of nextMap) {
+    if (!cloudMap.has(uid)) {
+      creates.push(example);
+    } else {
+      updates.push(example);
+    }
+  }
+
+  for (const [uid] of cloudMap) {
+    if (!nextMap.has(uid)) {
+      deletes.push(uid);
+    }
+  }
+
+  await Promise.allSettled([
+    ...creates.map((ex) => brunoApi.examples.create(itemUid, transformLocalExampleToCloud(ex))),
+    ...updates.map((ex) => brunoApi.examples.update(ex.uid, transformLocalExampleToCloud(ex))),
+    ...deletes.map((uid) => brunoApi.examples.delete(uid))
+  ]);
+
+  if (creates.length || updates.length || deletes.length) {
+    console.log(`✅ [CloudStorage] Examples synced: +${creates.length} ~${updates.length} -${deletes.length}`);
+  }
+}
 
 export const updateItem = async (itemUid, collectionUid, data, getState) => {
   const brunoApi = getBrunoApi();

@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ImportService = exports.SyncService = exports.WsService = exports.EnvironmentService = exports.CollectionService = exports.WorkspaceService = exports.AuthService = exports.BrunoApiClient = void 0;
+exports.ExampleService = exports.ImportService = exports.SyncService = exports.WsService = exports.EnvironmentService = exports.CollectionService = exports.WorkspaceService = exports.AuthService = exports.BrunoApiClient = void 0;
 exports.createBrunoApi = createBrunoApi;
 var client_1 = require("./client");
 Object.defineProperty(exports, "BrunoApiClient", { enumerable: true, get: function () { return client_1.BrunoApiClient; } });
@@ -32,6 +32,8 @@ var sync_1 = require("./sync");
 Object.defineProperty(exports, "SyncService", { enumerable: true, get: function () { return sync_1.SyncService; } });
 var import_1 = require("./import");
 Object.defineProperty(exports, "ImportService", { enumerable: true, get: function () { return import_1.ImportService; } });
+var examples_1 = require("./examples");
+Object.defineProperty(exports, "ExampleService", { enumerable: true, get: function () { return examples_1.ExampleService; } });
 __exportStar(require("./types"), exports);
 // Re-export for convenience
 const client_2 = require("./client");
@@ -42,6 +44,7 @@ const environments_2 = require("./environments");
 const ws_2 = require("./ws");
 const sync_2 = require("./sync");
 const import_2 = require("./import");
+const examples_2 = require("./examples");
 /**
  * Create a configured Bruno API instance
  */
@@ -54,6 +57,7 @@ function createBrunoApi(config) {
     const ws = new ws_2.WsService();
     const sync = new sync_2.SyncService(client);
     const importService = new import_2.ImportService(client);
+    const examples = new examples_2.ExampleService(client);
     return {
         client,
         auth,
@@ -63,5 +67,6 @@ function createBrunoApi(config) {
         ws,
         sync,
         import: importService,
+        examples,
     };
 }

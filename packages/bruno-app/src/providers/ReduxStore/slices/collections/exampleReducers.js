@@ -2,6 +2,7 @@ import { find, map, filter, cloneDeep, each, concat } from 'lodash';
 import { parseQueryParams, buildQueryString as stringifyQueryParams } from '@usebruno/common/utils';
 import { uuid } from 'utils/common';
 import { findCollectionByUid, findItemInCollection } from 'utils/collections';
+import { buildExampleRequestSnapshot } from 'utils/examples';
 import { parsePathParams, splitOnFirst, interpolateUrlPathParams } from 'utils/url';
 import statusCodePhraseMap from 'components/ResponsePane/StatusCode/get-status-code-phrase';
 
@@ -21,11 +22,9 @@ export const addResponseExample = (state, action) => {
     item.draft.examples = [];
   }
 
-  // Ensure body always has a mode field (default to 'none' if not present)
-  const requestBody = item.draft.request.body || {};
-  if (!requestBody.mode) {
-    requestBody.mode = 'none';
-  }
+  const requestSnapshot = buildExampleRequestSnapshot(example.request || item.draft.request || {});
+
+  const responseSource = example.response || example;
 
   const newExample = {
     uid: example.uid || uuid(),
@@ -33,24 +32,18 @@ export const addResponseExample = (state, action) => {
     name: example.name,
     description: example.description,
     type: item.draft.type,
-    request: {
-      url: item.draft.request.url,
-      method: item.draft.request.method,
-      headers: item.draft.request.headers,
-      params: item.draft.request.params,
-      body: requestBody
-    },
+    request: requestSnapshot,
     response: {
-      status: example.status ? Number(example.status) : null,
-      statusText: String(example.statusText ?? (example.status ? (statusCodePhraseMap[Number(example.status)] ?? '') : '')),
-      headers: (example.headers || []).map((header) => ({
-        uid: uuid(),
+      status: responseSource.status ? Number(responseSource.status) : null,
+      statusText: String(responseSource.statusText ?? (responseSource.status ? (statusCodePhraseMap[Number(responseSource.status)] ?? '') : '')),
+      headers: (responseSource.headers || []).map((header) => ({
+        uid: header.uid || uuid(),
         name: String(header.name),
         value: String(header.value),
-        description: String(header.description),
+        description: String(header.description ?? ''),
         enabled: header.enabled
       })),
-      body: example.body
+      body: cloneDeep(responseSource.body)
     }
   };
 

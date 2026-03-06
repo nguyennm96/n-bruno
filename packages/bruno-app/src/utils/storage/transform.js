@@ -23,6 +23,109 @@
 import { nanoid } from 'nanoid';
 
 // ═══════════════════════════════════════════════════════════════════════════
+// EXAMPLE TRANSFORMATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect response body type from Content-Type header value.
+ */
+function detectBodyType(contentType) {
+  if (!contentType) return 'text';
+  if (contentType.includes('json')) return 'json';
+  if (contentType.includes('xml')) return 'xml';
+  if (contentType.includes('html')) return 'html';
+  return 'text';
+}
+
+/**
+ * Transform a local example object to cloud API format.
+ * @param {object} localExample - Local example from Redux store
+ * @returns {object} Cloud API payload
+ */
+export function transformLocalExampleToCloud(localExample) {
+  const response = localExample.response || {};
+  const responseHeaders = response.headers || [];
+
+  // Convert response headers array [{name, value}] → flat map {name: value}
+  const headersMap = {};
+  for (const h of responseHeaders) {
+    if (h.name) headersMap[h.name] = h.value || '';
+  }
+
+  // Serialize response body to string
+  let body = '';
+  if (response.body?.content != null) {
+    body = typeof response.body.content === 'string'
+      ? response.body.content
+      : JSON.stringify(response.body.content);
+  }
+
+  return {
+    uid: localExample.uid,
+    name: localExample.name,
+    description: localExample.description || undefined,
+    status_code: response.status || 200,
+    status_text: response.statusText || undefined,
+    headers: Object.keys(headersMap).length ? headersMap : undefined,
+    body: body || undefined,
+    request_snapshot: localExample.request || undefined,
+    response_time: localExample.responseTime || undefined,
+    response_size: localExample.responseSize || undefined
+  };
+}
+
+/**
+ * Transform a cloud example object back to local format.
+ * @param {object} cloudExample - Cloud example from API response
+ * @returns {object} Local example for Redux store
+ */
+export function transformCloudExampleToLocal(cloudExample) {
+  // Convert flat headers map → response headers array
+  const responseHeaders = Object.entries(cloudExample.headers || {}).map(([name, value]) => ({
+    uid: nanoid(),
+    name,
+    value,
+    enabled: true
+  }));
+
+  // Detect body type from Content-Type header
+  const contentType = (cloudExample.headers || {})['Content-Type'] || (cloudExample.headers || {})['content-type'] || '';
+  const bodyType = detectBodyType(contentType);
+
+  // Deserialize body
+  let bodyContent = cloudExample.body || null;
+  if (bodyType === 'json' && typeof bodyContent === 'string') {
+    try {
+      bodyContent = JSON.parse(bodyContent);
+    } catch {
+      // keep as string
+    }
+  }
+
+  // Infer example type from request snapshot
+  const requestSnapshot = cloudExample.requestSnapshot || null;
+  const type = requestSnapshot?.type || 'http-request';
+
+  return {
+    uid: cloudExample.uid,
+    itemUid: cloudExample.requestUid,
+    name: cloudExample.name,
+    description: cloudExample.description || null,
+    type,
+    request: requestSnapshot,
+    response: {
+      status: cloudExample.status_code || null,
+      statusText: cloudExample.status_text || null,
+      headers: responseHeaders,
+      body: {
+        type: bodyType,
+        content: bodyContent
+      }
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ITEM TRANSFORMATION (Request/Folder)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -80,6 +183,9 @@ export function transformCloudItemToLocal(cloudItem, collectionId) {
     };
 
     baseItem.filename = cloudItem.filename || `${cloudItem.name.toLowerCase().replace(/\s+/g, '-')}.bru`;
+
+    // Examples are loaded separately via listForCollection and attached after load
+    baseItem.examples = [];
   }
 
   // For folders, just include items array and docs

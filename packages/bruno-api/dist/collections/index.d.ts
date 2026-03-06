@@ -101,6 +101,37 @@ export declare class CollectionService {
         errors: any[];
     }>;
     /**
+     * Publish collection documentation
+     */
+    publishDocs(collectionId: string, data: {
+        visibility: any;
+        settings?: any;
+    }): Promise<{
+        slug: string;
+        public_url: string;
+        published_at: string;
+    }>;
+    /**
+     * Update documentation settings/visibility
+     */
+    updateDocs(collectionId: string, data: {
+        visibility?: any;
+        settings?: any;
+    }): Promise<void>;
+    /**
+     * Unpublish documentation
+     */
+    unpublishDocs(collectionId: string): Promise<void>;
+    /**
+     * Get documentation status
+     */
+    getDocsStatus(collectionId: string): Promise<{
+        enabled: boolean;
+        slug?: string;
+        public_url?: string;
+        analytics?: any;
+    }>;
+    /**
      * Export a collection as Postman JSON format
      */
     exportCollection(collectionId: string, format?: string): Promise<Blob>;

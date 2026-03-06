@@ -763,6 +763,9 @@ export const collectionsSlice = createSlice({
           if (item.draft.settings) {
             item.settings = item.draft.settings;
           }
+          if (item.draft.examples) {
+            item.examples = item.draft.examples;
+          }
           item.draft = null;
         }
       }

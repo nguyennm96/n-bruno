@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useDispatch } from 'react-redux';
 import IconEdit from 'components/Icons/IconEdit';
-import { IconCode, IconDeviceFloppy } from '@tabler/icons';
+import { IconCode, IconDeviceFloppy, IconRefresh, IconCopy } from '@tabler/icons';
 import StyledWrapper from './StyledWrapper';
 import { useTheme } from 'providers/Theme';
 import TruncatedText from 'components/TruncatedText';
@@ -17,7 +17,9 @@ const ResponseExampleTopBar = ({
   onEditToggle,
   onSave,
   onCancel,
-  onGenerateCode
+  onGenerateCode,
+  onSyncRequestSnapshot,
+  onDuplicate
 }) => {
   const { theme } = useTheme();
   const dispatch = useDispatch();
@@ -180,6 +182,24 @@ const ResponseExampleTopBar = ({
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0 md:w-auto w-full md:justify-end">
+            <Button
+              color="secondary"
+              size="sm"
+              icon={<IconRefresh size={16} color={theme.examples.buttonIconColor} />}
+              onClick={onSyncRequestSnapshot}
+              data-testid="response-example-sync-request-btn"
+            >
+              Sync Request
+            </Button>
+            <Button
+              color="secondary"
+              size="sm"
+              icon={<IconCopy size={16} color={theme.examples.buttonIconColor} />}
+              onClick={onDuplicate}
+              data-testid="response-example-duplicate-btn"
+            >
+              Duplicate
+            </Button>
             <Button
               color="secondary"
               size="sm"

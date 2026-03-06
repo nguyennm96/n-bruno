@@ -144,6 +144,33 @@ class CollectionService {
         const response = await this.client.getClient().post(`/api/workspaces/${workspaceId}/sync`, { items });
         return response.data.data;
     }
+    // ── Public Documentation ──────────────────────────────────────────────────
+    /**
+     * Publish collection documentation
+     */
+    async publishDocs(collectionId, data) {
+        const response = await this.client.getClient().post(`/api/collections/${collectionId}/docs/publish`, data);
+        return response.data.data;
+    }
+    /**
+     * Update documentation settings/visibility
+     */
+    async updateDocs(collectionId, data) {
+        await this.client.getClient().patch(`/api/collections/${collectionId}/docs`, data);
+    }
+    /**
+     * Unpublish documentation
+     */
+    async unpublishDocs(collectionId) {
+        await this.client.getClient().delete(`/api/collections/${collectionId}/docs/unpublish`);
+    }
+    /**
+     * Get documentation status
+     */
+    async getDocsStatus(collectionId) {
+        const response = await this.client.getClient().get(`/api/collections/${collectionId}/docs/status`);
+        return response.data.data;
+    }
     // ── Stub Methods (Not Yet Implemented in Backend) ─────────────────────────
     /**
      * Export a collection as Postman JSON format

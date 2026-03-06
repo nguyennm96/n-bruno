@@ -8,6 +8,7 @@ import ResponseClear from '../ResponseClear';
 import ResponseLayoutToggle, { useResponseLayoutToggle } from '../ResponseLayoutToggle';
 import ResponseCopy from '../ResponseCopy/index';
 import StyledWrapper from './StyledWrapper';
+import { getExampleOptionLabel } from 'utils/examples';
 
 const StyledMenuIcon = styled.button`
   display: flex;
@@ -102,12 +103,12 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
     },
     {
       id: 'save-response',
-      label: 'Save response',
+      label: 'Save as new example',
       leftSection: IconBookmark,
       get disabled() {
         return bookmarkButtonRef.current?.isDisabled ?? false;
       },
-      onClick: () => bookmarkButtonRef.current?.click()
+      onClick: () => bookmarkButtonRef.current?.openCreateModal?.()
     },
     {
       id: 'download-response',
@@ -137,6 +138,21 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
       onClick: () => layoutToggleButtonRef.current?.click()
     }
   ];
+
+  const examples = item.draft?.examples || item.examples || [];
+  if (item.type !== 'graphql-request' && examples.length) {
+    menuItems.splice(2, 0, {
+      id: 'update-example',
+      label: 'Update saved example',
+      leftSection: IconBookmark,
+      submenu: examples.map((example) => ({
+        id: `update-${example.uid}`,
+        label: getExampleOptionLabel(example),
+        onClick: () => bookmarkButtonRef.current?.updateExampleFromResponse?.(example.uid),
+        disabled: bookmarkButtonRef.current?.isDisabled ?? false
+      }))
+    });
+  }
 
   if (!['http-request', 'graphql-request'].includes(item.type)) {
     return null;
