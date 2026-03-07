@@ -49,6 +49,9 @@ export const register = createAsyncThunk('auth/register', async ({ email, passwo
       refreshToken: refresh_token
     });
 
+    // Cache user profile for offline session restore
+    await storage.saveUserCache({ id: user.id, name: user.name, email: user.email });
+
     toast.success(`Welcome, ${user.name}!`);
 
     // Initialize cloud data for new user (don't await - runs in background)
@@ -97,7 +100,8 @@ export const login = createAsyncThunk('auth/login', async ({ email, password }, 
       refreshToken: refresh_token
     });
 
-    toast.success(`Welcome back, ${user.name}!`);
+    // Cache user profile for offline session restore
+    await storage.saveUserCache({ id: user.id, name: user.name, email: user.email });
 
     // Initialize cloud data after successful login (don't await - runs in background)
     // If this fails, user is still logged in successfully
@@ -136,6 +140,7 @@ export const logout = createAsyncThunk('auth/logout', async (_, { getState, disp
     const userId = getState().auth?.user?.id;
 
     await storage.clearAuthTokens();
+    await storage.clearUserCache(); // Clear cached user profile
 
     // Clear all user-scoped local cache (tabs, UI state, drafts, sync meta)
     if (userId) {
@@ -429,34 +434,76 @@ export const refreshAccessToken = createAsyncThunk('auth/refresh', async (_, { g
 /**
  * Load saved tokens from storage on app startup
  */
-export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { dispatch, getState, rejectWithValue }) => {
+export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { dispatch, getState }) => {
   try {
-    // Get tokens from secure storage (via storage layer)
+    // 1. Load tokens from secure storage
     const tokens = await storage.getAuthTokens();
-
     if (!tokens || !tokens.accessToken || !tokens.refreshToken) {
       return null; // No saved auth
     }
 
     if (!brunoApi) throw new Error('API client not initialized');
 
-    // Set tokens in API client
+    // 2. Set tokens in API client immediately
     brunoApi.client.setTokens(tokens.accessToken, tokens.refreshToken);
 
-    // Verify tokens by fetching user info
+    // 3. Load cached user profile (saved at last login — allows offline restore)
+    const cachedUser = await storage.getUserCache();
+
+    if (cachedUser?.id) {
+      // We have enough to restore session without a network call — start cloud init immediately
+      const state = getState();
+      if (!state.auth.isInitializingCloudData) {
+        console.log('🚀 [LoadSavedAuth] Restoring session from cache for user:', cachedUser.id);
+        dispatch(initializeCloudData(cachedUser.id)).catch((error) => {
+          console.error('❌ [LoadSavedAuth] Failed to initialize cloud data on app start:', error);
+          toast.error('Failed to load your workspaces. Please check your connection and try again.');
+        });
+      }
+
+      // 4. Verify tokens in background — update cache if OK, logout only on 401/403
+      brunoApi.auth.getMe()
+        .then((response) => {
+          const freshUser = response.data;
+          // Update cached user with latest data
+          storage.saveUserCache({ id: freshUser.id, name: freshUser.name, email: freshUser.email });
+          console.log('✅ [LoadSavedAuth] Token verified, user cache updated');
+        })
+        .catch((error) => {
+          const status = error.response?.status;
+          if (status === 401 || status === 403) {
+            // Tokens genuinely invalid — force logout
+            console.warn('[LoadSavedAuth] Tokens revoked (401/403), clearing session');
+            dispatch({ type: 'auth/logout/pending' }); // trigger logout flow
+            storage.clearAuthTokens();
+            storage.clearUserCache();
+            brunoApi.client.clearTokens();
+          } else {
+            console.warn('[LoadSavedAuth] Could not verify token (network/server), staying logged in');
+          }
+        });
+
+      return {
+        user: cachedUser,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken
+      };
+    }
+
+    // 5. No cached user — fall back to network verification (first boot after code update)
     const response = await brunoApi.auth.getMe();
     const user = response.data;
 
-    // Initialize cloud data after successful token verification (don't await - runs in background)
+    // Save user to cache for future restores
+    await storage.saveUserCache({ id: user.id, name: user.name, email: user.email });
+
     const state = getState();
     if (!state.auth.isInitializingCloudData) {
       console.log('🚀 [LoadSavedAuth] Dispatching initializeCloudData for user:', user.id);
       dispatch(initializeCloudData(user.id)).catch((error) => {
         console.error('❌ [LoadSavedAuth] Failed to initialize cloud data on app start:', error);
-        // Don't show toast - user just opened the app, silent failure is okay
+        toast.error('Failed to load your workspaces. Please check your connection and try again.');
       });
-    } else {
-      console.log('⏭️  [LoadSavedAuth] Cloud data already initializing, skipping...');
     }
 
     return {
@@ -465,12 +512,18 @@ export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { disp
       refreshToken: tokens.refreshToken
     };
   } catch (error) {
-    // Invalid tokens - clear them from storage AND API client (via storage layer)
-    await storage.clearAuthTokens();
-    if (brunoApi?.client) {
-      brunoApi.client.clearTokens();
+    const status = error.response?.status;
+    const isAuthError = status === 401 || status === 403;
+
+    if (isAuthError) {
+      await storage.clearAuthTokens();
+      await storage.clearUserCache();
+      if (brunoApi?.client) brunoApi.client.clearTokens();
+      console.error('Saved auth tokens are invalid, clearing:', error.message);
+    } else {
+      console.error('Failed to verify saved auth (network/server issue), keeping tokens:', error.message);
     }
-    console.error('Failed to load saved auth:', error.message);
+
     return null;
   }
 });

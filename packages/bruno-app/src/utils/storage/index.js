@@ -515,6 +515,21 @@ class StorageManager {
     return this.localStorage.clearAuthTokens();
   }
 
+  async saveUserCache(user) {
+    console.log('StorageManager.saveUserCache: always local');
+    return this.localStorage.saveUserCache(user);
+  }
+
+  async getUserCache() {
+    console.log('StorageManager.getUserCache: always local');
+    return this.localStorage.getUserCache();
+  }
+
+  async clearUserCache() {
+    console.log('StorageManager.clearUserCache: always local');
+    return this.localStorage.clearUserCache();
+  }
+
   // Workspace link operations (always local)
   async saveWorkspaceLink(linkData) {
     console.log('StorageManager.saveWorkspaceLink: always local');

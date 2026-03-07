@@ -125,10 +125,9 @@ export const openWorkspaceDialog = () => {
   };
 };
 
-export const removeCollectionFromWorkspaceAction = (workspaceUid, collectionPath, options = {}) => {
+export const removeCollectionFromWorkspaceAction = (workspaceUid, collectionPath) => {
   return async (dispatch, getState) => {
     try {
-      const { deleteFiles = false } = options;
       const workspacesState = getState().workspaces;
       const collectionsState = getState().collections;
       const workspace = workspacesState.workspaces.find((w) => w.uid === workspaceUid);
@@ -139,24 +138,31 @@ export const removeCollectionFromWorkspaceAction = (workspaceUid, collectionPath
 
       const normalizedCollectionPath = normalizePath(collectionPath);
 
+      // In cloud mode the caller may pass collection.uid (e.g. "abc123") instead of the
+      // full pathname ("cloud://abc123"), so we match by either.
       const collection = collectionsState.collections.find(
-        (c) => normalizePath(c.pathname) === normalizedCollectionPath
+        (c) =>
+          normalizePath(c.pathname) === normalizedCollectionPath
+          || c.uid === collectionPath
       );
 
-      await storage.removeCollectionFromWorkspace(
-        workspaceUid,
-        workspace.pathname,
-        collectionPath,
-        { deleteFiles });
-
-      if (collection) {
-        const workspaceCollection = workspace.collections?.find(
-          (wc) => normalizePath(wc.path) === normalizedCollectionPath
-        );
-
-        if (workspaceCollection) {
-          dispatch(removeCollection({ collectionUid: collection.uid }));
+      if (storage.isCloudMode()) {
+        // Cloud: delete from the server
+        if (collection) {
+          await storage.deleteCollection(collection.uid);
         }
+      } else {
+        // Local IDB: delete cascade from IndexedDB
+        await storage.removeCollectionFromWorkspace(
+          workspaceUid,
+          workspace.pathname,
+          collectionPath
+        );
+      }
+
+      // Update Redux — remove from collections list and workspace
+      if (collection) {
+        dispatch(removeCollection({ collectionUid: collection.uid }));
       }
 
       dispatch(removeCollectionFromWorkspace({

@@ -1011,6 +1011,21 @@ export const clearAuthTokens = async () => {
   return ipcRenderer.invoke('auth:clear-tokens');
 };
 
+export const saveUserCache = async (user) => {
+  console.log('[LocalStorage] saveUserCache');
+  return ipcRenderer.invoke('auth:save-user', user);
+};
+
+export const getUserCache = async () => {
+  console.log('[LocalStorage] getUserCache');
+  return ipcRenderer.invoke('auth:get-user');
+};
+
+export const clearUserCache = async () => {
+  console.log('[LocalStorage] clearUserCache');
+  return ipcRenderer.invoke('auth:clear-user');
+};
+
 // Workspace link operations (IDB — keyed by collectionUid)
 export const saveWorkspaceLink = async ({ collectionUid, workspaceId, collectionName, linkedAt }) => {
   await idbPut(STORES.WORKSPACE_LINKS, { collectionUid, workspaceId, collectionName, linkedAt: linkedAt || Date.now() });
@@ -1046,12 +1061,9 @@ export const openWorkspaceDialog = async () => {
   return ipcRenderer.invoke('renderer:open-workspace-dialog');
 };
 
-export const removeCollectionFromWorkspace = async (workspaceUid, workspacePath, collectionPath, options = {}) => {
+export const removeCollectionFromWorkspace = async (workspaceUid, workspacePath, collectionPath) => {
   // collectionPath = collection uid in IDB mode
-  const uid = collectionPath;
-  if (options?.deleteFiles !== false) {
-    await deleteCollectionCascade(uid);
-  }
+  await deleteCollectionCascade(collectionPath);
 };
 
 // API Specs — IDB-native (workspaceUid-scoped)

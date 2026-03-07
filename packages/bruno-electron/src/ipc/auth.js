@@ -96,6 +96,49 @@ const getTokens = async () => {
 };
 
 /**
+ * Save user profile to store for session restore
+ */
+const saveUser = async (event, user) => {
+  try {
+    authStore.set('cachedUser', {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      savedAt: Date.now()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save user cache:', error);
+    return { success: false };
+  }
+};
+
+/**
+ * Retrieve cached user profile
+ */
+const getUser = async () => {
+  try {
+    return authStore.get('cachedUser') || null;
+  } catch (error) {
+    console.error('Failed to retrieve user cache:', error);
+    return null;
+  }
+};
+
+/**
+ * Clear cached user profile
+ */
+const clearUser = async () => {
+  try {
+    authStore.delete('cachedUser');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to clear user cache:', error);
+    return { success: false };
+  }
+};
+
+/**
  * Clear authentication tokens
  */
 const clearTokens = async () => {
@@ -141,6 +184,11 @@ const registerAuthIpc = () => {
 
   // Check if tokens exist
   ipcMain.handle('auth:has-tokens', hasTokens);
+
+  // User profile cache (for session restore without network)
+  ipcMain.handle('auth:save-user', saveUser);
+  ipcMain.handle('auth:get-user', getUser);
+  ipcMain.handle('auth:clear-user', clearUser);
 
   console.log('Auth IPC handlers registered');
 };

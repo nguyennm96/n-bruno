@@ -1167,13 +1167,10 @@ export const scanForBrunoFiles = async (dir) => {
 };
 
 // Mount collection
-export const mountCollection = async ({ collectionUid, collectionPathname, brunoConfig }) => {
-  const brunoApi = getBrunoApi();
+export const mountCollection = async ({ collectionUid }) => {
   console.log(`☁️  [CloudStorage] mountCollection:`, { collectionUid });
-
-  // Cloud mode: mount collection
-  const result = await brunoApi.collections.mount({ collectionUid, collectionPathname, brunoConfig });
-  return result;
+  // Cloud collections don't need filesystem mounting — no-op
+  return collectionUid;
 };
 
 // New request file operations
@@ -1288,6 +1285,21 @@ export const getAuthTokens = async () => {
 export const clearAuthTokens = async () => {
   console.log(`☁️  [CloudStorage] clearAuthTokens: delegating to LocalStorage`);
   return LocalStorage.clearAuthTokens();
+};
+
+export const saveUserCache = async (user) => {
+  console.log(`☁️  [CloudStorage] saveUserCache: delegating to LocalStorage`);
+  return LocalStorage.saveUserCache(user);
+};
+
+export const getUserCache = async () => {
+  console.log(`☁️  [CloudStorage] getUserCache: delegating to LocalStorage`);
+  return LocalStorage.getUserCache();
+};
+
+export const clearUserCache = async () => {
+  console.log(`☁️  [CloudStorage] clearUserCache: delegating to LocalStorage`);
+  return LocalStorage.clearUserCache();
 };
 
 // Workspace link operations (always delegate to local)

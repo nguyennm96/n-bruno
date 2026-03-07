@@ -95,6 +95,20 @@ const Wrapper = styled.div`
     text-overflow: ellipsis;
     overflow: hidden;
   }
+
+  .collection-items-grid {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.18s ease;
+
+    &.expanded {
+      grid-template-rows: 1fr;
+    }
+
+    .collection-items-inner {
+      overflow: hidden;
+    }
+  }
 `;
 
 export default Wrapper;

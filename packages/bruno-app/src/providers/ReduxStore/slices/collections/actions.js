@@ -2691,6 +2691,39 @@ export const createCollection = (collectionName, options = {}) => async (dispatc
   try {
     const result = await storage.createCollection(collectionName, options);
     console.log('✅ [createCollection] Success:', result);
+
+    // Cloud mode: the API returns the new collection but there is no file-watcher to trigger
+    // a Redux update, so we dispatch directly here.
+    if (storage.isCloudMode() && result) {
+      const resultUid = result.uid || result.id;
+      const state = getState();
+      const activeWorkspace = state.workspaces.workspaces.find((w) => w.uid === state.workspaces.activeWorkspaceUid);
+
+      const collection = {
+        version: '1',
+        uid: resultUid,
+        name: result.name,
+        pathname: `cloud://${resultUid}`,
+        items: [],
+        environments: [],
+        runtimeVariables: {},
+        brunoConfig: result.brunoConfig || result.bruno_config || { name: result.name, version: '1' },
+        root: result.root || {},
+        isCloud: true,
+        workspaceId: activeWorkspace?.uid,
+        mountStatus: 'unmounted'
+      };
+
+      dispatch(_createCollection(collection));
+
+      if (activeWorkspace) {
+        dispatch(_addCollectionToWorkspace({
+          workspaceUid: activeWorkspace.uid,
+          collection: { uid: resultUid, name: result.name, path: `cloud://${resultUid}` }
+        }));
+      }
+    }
+
     return result;
   } catch (error) {
     console.error('❌ [createCollection] Failed:', error);
@@ -2811,17 +2844,41 @@ export const importCollection = (collection, collectionLocation, options = {}) =
 
       const result = await storage.importCollection(collection, collectionLocation, options, getState);
 
-      // IDB mode: result is the imported item(s) directly; dispatch Redux for each
       const importedItems = Array.isArray(result) ? result : (result ? [result] : []);
 
       if (importedItems.length > 0) {
-        const { loadCollectionFromIdb } = await import('utils/idb/collectionTree');
         const workspaceUid = activeWorkspace?.uid || 'default';
-        for (const item of importedItems) {
-          const col = await loadCollectionFromIdb(item.uid);
-          if (col) {
-            dispatch(_createCollection(col));
-            dispatch(_addCollectionToWorkspace({ workspaceUid, collection: { uid: col.uid, name: col.name, path: col.uid } }));
+
+        if (storage.isCloudMode()) {
+          // Cloud mode: server returns the new collection directly — dispatch to Redux
+          for (const item of importedItems) {
+            const uid = item.uid || item.id;
+            const cloudCollection = {
+              version: '1',
+              uid,
+              name: item.name,
+              pathname: `cloud://${uid}`,
+              items: [],
+              environments: [],
+              runtimeVariables: {},
+              brunoConfig: item.brunoConfig || item.bruno_config || { name: item.name, version: '1' },
+              root: item.root || {},
+              isCloud: true,
+              workspaceId: workspaceUid,
+              mountStatus: 'unmounted'
+            };
+            dispatch(_createCollection(cloudCollection));
+            dispatch(_addCollectionToWorkspace({ workspaceUid, collection: { uid, name: item.name, path: `cloud://${uid}` } }));
+          }
+        } else {
+          // Local IDB mode: load collection tree from IDB then dispatch
+          const { loadCollectionFromIdb } = await import('utils/idb/collectionTree');
+          for (const item of importedItems) {
+            const col = await loadCollectionFromIdb(item.uid);
+            if (col) {
+              dispatch(_createCollection(col));
+              dispatch(_addCollectionToWorkspace({ workspaceUid, collection: { uid: col.uid, name: col.name, path: col.uid } }));
+            }
           }
         }
       }

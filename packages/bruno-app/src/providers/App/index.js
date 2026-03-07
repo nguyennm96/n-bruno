@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { get } from 'lodash';
 import { useDispatch, useSelector } from 'react-redux';
 import { refreshScreenWidth } from 'providers/ReduxStore/slices/app';
-import { loadSavedAuth, selectIsAuthInitializing } from 'providers/ReduxStore/slices/auth';
+import { loadSavedAuth } from 'providers/ReduxStore/slices/auth';
 import { setupNetworkListeners } from 'providers/ReduxStore/slices/network';
 import { initializeBrunoCloudApi } from 'services/brunoApi';
 import { store } from 'providers/ReduxStore';
@@ -54,10 +54,18 @@ export const AppProvider = (props) => {
   // Any workspace created via the app UI is only in IDB — we need to add those to Redux too.
   // We wait briefly to let the Electron workspace-opened events arrive first, then add any IDB-only workspaces.
   useEffect(() => {
-    const isAuthenticated = store.getState().auth?.isAuthenticated;
-    if (isAuthenticated) return;
+    // Wait for auth initialization to complete before deciding whether to bootstrap local workspaces.
+    // If the user is authenticated (cloud mode), skip IDB bootstrap entirely —
+    // initializeCloudData handles workspace loading.
+    // We use a store subscription so we react to the async auth result instead of
+    // reading isAuthenticated synchronously (which is always false at mount time).
+    let unsubscribe = null;
+    let bootstrapRan = false;
 
-    const timer = setTimeout(async () => {
+    const runIdbBootstrap = async () => {
+      if (bootstrapRan) return;
+      bootstrapRan = true;
+
       try {
         const { loadWorkspacesFromIdb } = await import('utils/idb/collectionTree');
         const { createWorkspace: createWorkspaceSlice } = await import('providers/ReduxStore/slices/workspaces');
@@ -89,9 +97,33 @@ export const AppProvider = (props) => {
       } catch (e) {
         console.warn('[IDB Bootstrap] Failed:', e?.message);
       }
-    }, 800); // Wait for Electron workspace-opened events to settle
+    };
 
-    return () => clearTimeout(timer);
+    // Subscribe to store changes and wait for auth initialization to settle
+    unsubscribe = store.subscribe(() => {
+      const authState = store.getState().auth;
+      if (authState?.isInitializing) return; // Still loading tokens
+
+      // Auth check is done — unsubscribe immediately to avoid repeated runs
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
+
+      if (authState?.isAuthenticated) {
+        // Cloud mode: initializeCloudData handles workspace loading, skip IDB bootstrap
+        return;
+      }
+
+      // Local mode: bootstrap IDB workspaces after Electron workspace-opened events settle
+      setTimeout(runIdbBootstrap, 800);
+    });
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   useEffect(() => {

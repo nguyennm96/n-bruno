@@ -1,6 +1,15 @@
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+`;
 
 const StyledWrapper = styled.div`
+  .tab-content-enter {
+    animation: ${fadeIn} 0.15s ease forwards;
+  }
+
   &.dragging {
     cursor: col-resize;
 

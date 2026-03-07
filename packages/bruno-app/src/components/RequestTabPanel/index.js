@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import find from 'lodash/find';
 import toast from 'react-hot-toast';
 import { useSelector, useDispatch } from 'react-redux';
@@ -36,6 +36,7 @@ import WorkspaceOverview from 'components/WorkspaceHome/WorkspaceOverview';
 import Preferences from 'components/Preferences';
 import EnvironmentSettings from 'components/Environments/EnvironmentSettings';
 import GlobalEnvironmentSettings from 'components/Environments/GlobalEnvironmentSettings';
+import NoTabsOpen from './NoTabsOpen';
 
 const MIN_LEFT_PANE_WIDTH = 300;
 const MIN_RIGHT_PANE_WIDTH = 490;
@@ -44,9 +45,11 @@ const MIN_BOTTOM_PANE_HEIGHT = 150;
 
 const RequestTabPanel = () => {
   const dispatch = useDispatch();
-  const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
-  const focusedTab = find(tabs, (t) => t.uid === activeTabUid);
+  const focusedTab = useSelector((state) => {
+    const { tabs, activeTabUid: uid } = state.tabs;
+    return tabs.find((t) => t.uid === uid) ?? null;
+  });
   const { globalEnvironments, activeGlobalEnvironmentUid } = useSelector((state) => state.globalEnvironments);
   const _collections = useSelector((state) => state.collections.collections);
   const preferences = useSelector((state) => state.app.preferences);
@@ -62,7 +65,7 @@ const RequestTabPanel = () => {
   }, [isVerticalLayout]);
 
   // merge `globalEnvironmentVariables` into the active collection and rebuild `collections` immer proxy object
-  const collections = produce(_collections, (draft) => {
+  const collections = useMemo(() => produce(_collections, (draft) => {
     const collection = find(draft, (c) => c.uid === focusedTab?.collectionUid);
 
     if (collection) {
@@ -75,7 +78,7 @@ const RequestTabPanel = () => {
       collection.globalEnvironmentVariables = globalEnvironmentVariables;
       collection.globalEnvSecrets = globalEnvSecrets;
     }
-  });
+  }), [_collections, focusedTab?.collectionUid, globalEnvironments, activeGlobalEnvironmentUid]);
 
   const collection = find(collections, (c) => c.uid === focusedTab?.collectionUid);
   const [dragging, setDragging] = useState(false);
@@ -88,6 +91,16 @@ const RequestTabPanel = () => {
   // make a callback to set state, but treating this as an exception
   const docExplorerRef = useRef(null);
   const mainSectionRef = useRef(null);
+  const tabContentRef = useRef(null);
+
+  // Replay fade-in animation when active tab changes (without remounting heavy children)
+  useEffect(() => {
+    const el = tabContentRef.current;
+    if (!el || !activeTabUid) return;
+    el.classList.remove('tab-content-enter');
+    void el.offsetWidth; // force reflow to restart animation
+    el.classList.add('tab-content-enter');
+  }, [activeTabUid]);
 
   const [schema, setSchema] = useState(null);
   const [showGqlDocs, setShowGqlDocs] = useState(false);
@@ -175,7 +188,7 @@ const RequestTabPanel = () => {
   }
 
   if (!activeTabUid || !focusedTab) {
-    return <div className="pb-4 px-4">An error occurred!</div>;
+    return <NoTabsOpen />;
   }
 
   if (focusedTab.type === 'global-environment-settings') {
@@ -195,7 +208,7 @@ const RequestTabPanel = () => {
   }
 
   if (!focusedTab.uid || !focusedTab.collectionUid) {
-    return <div className="pb-4 px-4">An error occurred!</div>;
+    return <NoTabsOpen />;
   }
 
   if (!collection || !collection.uid) {
@@ -344,7 +357,8 @@ const RequestTabPanel = () => {
 
   return (
     <StyledWrapper
-      className={`flex flex-col flex-grow relative ${dragging ? 'dragging' : ''} ${
+      ref={tabContentRef}
+      className={`flex flex-col flex-grow relative tab-content-enter ${dragging ? 'dragging' : ''} ${
         isVerticalLayout ? 'vertical-layout' : ''
       }`}
     >

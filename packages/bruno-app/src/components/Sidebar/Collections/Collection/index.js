@@ -505,17 +505,15 @@ const Collection = ({ collection, searchText }) => {
           </div>
         </div>
       </div>
-      <div>
-        {!collectionIsCollapsed ? (
-          <div>
-            {folderItems?.map?.((i) => {
-              return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.uid ?? collection.pathname} searchText={searchText} />;
-            })}
-            {requestItems?.map?.((i) => {
-              return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.uid ?? collection.pathname} searchText={searchText} />;
-            })}
-          </div>
-        ) : null}
+      <div className={`collection-items-grid ${collectionIsCollapsed ? '' : 'expanded'}`}>
+        <div className="collection-items-inner">
+          {folderItems?.map?.((i) => {
+            return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.uid ?? collection.pathname} searchText={searchText} />;
+          })}
+          {requestItems?.map?.((i) => {
+            return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.uid ?? collection.pathname} searchText={searchText} />;
+          })}
+        </div>
       </div>
     </StyledWrapper>
   );
