@@ -10,6 +10,7 @@ pub struct Config {
     pub jwt_secret: String,
     pub jwt_access_expires_minutes: i64,
     pub jwt_refresh_expires_days: i64,
+    #[allow(dead_code)]
     pub cors_allowed_origins: Vec<String>,
     pub public_docs_base_url: String,
     pub app_url: String,
@@ -77,6 +78,7 @@ impl Config {
 
     /// Create a config suitable for integration tests.
     /// Avoids relying on shared env vars (which cause race conditions in parallel tests).
+    #[allow(dead_code)]
     pub fn for_test(mongodb_uri: String, db_name: String) -> Self {
         Config {
             app_env: "test".to_string(),
@@ -103,6 +105,7 @@ impl Config {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_production(&self) -> bool {
         self.app_env == "production"
     }

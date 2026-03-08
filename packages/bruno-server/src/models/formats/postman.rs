@@ -196,6 +196,7 @@ pub struct PostmanResponse {
 // ── Environment ───────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct PostmanEnvironment {
     pub id: String,
     pub name: String,
@@ -203,6 +204,7 @@ pub struct PostmanEnvironment {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct PostmanEnvValue {
     pub key: String,
     pub value: String,

@@ -4,7 +4,7 @@ use axum::{
     response::{Json, Redirect},
     Json as JsonBody,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use validator::Validate;
 

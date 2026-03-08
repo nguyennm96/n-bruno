@@ -9,6 +9,7 @@ pub fn generate_uid() -> String {
 }
 
 /// Backward-compatible alias.
+#[allow(dead_code)]
 pub fn generate_client_id() -> String {
     generate_uid()
 }
@@ -248,6 +249,7 @@ impl Item {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_request(&self) -> bool {
         self.item_type == ItemType::Request
     }

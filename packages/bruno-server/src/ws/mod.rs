@@ -17,6 +17,7 @@ use tokio::sync::broadcast;
 use crate::state::AppState;
 
 /// Maximum connections per workspace
+#[allow(dead_code)]
 const MAX_CONNECTIONS_PER_WORKSPACE: usize = 100;
 
 /// Channel capacity
@@ -132,8 +133,8 @@ async fn handle_socket(socket: WebSocket, user_id: String, state: AppState) {
         Arc::new(Mutex::new(HashMap::new()));
 
     let subs_clone = subscriptions.clone();
-    let state_clone = state.clone();
-    let user_id_clone = user_id.clone();
+    let _state_clone = state.clone();
+    let _user_id_clone = user_id.clone();
 
     // Spawn task to forward sender (we need ownership)
     // Use mpsc to forward messages to the WS sender
@@ -203,7 +204,7 @@ async fn handle_socket(socket: WebSocket, user_id: String, state: AppState) {
                 }
             }
             Message::Close(_) => break,
-            Message::Ping(data) => {
+            Message::Ping(_data) => {
                 // Handled by axum automatically
             }
             _ => {}

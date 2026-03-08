@@ -3,7 +3,6 @@ use argon2::{
     Argon2,
 };
 use bson::{doc, to_bson};
-use chrono::Utc;
 use mongodb::{Collection, Database};
 use rand::Rng;
 
@@ -23,6 +22,7 @@ use crate::{
 #[derive(Clone)]
 pub struct PublicDocsService {
     collections: Collection<CollectionModel>,
+    #[allow(dead_code)]
     workspace_service: WorkspaceService,
     config: Config,
 }

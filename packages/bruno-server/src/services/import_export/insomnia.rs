@@ -1,7 +1,7 @@
 /// Insomnia export format importer (simplified)
 use bson::{doc, oid::ObjectId};
 use mongodb::{Collection, Database};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::{
     errors::{AppError, AppResult},
@@ -18,6 +18,7 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct InsomniaExport {
     #[serde(rename = "__export_format")]
+    #[allow(dead_code)]
     pub export_format: Option<u32>,
     pub resources: Vec<InsomniaResource>,
 }
@@ -34,11 +35,14 @@ pub struct InsomniaResource {
     // Request fields
     pub method: Option<String>,
     pub url: Option<String>,
+    #[allow(dead_code)]
     pub headers: Option<Vec<InsomniaHeader>>,
+    #[allow(dead_code)]
     pub body: Option<InsomniaBody>,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct InsomniaHeader {
     pub name: String,
     pub value: String,
@@ -46,8 +50,10 @@ pub struct InsomniaHeader {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct InsomniaBody {
-    pub mimeType: Option<String>,
+    #[serde(rename = "mimeType")]
+    pub mime_type: Option<String>,
     pub text: Option<String>,
 }
 

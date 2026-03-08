@@ -285,7 +285,7 @@ impl ItemService {
             deleted_at: None,
         };
         let res = self.items.insert_one(&new_item).await.map_err(AppError::from)?;
-        let new_uid = res.inserted_id.as_object_id().map(|_| new_item.uid.clone()).unwrap_or_default();
+        let _new_uid = res.inserted_id.as_object_id().map(|_| new_item.uid.clone()).unwrap_or_default();
         self.get_raw(&new_item.uid).await.map(ItemResponse::from)
     }
 

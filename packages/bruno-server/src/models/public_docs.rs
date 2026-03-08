@@ -149,6 +149,7 @@ pub struct VerifyPasswordRequest {
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct VerifyPasswordResponse {
     pub token: String,
 }

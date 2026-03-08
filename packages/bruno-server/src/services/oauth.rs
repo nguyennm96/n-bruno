@@ -60,6 +60,7 @@ struct GitHubEmail {
 
 /// Serialized form for building OAuth state (CSRF protection).
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct OauthState {
     nonce: String,
 }

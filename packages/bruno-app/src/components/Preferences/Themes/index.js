@@ -116,5 +116,3 @@ const Themes = () => {
 };
 
 export default Themes;
-
-export default Themes;
