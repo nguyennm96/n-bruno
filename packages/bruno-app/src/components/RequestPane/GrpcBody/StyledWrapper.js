@@ -112,7 +112,7 @@ const Wrapper = styled.div`
 
     p {
       color: ${(props) => props.theme.colors.text.muted};
-      font-size: 13px;
+      font-size: ${(props) => props.theme.font.size.base};
     }
   }
 

@@ -1347,3 +1347,33 @@ export const updateResponseExampleStatusText = (state, action) => {
 
   example.response.statusText = String(statusText ?? '');
 };
+
+/**
+ * Merge a lazily-fetched full example body+requestSnapshot into Redux state.
+ * Updates both the persisted `examples` array and the draft (if open).
+ */
+export const setExampleBody = (state, action) => {
+  const { collectionUid, itemUid, exampleUid, body, requestSnapshot } = action.payload;
+  const collection = findCollectionByUid(state.collections, collectionUid);
+  if (!collection) return;
+
+  const item = findItemInCollection(collection, itemUid);
+  if (!item) return;
+
+  const applyBody = (examplesList) => {
+    const example = (examplesList || []).find((e) => e.uid === exampleUid);
+    if (example) {
+      example.response = example.response || {};
+      example.response.body = example.response.body || {};
+      example.response.body.content = body ?? null;
+      if (requestSnapshot !== undefined) {
+        example.request = requestSnapshot;
+      }
+    }
+  };
+
+  applyBody(item.examples);
+  if (item.draft?.examples) {
+    applyBody(item.draft.examples);
+  }
+};

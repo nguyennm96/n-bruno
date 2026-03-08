@@ -12,12 +12,14 @@ import 'moment-timezone';
 import { Tooltip } from 'react-tooltip';
 import { isEmpty } from 'lodash';
 import StyledWrapper from './StyledWrapper';
+import { useTranslation } from 'react-i18next';
 
 const removeEmptyValues = (obj) => {
   return Object.fromEntries(Object.entries(obj).filter(([_, value]) => value !== null && value !== undefined));
 };
 
 const ModifyCookieModal = ({ onClose, domain, cookie }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const [isRawMode, setIsRawMode] = useState(false);
   const [cookieString, setCookieString] = useState('');
@@ -36,9 +38,9 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
       httpOnly: cookie?.httpOnly || false
     },
     validationSchema: Yup.object({
-      key: Yup.string().required('Key is required'),
-      value: Yup.string().required('Value is required'),
-      domain: Yup.string().required('Domain is required'),
+      key: Yup.string().required(t('COOKIES.KEY_REQUIRED')),
+      value: Yup.string().required(t('COOKIES.VALUE_REQUIRED')),
+      domain: Yup.string().required(t('COOKIES.DOMAIN_REQUIRED')),
       secure: Yup.boolean(),
       httpOnly: Yup.boolean(),
       expires: Yup.mixed()
@@ -47,7 +49,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
           if (!value || value === '') return null;
           return moment(value).isValid() ? moment(value).toDate() : null;
         })
-        .test('future-date', 'Expiration date must be in the future', (value) => {
+        .test('future-date', t('COOKIES.EXPIRATION_FUTURE'), (value) => {
           if (!value) return true;
           return moment(value).isAfter(moment());
         })
@@ -67,27 +69,27 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
     }
   });
 
-  const title = cookie ? 'Modify Cookie' : 'Add Cookie';
+  const title = cookie ? t('COOKIES.MODIFY_COOKIE') : t('COOKIES.ADD_COOKIE');
 
   const handleCookieDispatch = (cookie, domain, modValues, onClose) => {
     if (cookie) {
       dispatch(modifyCookie(domain, cookie, modValues))
         .then(() => {
-          toast.success('Cookie modified successfully');
+          toast.success(t('COOKIES.COOKIE_MODIFIED'));
           onClose();
         })
         .catch((err) => {
-          toast.error('An error occurred while modifying cookie');
+          toast.error(t('COOKIES.COOKIE_MODIFY_ERROR'));
           console.error(err);
         });
     } else {
       dispatch(addCookie(domain, modValues))
         .then(() => {
-          toast.success('Cookie added successfully');
+          toast.success(t('COOKIES.COOKIE_ADDED'));
           onClose();
         })
         .catch((err) => {
-          toast.error('An error occurred while adding cookie');
+          toast.error(t('COOKIES.COOKIE_ADD_ERROR'));
           console.error(err);
         });
     }
@@ -109,7 +111,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
         });
 
         if (!cookieObj) {
-          toast.error('Please enter a valid cookie string');
+          toast.error(t('COOKIES.INVALID_COOKIE_STRING'));
           return;
         }
 
@@ -135,7 +137,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
         formik.handleSubmit();
       }
     } catch (error) {
-      const errMsg = error.message || 'An error occurred while parsing cookie string';
+      const errMsg = error.message || t('COOKIES.COOKIE_PARSE_ERROR');
       toast.error(errMsg);
     }
   };
@@ -193,7 +195,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
             true
           );
         } catch (error) {
-          const errMsg = error.message || 'An error occurred while parsing cookie string';
+          const errMsg = error.message || t('COOKIES.COOKIE_PARSE_ERROR');
           toast.error(errMsg);
         }
       }
@@ -221,7 +223,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
                 setIsRawMode(e.target.checked);
               }}
             />
-            <label className="font-normal mr-4 normal-case">Edit Raw</label>
+            <label className="font-normal mr-4 normal-case">{t('COOKIES.EDIT_RAW')}</label>
           </div>
         </div>
       )}
@@ -231,19 +233,19 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
           {isRawMode ? (
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <label className="block">Set-Cookie String</label>
+                <label className="block">{t('COOKIES.SET_COOKIE_STRING')}</label>
                 <IconInfoCircle id="cookie-raw-info" size={16} strokeWidth={1.5} className="info-icon" />
                 <Tooltip
                   anchorId="cookie-raw-info"
                   className="tooltip-mod"
-                  html="Key, Path, and Domain are immutable properties and cannot be modified for existing cookies"
+                  html={t('COOKIES.IMMUTABLE_PROPERTIES_INFO')}
                 />
               </div>
               <textarea
                 value={cookieString}
                 onChange={(e) => setCookieString(e.target.value)}
                 className="block textbox w-full h-24"
-                placeholder="key=value; key2=value2"
+                placeholder={t('COOKIES.COOKIE_STRING_PLACEHOLDER')}
               />
             </div>
           ) : (
@@ -251,7 +253,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block mb-1">
-                    Domain<span className="required-asterisk">*</span>{' '}
+                    {t('COOKIES.DOMAIN')}<span className="required-asterisk">*</span>{' '}
                   </label>
                   <input
                     type="text"
@@ -268,7 +270,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
                   )}
                 </div>
                 <div>
-                  <label className="block mb-1">Path</label>
+                  <label className="block mb-1">{t('COOKIES.PATH')}</label>
                   <input
                     type="text"
                     name="path"
@@ -283,7 +285,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
                 </div>
                 <div>
                   <label className="block mb-1">
-                    Key<span className="required-asterisk">*</span>{' '}
+                    {t('COOKIES.KEY')}<span className="required-asterisk">*</span>{' '}
                   </label>
                   <input
                     type="text"
@@ -302,7 +304,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
 
                 <div>
                   <label className="block mb-1">
-                    Value<span className="required-asterisk">*</span>{' '}
+                    {t('COOKIES.VALUE_LABEL')}<span className="required-asterisk">*</span>{' '}
                   </label>
                   <input
                     type="text"
@@ -322,7 +324,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
               {/* Date Picker */}
               <div className="w-full flex items-end">
                 <div>
-                  <label className="block mb-1">Expiration ({moment.tz.guess()})</label>
+                  <label className="block mb-1">{t('COOKIES.EXPIRATION', { tz: moment.tz.guess() })}</label>
                   <input
                     type="datetime-local"
                     name="expires"
@@ -348,7 +350,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
                       onChange={formik.handleChange}
                       className="mr-2"
                     />
-                    <span>Secure</span>
+                    <span>{t('COOKIES.SECURE')}</span>
                   </label>
 
                   <label className="flex items-center">
@@ -359,7 +361,7 @@ const ModifyCookieModal = ({ onClose, domain, cookie }) => {
                       onChange={formik.handleChange}
                       className="mr-2"
                     />
-                    <span>HTTP Only</span>
+                    <span>{t('COOKIES.HTTP_ONLY')}</span>
                   </label>
                 </div>
               </div>

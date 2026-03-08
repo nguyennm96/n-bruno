@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import ErrorBanner from 'ui/ErrorBanner';
 
 const ScriptError = ({ item, onClose }) => {
+  const { t } = useTranslation();
   const preRequestError = item?.preRequestScriptErrorMessage;
   const postResponseError = item?.postResponseScriptErrorMessage;
   const testScriptError = item?.testScriptErrorMessage;
@@ -12,21 +14,21 @@ const ScriptError = ({ item, onClose }) => {
 
   if (preRequestError) {
     errors.push({
-      title: 'Pre-Request Script Error',
+      title: t('RESPONSE_PANE.PRE_REQUEST_SCRIPT_ERROR'),
       message: preRequestError
     });
   }
 
   if (postResponseError) {
     errors.push({
-      title: 'Post-Response Script Error',
+      title: t('RESPONSE_PANE.POST_RESPONSE_SCRIPT_ERROR'),
       message: postResponseError
     });
   }
 
   if (testScriptError) {
     errors.push({
-      title: 'Test Script Error',
+      title: t('RESPONSE_PANE.TEST_SCRIPT_ERROR'),
       message: testScriptError
     });
   }

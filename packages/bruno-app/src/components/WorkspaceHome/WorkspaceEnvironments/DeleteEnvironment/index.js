@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import Portal from 'components/Portal/index';
 import toast from 'react-hot-toast';
 import Modal from 'components/Modal/index';
@@ -7,14 +8,15 @@ import StyledWrapper from './StyledWrapper';
 import { deleteGlobalEnvironment } from 'providers/ReduxStore/slices/global-environments';
 
 const DeleteEnvironment = ({ onClose, environment }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const onConfirm = () => {
     dispatch(deleteGlobalEnvironment({ environmentUid: environment.uid }))
       .then(() => {
-        toast.success('Environment deleted successfully');
+        toast.success(t('ENVIRONMENTS.DELETE_ENVIRONMENT.DELETED_SUCCESSFULLY'));
         onClose();
       })
-      .catch(() => toast.error('An error occurred while deleting the environment'));
+      .catch(() => toast.error(t('ENVIRONMENTS.DELETE_ENVIRONMENT.ERROR_DELETING')));
   };
 
   return (
@@ -22,12 +24,12 @@ const DeleteEnvironment = ({ onClose, environment }) => {
       <StyledWrapper>
         <Modal
           size="sm"
-          title="Delete Environment"
-          confirmText="Delete"
+          title={t('ENVIRONMENTS.DELETE_ENVIRONMENT.TITLE')}
+          confirmText={t('ENVIRONMENTS.DELETE_ENVIRONMENT.DELETE')}
           handleConfirm={onConfirm}
           handleCancel={onClose}
         >
-          Are you sure you want to delete <span className="font-semibold">{environment.name}</span> ?
+          {t('ENVIRONMENTS.DELETE_ENVIRONMENT.CONFIRM_DELETE_PREFIX')} <span className="font-semibold">{environment.name}</span> {t('ENVIRONMENTS.DELETE_ENVIRONMENT.CONFIRM_DELETE_SUFFIX')}
         </Modal>
       </StyledWrapper>
     </Portal>

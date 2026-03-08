@@ -121,6 +121,13 @@ const darkMonochromeTheme = {
     lg: '0 2px 12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0, 0, 0, 0.4)'
   },
 
+  transition: {
+    fast: '0.1s ease',
+    base: '0.15s ease',
+    slow: '0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+    spring: '0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
+  },
+
   border: {
     radius: {
       sm: '4px',

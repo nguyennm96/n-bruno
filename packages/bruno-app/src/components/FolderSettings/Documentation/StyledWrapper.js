@@ -2,7 +2,7 @@ import styled from 'styled-components';
 
 const StyledWrapper = styled.div`
   .folder-requests-title {
-    font-size: 11px;
+    font-size: ${({ theme }) => theme.font.size.xs};
     font-weight: 600;
     letter-spacing: 0.5px;
     text-transform: uppercase;
@@ -25,7 +25,7 @@ const StyledWrapper = styled.div`
     background-color: ${({ theme }) => theme.requestTabs.bg};
     border: 1px solid ${({ theme }) => theme.border.border1};
     border-radius: 6px;
-    font-size: 13px;
+    font-size: ${({ theme }) => theme.font.size.base};
   }
 
   .folder-request-name {
@@ -37,7 +37,7 @@ const StyledWrapper = styled.div`
   }
 
   .folder-request-url {
-    font-size: 11px;
+    font-size: ${({ theme }) => theme.font.size.xs};
     color: ${({ theme }) => theme.text};
     opacity: 0.45;
     font-family: var(--font-code, monospace);
@@ -48,7 +48,7 @@ const StyledWrapper = styled.div`
   }
 
   .folder-empty {
-    font-size: 12px;
+    font-size: ${({ theme }) => theme.font.size.sm};
     font-style: italic;
     opacity: 0.4;
     padding: 8px 0;

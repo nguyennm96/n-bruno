@@ -10,9 +10,11 @@ import MultiLineEditor from 'components/MultiLineEditor';
 import { sendRequest, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
 import EditableTable from 'components/EditableTable';
 import StyledWrapper from './StyledWrapper';
+import { useTranslation } from 'react-i18next';
 
 const FormUrlEncodedParams = ({ item, collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const { storedTheme } = useTheme();
   const params = item.draft ? get(item, 'draft.request.body.formUrlEncoded') : get(item, 'request.body.formUrlEncoded');
 
@@ -38,15 +40,15 @@ const FormUrlEncodedParams = ({ item, collection }) => {
   const columns = [
     {
       key: 'name',
-      name: 'Key',
+      name: t('COMMON.KEY'),
       isKeyField: true,
-      placeholder: 'Key',
+      placeholder: t('COMMON.KEY'),
       width: '30%'
     },
     {
       key: 'value',
-      name: 'Value',
-      placeholder: 'Value',
+      name: t('COMMON.VALUE'),
+      placeholder: t('COMMON.VALUE'),
       render: ({ value, onChange }) => (
         <MultiLineEditor
           value={value || ''}

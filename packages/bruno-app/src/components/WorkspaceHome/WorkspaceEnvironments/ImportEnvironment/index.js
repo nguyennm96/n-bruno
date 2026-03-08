@@ -7,9 +7,11 @@ import importPostmanEnvironment from 'utils/importers/postman-environment';
 import { toastError } from 'utils/common/error';
 import { IconDatabaseImport } from '@tabler/icons';
 import { addGlobalEnvironment } from 'providers/ReduxStore/slices/global-environments';
+import { useTranslation } from 'react-i18next';
 
 const ImportEnvironment = ({ onClose, onEnvironmentCreated }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
 
   const handleImportPostmanEnvironment = () => {
     importPostmanEnvironment()
@@ -20,10 +22,10 @@ const ImportEnvironment = ({ onClose, onEnvironmentCreated }) => {
           .map((environment) =>
             dispatch(addGlobalEnvironment({ name: environment.name, variables: environment.variables }))
               .then(() => {
-                toast.success('Environment imported successfully');
+                toast.success(t('ENVIRONMENTS.IMPORT_SUCCESS_SINGLE'));
               })
               .catch((error) => {
-                toast.error('An error occurred while importing the environment');
+                toast.error(t('ENVIRONMENTS.IMPORT_ERROR'));
                 console.error(error);
               }));
         return Promise.all(importPromises);
@@ -35,12 +37,12 @@ const ImportEnvironment = ({ onClose, onEnvironmentCreated }) => {
           onEnvironmentCreated();
         }
       })
-      .catch((err) => toastError(err, 'Postman Import environment failed'));
+      .catch((err) => toastError(err, t('ENVIRONMENTS.POSTMAN_IMPORT_FAILED')));
   };
 
   return (
     <Portal>
-      <Modal size="sm" title="Import Environment" hideFooter={true} handleConfirm={onClose} handleCancel={onClose} dataTestId="import-environment-modal">
+      <Modal size="sm" title={t('WORKSPACE_ENVIRONMENTS.IMPORT_ENVIRONMENT')} hideFooter={true} handleConfirm={onClose} handleCancel={onClose} dataTestId="import-environment-modal">
         <button
           type="button"
           onClick={handleImportPostmanEnvironment}
@@ -48,7 +50,7 @@ const ImportEnvironment = ({ onClose, onEnvironmentCreated }) => {
           data-testid="import-postman-environment"
         >
           <IconDatabaseImport size={64} />
-          <span className="mt-2 block text-sm font-semibold">Import your Postman environments</span>
+          <span className="mt-2 block text-sm font-semibold">{t('ENVIRONMENTS.IMPORT_POSTMAN_ENVIRONMENTS')}</span>
         </button>
       </Modal>
     </Portal>

@@ -1,0 +1,141 @@
+================================================================================
+WORKSPACE.YML: COMPLETE DEPENDENCY MAP
+================================================================================
+
+1. WHAT IS workspace.yml?
+   - File: <workspace-root>/workspace.yml
+   - Format: YAML
+   - Purpose: Stores workspace metadata (source of truth)
+   - Content:
+     * collections: [{name, path, remote?}]  ← COLLECTION REFERENCES (paths on disk)
+     * specs: [{name, path}]
+     * info: {name, type}
+     * docs: "workspace documentation"
+     * activeEnvironmentUid: "env-id"        ← SELECTED ENVIRONMENT
+
+2. KEY EXPORTS FROM workspace-config.js (READ/WRITE API):
+   READ:
+   - readWorkspaceConfig(workspacePath)              [Parse workspace.yml]
+   - getWorkspaceCollections(workspacePath)          [Returns collections with resolved paths]
+   - getWorkspaceApiSpecs(workspacePath)
+   
+   WRITE:
+   - writeWorkspaceConfig(workspacePath, config)     [Full write]
+   - addCollectionToWorkspace(workspacePath, col)    [Add/update collection entry]
+   - removeCollectionFromWorkspace(workspacePath, path) [Remove collection entry]
+   - reorderWorkspaceCollections(workspacePath, paths)  [Reorder collection array]
+   - updateWorkspaceName/Docs/etc
+   
+   All writes use withLock() for concurrency control
+   All writes use writeWorkspaceFileAtomic() to prevent corruption
+
+3. STARTUP SEQUENCE (main:renderer-ready at line 650 of workspace.js):
+   
+   Step 1: defaultWorkspaceManager.ensureDefaultWorkspaceExists()
+           └─ Reads workspace.yml or creates if missing
+   
+   Step 2: FOR each in lastOpenedWorkspaces:
+           ├─ Check workspace.yml exists (file system check!)
+           ├─ readWorkspaceConfig() from workspace.yml
+           └─ Send 'main:workspace-opened' to renderer
+   
+   Step 3: workspaceWatcher.addWatcher(win, workspacePath)
+           └─ chokidar watches workspace.yml for external changes
+   
+   *** CRITICAL *** Renderer does NOT load from IDB initially!
+                   Main process ALWAYS reads workspace.yml first
+
+4. WHEN USER ADDS A COLLECTION:
+   
+   Renderer → IPC: renderer:add-collection-to-workspace
+            ↓
+   Main Process Handler (workspace.js:531):
+   ├─ normalizeCollectionEntry()
+   ├─ addCollectionToWorkspace()  [READ workspace.yml → ADD entry → WRITE workspace.yml]
+   └─ Send 'main:workspace-config-updated' to renderer
+
+5. WHEN USER SELECTS ENVIRONMENT:
+   
+   Renderer → IPC: renderer:select-workspace-environment
+            ↓
+   Main Process (workspace-environments.js:317):
+   ├─ selectGlobalEnvironment()
+   └─ setActiveGlobalEnvironmentUid()
+      ├─ readWorkspaceConfig() from workspace.yml
+      ├─ workspaceConfig.activeEnvironmentUid = newUid
+      ├─ generateYamlContent()
+      └─ writeWorkspaceFileAtomic() → UPDATE workspace.yml
+
+6. WHAT DEPENDS ON workspace.yml EXISTING:
+   
+   ✓ validateWorkspacePath() - REQUIRES file to exist
+   ✓ renderer:open-workspace - READS workspace.yml
+   ✓ renderer:create-workspace - CREATES workspace.yml
+   ✓ renderer:get-last-opened-workspaces - CHECKS for workspace.yml existence
+   ✓ renderer:load-workspace-collections - READS workspace.yml
+   ✓ workspace-watcher.js - MONITORS workspace.yml
+   ✓ default-workspace.js - CREATES workspace.yml on initialization
+   ✓ Collection add/remove/reorder - All update workspace.yml
+   ✓ Import/Export - Validates workspace.yml in zip
+   ✓ ActiveEnvironmentUid selection - Saved in workspace.yml
+
+7. DATA NOT IN workspace.yml:
+   - Individual collection files (stored in subdirectories)
+   - Environment definitions (stored in workspace/environments/*.yml)
+   - Request data (stored in collection subdirectories)
+   - Encrypted secrets (stored in env-secrets store)
+
+8. FILES THAT READ workspace.yml:
+   
+   📄 /packages/bruno-electron/src/utils/workspace-config.js (CLI)
+      - readWorkspaceConfig(), getWorkspaceCollections(), getWorkspaceApiSpecs()
+   
+   📄 /packages/bruno-electron/src/ipc/workspace.js (IPC)
+      - Lines 112-269: handlers that read
+      - Lines 650-711: main:renderer-ready startup
+   
+   📄 /packages/bruno-electron/src/app/workspace-watcher.js
+      - handleWorkspaceFileChange() reads on external change
+   
+   📄 /packages/bruno-electron/src/store/default-workspace.js
+      - ensureDefaultWorkspaceExists(), isValidDefaultWorkspace()
+   
+   📄 /packages/bruno-electron/src/store/workspace-environments.js
+      - getActiveGlobalEnvironmentUid() reads activeEnvironmentUid from workspace.yml (line 148)
+      - setActiveGlobalEnvironmentUid() writes activeEnvironmentUid to workspace.yml (line 167)
+
+9. WHAT BREAKS IF WE REMOVE workspace.yml:
+   
+   ❌ No way to locate collections on disk
+   ❌ No way to determine active environment
+   ❌ Workspace startup fails (validateWorkspacePath requires it)
+   ❌ Last-opened workspaces validation fails (checks file exists)
+   ❌ Workspace watcher can't monitor changes
+   ❌ Import/Export breaks (expects workspace.yml in archive)
+   ❌ Metadata (workspace name, type, docs) lost
+   ❌ Entire workspace initialization sequence needs redesign
+
+10. TO MIGRATE TO IDB:
+    
+    Priority 1 - Move to IDB:
+    □ collections array (with path resolution)
+    □ activeEnvironmentUid
+    □ workspace metadata (name, type, docs)
+    
+    Priority 2 - Update validation:
+    □ validateWorkspacePath() - check IDB instead of workspace.yml
+    □ renderer:get-last-opened-workspaces - query IDB
+    
+    Priority 3 - Update startup:
+    □ main:renderer-ready - query IDB instead of reading workspace.yml
+    □ defaultWorkspaceManager - create IDB record instead of workspace.yml
+    
+    Priority 4 - Update watchers:
+    □ Disable chokidar watching of workspace.yml
+    □ Implement IDB change detection instead
+    
+    Priority 5 - Handle concurrency:
+    □ workspace.yml uses file locks - IDB needs different strategy
+    □ Multi-process scenarios need careful coordination
+
+================================================================================

@@ -1,10 +1,36 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import StyledWrapper from './StyledWrapper';
 import useFocusTrap from 'hooks/useFocusTrap';
 import Button from 'ui/Button';
 
 const ESC_KEY_CODE = 27;
 const ENTER_KEY_CODE = 13;
+
+const modalTextKeyMap = {
+  'Create Collection': 'MODALS.CREATE_COLLECTION_TITLE',
+  'Clone Collection': 'MODALS.CLONE_COLLECTION_TITLE',
+  'New Folder': 'MODALS.NEW_FOLDER_TITLE',
+  'New Request': 'MODALS.NEW_REQUEST_TITLE',
+  'Import Collection': 'MODALS.IMPORT_COLLECTION_TITLE',
+  'Close Workspace': 'MODALS.CLOSE_WORKSPACE_TITLE',
+  'Close all collections': 'MODALS.CLOSE_ALL_COLLECTIONS_TITLE',
+  'Delete Collection': 'MODALS.DELETE_COLLECTION_TITLE',
+  'Remove Collection': 'MODALS.REMOVE_COLLECTION_TITLE',
+  'Create API Spec': 'MODALS.CREATE_API_SPEC_TITLE',
+  'Bulk Import': 'MODALS.BULK_IMPORT_TITLE',
+  'Golden Edition': 'MODALS.GOLDEN_EDITION_TITLE',
+  'Collection Runner': 'MODALS.COLLECTION_RUNNER_TITLE',
+  'Generate Documentation': 'MODALS.GENERATE_DOCUMENTATION_TITLE'
+};
+
+const translateModalText = (t, text) => {
+  if (typeof text !== 'string' || !text.trim()) {
+    return text;
+  }
+  const key = modalTextKeyMap[text];
+  return key ? t(key, text) : text;
+};
 
 const ModalHeader = ({ title, handleCancel, customHeader, hideClose }) => (
   <div className="bruno-modal-header">
@@ -30,8 +56,9 @@ const ModalFooter = ({
   hideFooter,
   confirmButtonColor = 'primary'
 }) => {
-  confirmText = confirmText || 'Save';
-  cancelText = cancelText || 'Cancel';
+  const { t } = useTranslation();
+  confirmText = translateModalText(t, confirmText || t('COMMON.SAVE', 'Save'));
+  cancelText = translateModalText(t, cancelText || t('COMMON.CANCEL', 'Cancel'));
 
   if (hideFooter) {
     return null;
@@ -79,8 +106,10 @@ const Modal = ({
   dataTestId,
   confirmButtonColor = 'primary'
 }) => {
+  const { t } = useTranslation();
   const modalRef = useRef(null);
   const [isClosing, setIsClosing] = useState(false);
+  const translatedTitle = translateModalText(t, title);
 
   const handleKeydown = (event) => {
     const { keyCode, shiftKey, ctrlKey, altKey, metaKey } = event;
@@ -136,7 +165,7 @@ const Modal = ({
         data-testid={dataTestId}
       >
         <ModalHeader
-          title={title}
+          title={translatedTitle}
           hideClose={hideClose}
           handleCancel={() => closeModal({ type: 'icon' })}
           customHeader={customHeader}

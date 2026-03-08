@@ -1,10 +1,12 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import Portal from 'components/Portal';
 import Modal from 'components/Modal';
 import { useState } from 'react';
 import StyledWrapper from './StyledWrapper';
 
 const IpcErrorModal = ({ error }) => {
+  const { t } = useTranslation();
   const [showModal, setShowModal] = useState(true);
   return (
     <>
@@ -13,7 +15,7 @@ const IpcErrorModal = ({ error }) => {
           <Portal>
             <Modal
               size="sm"
-              title="Error"
+              title={t('COMMON.ERROR')}
               hideFooter={true}
               hideCancel={true}
               handleCancel={() => {

@@ -37,7 +37,9 @@ Bruno stores your collections directly in a folder on your filesystem. We use a 
 
 You can use Git or any version control of your choice to collaborate over your API collections.
 
-Bruno is offline-only. There are no plans to add cloud-sync to Bruno, ever. We value your data privacy and believe it should stay on your device. Read our long-term vision [here](https://github.com/usebruno/bruno/discussions/269)
+Bruno supports two modes:
+- **Local mode** — fully offline, no account required; all data stays on your device
+- **Cloud mode** — optional account; enables cloud workspaces, team collaboration, cloud sync, and published documentation
 
 [Download Bruno](https://www.usebruno.com/downloads)
 
@@ -59,6 +61,7 @@ You can explore our [paid versions](https://www.usebruno.com/pricing) to see if 
 - [Features](#features)
   - [Run across multiple platforms 🖥️](#run-across-multiple-platforms-%EF%B8%8F)
   - [Collaborate via Git 👩‍💻🧑‍💻](#collaborate-via-git-%E2%80%8D%E2%80%8D)
+  - [Cloud Features ☁️](#cloud-features-%EF%B8%8F)
 - [Important Links 📌](#important-links-)
 - [Showcase 🎥](#showcase-)
 - [Share Testimonials 📣](#share-testimonials-)
@@ -121,6 +124,47 @@ sudo apt update && sudo apt install bruno
 Or any version control system of your choice
 
 ![bruno](assets/images/version-control.png) <br /><br />
+
+### Protocol Support
+- **HTTP/REST** — all methods, query params, headers, body (JSON, form, multipart, binary)
+- **GraphQL** — queries, mutations, subscriptions, introspection docs viewer
+- **gRPC** — unary and streaming calls with Protobuf support
+- **WebSocket** — full-duplex connections with message history
+
+### Authentication
+- Basic Auth, Bearer Token, API Key
+- OAuth2 (Authorization Code, Client Credentials, Password, Implicit)
+- AWS Signature v4, NTLM, Digest, WSSE
+- Per-collection auth inheritance
+
+### Scripting & Testing
+- Pre-request & post-response JavaScript scripts (`bruno-js` sandbox)
+- Test blocks with assertions; declarative assert rules
+- Runtime variable assignment; `.env` file integration
+
+### Collections & Environments
+- Collections stored as `.bru` or YAML files on filesystem
+- Hierarchical folder structure with per-folder settings
+- Collection-level & global environments with variable interpolation
+- Import from Postman v2.1, Insomnia, OpenAPI; export to multiple formats
+- CLI runner for headless execution (CI/CD)
+
+### Developer Tools
+- Response timeline, cookie jar, code generation (curl, etc.)
+- API Spec viewer (OpenAPI/Swagger inline)
+- Embedded terminal, DevTools console, network inspector
+- Global search, multiple tabs with draft state
+- Light/dark themes, custom keybindings, i18n support
+
+### Cloud Features ☁️
+
+Requires a Bruno Cloud account (opt-in):
+
+- **Cloud Workspaces** — shared workspaces with role-based access (Owner / Editor / Viewer)
+- **Real-time Sync** — WebSocket-based live synchronization across devices and team members
+- **Collection Sharing** — share and collaborate on collections within a workspace
+- **Publish Docs** — publish collection documentation to a public URL with custom slug, CSS, logo, password protection, and view analytics
+- **Import/Export** — export collections to Postman, OpenAPI 3.0, or Swagger 2.0 formats
 
 ## Important Links 📌
 

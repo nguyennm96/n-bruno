@@ -23,8 +23,10 @@ import { flattenItems } from 'utils/collections/index';
 import { closeWsConnection } from 'utils/network/index';
 import ExampleTab from '../ExampleTab';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUid, hasOverflow, setHasOverflow, dropdownContainerRef }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { theme } = useTheme();
   const tabNameRef = useRef(null);
@@ -269,11 +271,11 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
                     dispatch(clearEnvironmentsDraft({ collectionUid: collection.uid }));
                     dispatch(closeTabs({ tabUids: [tab.uid] }));
                     setShowConfirmEnvironmentClose(false);
-                    toast.success('Environment saved');
+                    toast.success(t('ENVIRONMENTS.SAVED'));
                   })
                   .catch((err) => {
                     console.log('err', err);
-                    toast.error('Failed to save environment');
+                    toast.error(t('ENVIRONMENTS.SAVE_ERROR'));
                   });
               }
             }}
@@ -315,11 +317,11 @@ const RequestTab = ({ tab, collection, tabIndex, collectionRequestTabs, folderUi
                     dispatch(clearGlobalEnvironmentDraft());
                     dispatch(closeTabs({ tabUids: [tab.uid] }));
                     setShowConfirmGlobalEnvironmentClose(false);
-                    toast.success('Global environment saved');
+                    toast.success(t('ENVIRONMENTS.GLOBAL_SAVED'));
                   })
                   .catch((err) => {
                     console.log('err', err);
-                    toast.error('Failed to save global environment');
+                    toast.error(t('ENVIRONMENTS.GLOBAL_SAVE_ERROR'));
                   });
               }
             }}

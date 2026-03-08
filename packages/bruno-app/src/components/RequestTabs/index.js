@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import find from 'lodash/find';
 import classnames from 'classnames';
 import { IconChevronRight, IconChevronLeft } from '@tabler/icons';
@@ -13,6 +14,7 @@ import CreateTransientRequest from 'components/CreateTransientRequest';
 import ActionIcon from 'ui/ActionIcon/index';
 
 const RequestTabs = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const tabsRef = useRef();
   const scrollContainerRef = useRef();
@@ -119,7 +121,7 @@ const RequestTabs = () => {
           {/* Tabs area — scrollable, takes remaining space */}
           <div className="flex items-end gap-2 min-w-0 flex-1">
             <div className={classnames('scroll-chevrons', { hidden: !showChevrons })}>
-              <ActionIcon size="lg" onClick={leftSlide} aria-label="Left Chevron" style={{ marginBottom: '3px' }}>
+              <ActionIcon size="lg" onClick={leftSlide} label={t('REQUEST_TAB.SCROLL_LEFT')} style={{ marginBottom: '3px' }}>
                 <IconChevronLeft size={18} strokeWidth={1.5} />
               </ActionIcon>
             </div>
@@ -165,7 +167,7 @@ const RequestTabs = () => {
             )}
 
             <div className={classnames('scroll-chevrons', { hidden: !showChevrons })}>
-              <ActionIcon size="lg" onClick={rightSlide} aria-label="Right Chevron" style={{ marginBottom: '3px' }}>
+              <ActionIcon size="lg" onClick={rightSlide} label={t('REQUEST_TAB.SCROLL_RIGHT')} style={{ marginBottom: '3px' }}>
                 <IconChevronRight size={18} strokeWidth={1.5} />
               </ActionIcon>
             </div>

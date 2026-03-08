@@ -222,11 +222,21 @@ impl PublicDocsService {
 
         if let Some(public_docs) = collection.public_docs {
             let public_url = format!("{}/p/{}", self.config.public_docs_base_url, public_docs.slug);
+            // Convert visibility to a plain string type (never return password hash)
+            let visibility_type = Some(match &public_docs.visibility {
+                crate::models::public_docs::DocVisibility::Public => "public".to_string(),
+                crate::models::public_docs::DocVisibility::Password { .. } => "password".to_string(),
+                crate::models::public_docs::DocVisibility::WorkspaceMembers => "workspaceMembers".to_string(),
+                crate::models::public_docs::DocVisibility::CustomList { .. } => "customList".to_string(),
+            });
             Ok(DocsStatusResponse {
                 enabled: public_docs.enabled,
                 slug: Some(public_docs.slug),
                 public_url: Some(public_url),
                 analytics: public_docs.analytics,
+                visibility_type,
+                settings: Some(public_docs.settings),
+                published_at: Some(public_docs.published_at),
             })
         } else {
             Ok(DocsStatusResponse {
@@ -234,6 +244,9 @@ impl PublicDocsService {
                 slug: None,
                 public_url: None,
                 analytics: None,
+                visibility_type: None,
+                settings: None,
+                published_at: None,
             })
         }
     }
@@ -278,7 +291,7 @@ impl PublicDocsService {
                 doc! { "public_docs.slug": slug },
                 doc! {
                     "$inc": { "public_docs.analytics.views": 1 },
-                    "$set": { "public_docs.analytics.last_viewed": Utc::now().to_rfc3339() }
+                    "$set": { "public_docs.analytics.last_viewed": bson::DateTime::now() }
                 },
             )
             .await

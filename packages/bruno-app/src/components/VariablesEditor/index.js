@@ -6,6 +6,7 @@ import { useTheme } from 'providers/Theme';
 import { findEnvironmentInCollection, maskInputValue } from 'utils/collections';
 import StyledWrapper from './StyledWrapper';
 import { IconEye, IconEyeOff } from '@tabler/icons';
+import { useTranslation } from 'react-i18next';
 
 const KeyValueExplorer = ({ data = [], theme }) => {
   const [showSecret, setShowSecret] = useState(false);
@@ -33,13 +34,14 @@ const KeyValueExplorer = ({ data = [], theme }) => {
 };
 
 const EnvVariables = ({ collection, theme }) => {
+  const { t } = useTranslation();
   const environment = findEnvironmentInCollection(collection, collection.activeEnvironmentUid);
 
   if (!environment) {
     return (
       <>
-        <h1 className="font-medium mt-4 mb-2">Environment Variables</h1>
-        <div className="muted text-xs">No environment selected</div>
+        <h1 className="font-medium mt-4 mb-2">{t('VARIABLES.ENVIRONMENT_VARIABLES')}</h1>
+        <div className="muted text-xs">{t('VARIABLES.NO_ENVIRONMENT_SELECTED')}</div>
       </>
     );
   }
@@ -50,19 +52,20 @@ const EnvVariables = ({ collection, theme }) => {
   return (
     <>
       <div className="flex items-center mt-4 mb-2">
-        <h1 className="font-medium">Environment Variables</h1>
+        <h1 className="font-medium">{t('VARIABLES.ENVIRONMENT_VARIABLES')}</h1>
         <span className="muted ml-2">({environment.name})</span>
       </div>
       {enabledEnvVars.length > 0 ? (
         <KeyValueExplorer data={enabledEnvVars} theme={theme} />
       ) : (
-        <div className="muted text-xs">No environment variables found</div>
+        <div className="muted text-xs">{t('VARIABLES.NO_ENV_VARS_FOUND')}</div>
       )}
     </>
   );
 };
 
 const RuntimeVariables = ({ collection, theme }) => {
+  const { t } = useTranslation();
   const runtimeVariablesFound = Object.keys(collection.runtimeVariables).length > 0;
 
   const runtimeVariableArray = Object.entries(collection.runtimeVariables).map(([name, value]) => ({
@@ -73,17 +76,18 @@ const RuntimeVariables = ({ collection, theme }) => {
 
   return (
     <>
-      <h1 className="font-medium mb-2">Runtime Variables</h1>
+      <h1 className="font-medium mb-2">{t('VARIABLES.RUNTIME_VARIABLES')}</h1>
       {runtimeVariablesFound ? (
         <KeyValueExplorer data={runtimeVariableArray} theme={theme} />
       ) : (
-        <div className="muted text-xs">No runtime variables found</div>
+        <div className="muted text-xs">{t('VARIABLES.NO_RUNTIME_VARS_FOUND')}</div>
       )}
     </>
   );
 };
 
 const VariablesEditor = ({ collection }) => {
+  const { t } = useTranslation();
   const { displayedTheme, theme } = useTheme();
 
   const reactInspectorTheme
@@ -97,9 +101,9 @@ const VariablesEditor = ({ collection }) => {
       <EnvVariables collection={collection} theme={reactInspectorTheme} />
 
       <div className="mt-8 muted text-xs">
-        Note: As of today, runtime variables can only be set via the API - <span className="font-medium">getVar()</span>{' '}
+        {t('VARIABLES.RUNTIME_VARS_NOTE_PREFIX')}<span className="font-medium">getVar()</span>{' '}
         and <span className="font-medium">setVar()</span>. <br />
-        You can use the <span className="font-medium">var</span> variable with the
+        {t('VARIABLES.RUNTIME_VARS_NOTE_USE')}<span className="font-medium">var</span> variable with the
         <span className="font-medium">{'{{var}}'}</span> syntax.<br />
       </div>
     </StyledWrapper>
@@ -108,11 +112,14 @@ const VariablesEditor = ({ collection }) => {
 
 export default VariablesEditor;
 
-const SecretToggle = ({ showSecret, onClick }) => (
-  <div className="cursor-pointer mb-2 text-xs" onClick={onClick}>
-    <div className="flex items-center">
-      {showSecret ? <IconEyeOff size={16} strokeWidth={1.5} /> : <IconEye size={16} strokeWidth={1.5} />}
-      <span className="pl-1">{showSecret ? 'Hide secret variable values' : 'Show secret variable values'}</span>
+const SecretToggle = ({ showSecret, onClick }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="cursor-pointer mb-2 text-xs" onClick={onClick}>
+      <div className="flex items-center">
+        {showSecret ? <IconEyeOff size={16} strokeWidth={1.5} /> : <IconEye size={16} strokeWidth={1.5} />}
+        <span className="pl-1">{showSecret ? t('VARIABLES.HIDE_SECRET_VALUES') : t('VARIABLES.SHOW_SECRET_VALUES')}</span>
+      </div>
     </div>
-  </div>
-);
+  );
+};

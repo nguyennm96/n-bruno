@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import {
   IconCaretDown,
@@ -47,6 +48,7 @@ const DEFAULT_MODES = [
 ];
 
 const RequestBodyMode = ({ item, collection }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const body = item.draft ? get(item, 'draft.request.body') : get(item, 'request.body');
   const bodyMode = body?.mode;
@@ -118,7 +120,7 @@ const RequestBodyMode = ({ item, collection }) => {
       </div>
       {(bodyMode === 'json' || bodyMode === 'xml') && (
         <button className="ml-2" onClick={onPrettify}>
-          Prettify
+          {t('COMMON.PRETTIFY')}
         </button>
       )}
     </StyledWrapper>

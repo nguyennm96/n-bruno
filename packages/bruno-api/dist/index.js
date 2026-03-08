@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ExampleService = exports.ImportService = exports.SyncService = exports.WsService = exports.EnvironmentService = exports.CollectionService = exports.WorkspaceService = exports.AuthService = exports.BrunoApiClient = void 0;
+exports.AiService = exports.UserService = exports.InviteService = exports.ExampleService = exports.ImportService = exports.SyncService = exports.WsService = exports.EnvironmentService = exports.CollectionService = exports.WorkspaceService = exports.AuthService = exports.BrunoApiClient = void 0;
 exports.createBrunoApi = createBrunoApi;
 var client_1 = require("./client");
 Object.defineProperty(exports, "BrunoApiClient", { enumerable: true, get: function () { return client_1.BrunoApiClient; } });
@@ -34,6 +34,12 @@ var import_1 = require("./import");
 Object.defineProperty(exports, "ImportService", { enumerable: true, get: function () { return import_1.ImportService; } });
 var examples_1 = require("./examples");
 Object.defineProperty(exports, "ExampleService", { enumerable: true, get: function () { return examples_1.ExampleService; } });
+var invites_1 = require("./invites");
+Object.defineProperty(exports, "InviteService", { enumerable: true, get: function () { return invites_1.InviteService; } });
+var users_1 = require("./users");
+Object.defineProperty(exports, "UserService", { enumerable: true, get: function () { return users_1.UserService; } });
+var ai_1 = require("./ai");
+Object.defineProperty(exports, "AiService", { enumerable: true, get: function () { return ai_1.AiService; } });
 __exportStar(require("./types"), exports);
 // Re-export for convenience
 const client_2 = require("./client");
@@ -45,6 +51,9 @@ const ws_2 = require("./ws");
 const sync_2 = require("./sync");
 const import_2 = require("./import");
 const examples_2 = require("./examples");
+const invites_2 = require("./invites");
+const users_2 = require("./users");
+const ai_2 = require("./ai");
 /**
  * Create a configured Bruno API instance
  */
@@ -58,6 +67,9 @@ function createBrunoApi(config) {
     const sync = new sync_2.SyncService(client);
     const importService = new import_2.ImportService(client);
     const examples = new examples_2.ExampleService(client);
+    const invites = new invites_2.InviteService(client);
+    const users = new users_2.UserService(client);
+    const ai = new ai_2.AiService(client);
     return {
         client,
         auth,
@@ -68,5 +80,8 @@ function createBrunoApi(config) {
         sync,
         import: importService,
         examples,
+        invites,
+        users,
+        ai,
     };
 }

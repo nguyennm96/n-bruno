@@ -7,7 +7,7 @@ const StyledSessionList = styled.div`
   .session-list-item {
     padding: 2px 6px;
     cursor: pointer;
-    border-bottom: 1px solid ${(props) => props.theme.border || 'rgba(255, 255, 255, 0.05)'};
+    border-bottom: 1px solid ${(props) => props.theme.border?.border1 || 'rgba(255, 255, 255, 0.05)'};
     display: flex;
     flex-direction: column;
     gap: 4px;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import get from 'lodash/get';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import CodeEditor from 'components/CodeEditor';
 import { updateFolderRequestScript, updateFolderResponseScript } from 'providers/ReduxStore/slices/collections';
 import { saveFolderRoot } from 'providers/ReduxStore/slices/collections/actions';
@@ -13,6 +14,7 @@ import Button from 'ui/Button';
 
 const Script = ({ collection, folder }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const preRequestEditorRef = useRef(null);
   const postResponseEditorRef = useRef(null);
   const requestScript = folder.draft ? get(folder, 'draft.request.script.req', '') : get(folder, 'root.request.script.req', '');
@@ -83,19 +85,19 @@ const Script = ({ collection, folder }) => {
   return (
     <StyledWrapper className="w-full flex flex-col h-full">
       <div className="text-xs mb-4 text-muted">
-        Pre and post-request scripts that will run before and after any request inside this folder is sent.
+        {t('FOLDER_SETTINGS.SCRIPT.DESCRIPTION')}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="pre-request">
-            Pre Request
+            {t('FOLDER_SETTINGS.SCRIPT.PRE_REQUEST')}
             {requestScript && requestScript.trim().length > 0 && (
               <StatusDot type={hasPreRequestScriptError ? 'error' : 'default'} />
             )}
           </TabsTrigger>
           <TabsTrigger value="post-response">
-            Post Response
+            {t('FOLDER_SETTINGS.SCRIPT.POST_RESPONSE')}
             {responseScript && responseScript.trim().length > 0 && (
               <StatusDot type={hasPostResponseScriptError ? 'error' : 'default'} />
             )}
@@ -135,7 +137,7 @@ const Script = ({ collection, folder }) => {
 
       <div className="mt-12">
         <Button type="submit" size="sm" onClick={handleSave}>
-          Save
+          {t('COMMON.SAVE')}
         </Button>
       </div>
     </StyledWrapper>

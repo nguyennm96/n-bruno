@@ -3,9 +3,11 @@ import { useDispatch, useSelector } from 'react-redux';
 import { get, cloneDeep, find } from 'lodash';
 import { updateCollectionTagsList, updateRunnerTagsDetails } from 'providers/ReduxStore/slices/collections';
 import TagList from 'components/TagList';
+import { useTranslation } from 'react-i18next';
 
 const RunnerTags = ({ collectionUid, className = '' }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const collections = useSelector((state) => state.collections.collections);
   const collection = cloneDeep(find(collections, (c) => c.uid === collectionUid));
 
@@ -26,13 +28,13 @@ const RunnerTags = ({ collectionUid, className = '' }) => {
   const handleValidation = (tag) => {
     const trimmedTag = tag.trim();
     if (!availableTags.includes(trimmedTag)) {
-      return 'tag does not exist!';
+      return t('RUNNER.TAGS.NOT_EXIST');
     }
     if (tags.include.includes(trimmedTag)) {
-      return 'tag already present in the include list!';
+      return t('RUNNER.TAGS.ALREADY_IN_INCLUDE');
     }
     if (tags.exclude.includes(trimmedTag)) {
-      return 'tag is present in the exclude list!';
+      return t('RUNNER.TAGS.IN_EXCLUDE');
     }
   };
 
@@ -97,12 +99,12 @@ const RunnerTags = ({ collectionUid, className = '' }) => {
           checked={tagsEnabled}
           onChange={() => setTagsEnabled(!tagsEnabled)}
         />
-        <label htmlFor="filter-tags" className="block font-medium">Filter requests with tags</label>
+        <label htmlFor="filter-tags" className="block font-medium">{t('RUNNER.TAGS.FILTER_REQUESTS')}</label>
       </div>
       {tagsEnabled && (
         <div className="flex flex-row mt-4 gap-4 w-full">
           <div className="w-1/2 flex flex-col gap-2 max-w-[400px]">
-            <span>Included tags:</span>
+            <span>{t('RUNNER.TAGS.INCLUDED')}</span>
             <TagList
               tags={tags.include}
               handleAddTag={(tag) => handleAddTag({ tag, to: 'include' })}
@@ -112,7 +114,7 @@ const RunnerTags = ({ collectionUid, className = '' }) => {
             />
           </div>
           <div className="w-1/2 flex flex-col gap-2 max-w-[400px]">
-            <span>Excluded tags:</span>
+            <span>{t('RUNNER.TAGS.EXCLUDED')}</span>
             <TagList
               tags={tags.exclude}
               handleAddTag={(tag) => handleAddTag({ tag, to: 'exclude' })}

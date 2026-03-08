@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from 'providers/Theme';
 import get from 'lodash/get';
 import { moveResponseExampleParam, setResponseExampleParams } from 'providers/ReduxStore/slices/collections';
@@ -12,6 +13,7 @@ import StyledWrapper from './StyledWrapper';
 const ResponseExampleParams = ({ editMode, item, collection, exampleUid }) => {
   const dispatch = useDispatch();
   const { storedTheme } = useTheme();
+  const { t } = useTranslation();
   const [isBulkEditMode, setIsBulkEditMode] = useState(false);
 
   const params = useMemo(() => {
@@ -100,9 +102,9 @@ const ResponseExampleParams = ({ editMode, item, collection, exampleUid }) => {
   const queryColumns = [
     {
       key: 'name',
-      name: 'Name',
+      name: t('COMMON.NAME'),
       isKeyField: true,
-      placeholder: 'Name',
+      placeholder: t('COMMON.NAME'),
       width: '40%',
       readOnly: !editMode,
       render: ({ value, onChange }) => (
@@ -115,14 +117,14 @@ const ResponseExampleParams = ({ editMode, item, collection, exampleUid }) => {
           collection={collection}
           variablesAutocomplete={true}
           readOnly={!editMode}
-          placeholder={!value ? 'Name' : ''}
+          placeholder={!value ? t('COMMON.NAME') : ''}
         />
       )
     },
     {
       key: 'value',
-      name: 'Value',
-      placeholder: 'Value',
+      name: t('COMMON.VALUE'),
+      placeholder: t('COMMON.VALUE'),
       width: '60%',
       readOnly: !editMode,
       render: ({ value, onChange }) => (
@@ -135,7 +137,7 @@ const ResponseExampleParams = ({ editMode, item, collection, exampleUid }) => {
           collection={collection}
           variablesAutocomplete={true}
           readOnly={!editMode}
-          placeholder={!value ? 'Value' : ''}
+          placeholder={!value ? t('COMMON.VALUE') : ''}
         />
       )
     }
@@ -144,14 +146,14 @@ const ResponseExampleParams = ({ editMode, item, collection, exampleUid }) => {
   const pathColumns = [
     {
       key: 'name',
-      name: 'Name',
+      name: t('COMMON.NAME'),
       readOnly: true,
       width: '40%'
     },
     {
       key: 'value',
-      name: 'Value',
-      placeholder: 'Value',
+      name: t('COMMON.VALUE'),
+      placeholder: t('COMMON.VALUE'),
       width: '60%',
       readOnly: !editMode,
       render: ({ value, onChange }) => (
@@ -164,7 +166,7 @@ const ResponseExampleParams = ({ editMode, item, collection, exampleUid }) => {
           collection={collection}
           variablesAutocomplete={true}
           readOnly={!editMode}
-          placeholder={!value ? 'Value' : ''}
+          placeholder={!value ? t('COMMON.VALUE') : ''}
         />
       )
     }
@@ -183,7 +185,7 @@ const ResponseExampleParams = ({ editMode, item, collection, exampleUid }) => {
 
   return (
     <StyledWrapper className="w-full mt-4">
-      <div className="mb-3 title text-xs font-bold">Query parameters</div>
+      <div className="mb-3 title text-xs font-bold">{t('RESPONSE_EXAMPLE.PARAMS.QUERY_TITLE')}</div>
       <EditableTable
         columns={queryColumns}
         rows={queryParams || []}
@@ -201,14 +203,14 @@ const ResponseExampleParams = ({ editMode, item, collection, exampleUid }) => {
             className="btn-action text-link select-none"
             onClick={toggleBulkEditMode}
           >
-            Bulk Edit
+            {t('RESPONSE_EXAMPLE.PARAMS.BULK_EDIT')}
           </button>
         </div>
       )}
       {pathParams && pathParams.length > 0 && (
         <>
           <div className="mb-3 title text-xs font-bold flex items-stretch mt-4">
-            <span>Path parameters</span>
+            <span>{t('RESPONSE_EXAMPLE.PARAMS.PATH_TITLE')}</span>
             <InfoTip infotipId="path-param-InfoTip">
               <div>
                 Path variables are automatically added whenever the

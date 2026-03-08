@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Documentation from 'components/Documentation/index';
 import RequestHeaders from 'components/RequestPane/RequestHeaders';
 import StatusDot from 'components/StatusDot/index';
@@ -15,6 +16,7 @@ import WSAuthMode from './WSAuth/WSAuthMode';
 import WSSettingsPane from '../WSSettingsPane/index';
 
 const WSRequestPane = ({ item, collection, handleRun }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
@@ -44,27 +46,27 @@ const WSRequestPane = ({ item, collection, handleRun }) => {
     return [
       {
         key: 'body',
-        label: 'Message',
+        label: t('REQUEST.TABS.MESSAGE'),
         indicator: null
       },
       {
         key: 'headers',
-        label: 'Headers',
+        label: t('REQUEST.TABS.HEADERS'),
         indicator: activeHeadersLength > 0 ? <sup className="ml-[.125rem] font-medium">{activeHeadersLength}</sup> : null
       },
       {
         key: 'auth',
-        label: 'Auth',
+        label: t('REQUEST.TABS.AUTH'),
         indicator: auth.mode !== 'none' ? <StatusDot type="default" /> : null
       },
       {
         key: 'settings',
-        label: 'Settings',
+        label: t('REQUEST.TABS.SETTINGS'),
         indicator: null
       },
       {
         key: 'docs',
-        label: 'Docs',
+        label: t('REQUEST.TABS.DOCS'),
         indicator: docs && docs.length > 0 ? <StatusDot type="default" /> : null
       }
     ];
@@ -96,13 +98,13 @@ const WSRequestPane = ({ item, collection, handleRun }) => {
         return <Documentation item={item} collection={collection} />;
       }
       default: {
-        return <div className="mt-4">404 | Not found</div>;
+        return <div className="mt-4">{t('ERRORS.NOT_FOUND_TAB')}</div>;
       }
     }
   }, [requestPaneTab, item, collection, handleRun]);
 
   if (!activeTabUid || !focusedTab?.uid || !requestPaneTab) {
-    return <div className="pb-4 px-4">An error occurred!</div>;
+    return <div className="pb-4 px-4">{t('ERRORS.AN_ERROR_OCCURRED')}</div>;
   }
 
   const rightContent = requestPaneTab === 'auth' ? (

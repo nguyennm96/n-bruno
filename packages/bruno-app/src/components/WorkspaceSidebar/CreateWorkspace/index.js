@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useFormik } from 'formik';
 import { useDispatch, useSelector } from 'react-redux';
 import * as Yup from 'yup';
@@ -9,6 +10,7 @@ import { multiLineMsg } from 'utils/common/index';
 import { formatIpcError } from 'utils/common/error';
 
 const CreateWorkspace = ({ onClose }) => {
+  const { t } = useTranslation();
   const inputRef = useRef();
   const dispatch = useDispatch();
   const workspaces = useSelector((state) => state.workspaces.workspaces);
@@ -34,10 +36,10 @@ const CreateWorkspace = ({ onClose }) => {
       try {
         setIsSubmitting(true);
         await dispatch(createWorkspaceAction(values.workspaceName));
-        toast.success('Workspace created!');
+        toast.success(t('WORKSPACE.CREATED'));
         onClose();
       } catch (error) {
-        toast.error(multiLineMsg('An error occurred while creating the workspace', formatIpcError(error)));
+        toast.error(multiLineMsg(t('WORKSPACE.CREATE_ERROR'), formatIpcError(error)));
       } finally {
         setIsSubmitting(false);
       }
@@ -53,9 +55,9 @@ const CreateWorkspace = ({ onClose }) => {
   return (
     <Modal
       size="md"
-      title="Create Workspace"
+      title={t('WORKSPACE.CREATE_TITLE')}
       description="Give your new workspace a name to get started."
-      confirmText={isSubmitting ? 'Creating...' : 'Create Workspace'}
+      confirmText={isSubmitting ? t('WORKSPACE.CREATING') : t('WORKSPACE.CREATE_TITLE')}
       handleConfirm={formik.handleSubmit}
       handleCancel={onClose}
       style="new"

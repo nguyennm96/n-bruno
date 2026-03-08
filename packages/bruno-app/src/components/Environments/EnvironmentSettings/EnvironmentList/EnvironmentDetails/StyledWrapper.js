@@ -34,7 +34,7 @@ const StyledWrapper = styled.div`
           background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
           outline: none;
           color: ${(props) => props.theme.text};
-          font-size: 15px;
+          font-size: ${(props) => props.theme.font.size.md};
           font-weight: 500;
           padding: 4px 8px;
           border-radius: 5px;
@@ -84,7 +84,7 @@ const StyledWrapper = styled.div`
       left: 20px;
       margin-top: 4px;
       padding: 4px 8px;
-      font-size: 11px;
+      font-size: ${(props) => props.theme.font.size.xs};
       color: ${(props) => props.theme.colors.text.danger};
       background: ${(props) => props.theme.bg};
       border: 1px solid ${(props) => props.theme.colors.text.danger};

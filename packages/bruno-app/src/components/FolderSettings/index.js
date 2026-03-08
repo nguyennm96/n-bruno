@@ -1,5 +1,6 @@
 import React from 'react';
 import classnames from 'classnames';
+import { useTranslation } from 'react-i18next';
 import { updatedFolderSettingsSelectedTab } from 'providers/ReduxStore/slices/collections';
 import { useDispatch } from 'react-redux';
 import Headers from './Headers';
@@ -14,6 +15,7 @@ import get from 'lodash/get';
 
 const FolderSettings = ({ collection, folder }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   let tab = 'headers';
   const { folderLevelSettingsSelectedTab } = collection;
   if (folderLevelSettingsSelectedTab?.[folder?.uid]) {
@@ -78,27 +80,27 @@ const FolderSettings = ({ collection, folder }) => {
       <div className="flex flex-col h-full relative px-4 py-4">
         <div className="flex flex-wrap items-center tabs" role="tablist">
           <div className={getTabClassname('headers')} role="tab" onClick={() => setTab('headers')}>
-            Headers
+            {t('FOLDER_SETTINGS.TABS.HEADERS')}
             {activeHeadersCount > 0 && <sup className="ml-1 font-medium">{activeHeadersCount}</sup>}
           </div>
           <div className={getTabClassname('script')} role="tab" onClick={() => setTab('script')}>
-            Script
+            {t('FOLDER_SETTINGS.TABS.SCRIPT')}
             {hasScripts && <StatusDot />}
           </div>
           <div className={getTabClassname('test')} role="tab" onClick={() => setTab('test')}>
-            Test
+            {t('FOLDER_SETTINGS.TABS.TEST')}
             {hasTests && <StatusDot />}
           </div>
           <div className={getTabClassname('vars')} role="tab" onClick={() => setTab('vars')}>
-            Vars
+            {t('FOLDER_SETTINGS.TABS.VARS')}
             {activeVarsCount > 0 && <sup className="ml-1 font-medium">{activeVarsCount}</sup>}
           </div>
           <div className={getTabClassname('auth')} role="tab" onClick={() => setTab('auth')}>
-            Auth
+            {t('FOLDER_SETTINGS.TABS.AUTH')}
             {hasAuth && <StatusDot />}
           </div>
           <div className={getTabClassname('docs')} role="tab" onClick={() => setTab('docs')}>
-            Docs
+            {t('FOLDER_SETTINGS.TABS.DOCS')}
           </div>
         </div>
         <section className="flex mt-4 h-full overflow-auto">{getTabPanel(tab)}</section>

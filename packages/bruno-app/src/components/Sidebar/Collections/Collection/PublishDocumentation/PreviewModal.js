@@ -1,65 +1,66 @@
-import React, { useEffect, useRef } from 'react';
-import { IconX } from '@tabler/icons';
+import React, { useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { IconX, IconExternalLink } from '@tabler/icons';
 import styled from 'styled-components';
 
+/**
+ * PreviewModal — renders the collection using the bruno-public-docs viewer
+ * loaded in an iframe at /preview route, with data sent via postMessage.
+ */
 const PreviewModal = ({ collection, settings, onClose }) => {
-  const containerRef = useRef(null);
+  const { t } = useTranslation();
+  const iframeRef = useRef(null);
+  const dataSentRef = useRef(false);
+
+  // Detect preview URL: dev server on 3001, or same origin for production
+  const previewUrl = (() => {
+    try {
+      const origin = window.location.origin;
+      // In Electron the origin is "file://" or a custom protocol — fall back to dev server
+      if (origin.startsWith('file:') || origin.startsWith('app:')) {
+        return 'http://localhost:3001/preview';
+      }
+      // In production web, public-docs is served from the same server
+      return `${origin}/preview`;
+    } catch {
+      return 'http://localhost:3001/preview';
+    }
+  })();
+
+  const sendPreviewData = useCallback(() => {
+    if (dataSentRef.current || !iframeRef.current?.contentWindow) return;
+    dataSentRef.current = true;
+    iframeRef.current.contentWindow.postMessage(
+      {
+        type: 'BRUNO_DOCS_PREVIEW',
+        collection,
+        settings: {
+          show_examples: settings?.show_examples !== false,
+          show_auth: settings?.show_auth !== false,
+          custom_css: settings?.custom_css || null,
+          custom_logo_url: settings?.custom_logo_url || null
+        }
+      },
+      '*'
+    );
+  }, [collection, settings]);
 
   useEffect(() => {
-    if (collection && containerRef.current && window.OpenCollection) {
-      try {
-        // Apply custom CSS if provided
-        if (settings?.custom_css) {
-          let styleEl = document.getElementById('preview-custom-css');
-          if (!styleEl) {
-            styleEl = document.createElement('style');
-            styleEl.id = 'preview-custom-css';
-            document.head.appendChild(styleEl);
-          }
-          styleEl.textContent = settings.custom_css;
-        }
-
-        // Display custom logo if provided
-        if (settings?.custom_logo_url) {
-          const logoEl = document.getElementById('preview-custom-logo');
-          if (logoEl) {
-            logoEl.src = settings.custom_logo_url;
-            logoEl.style.display = 'block';
-          } else {
-            // Create logo element
-            const logo = document.createElement('img');
-            logo.id = 'preview-custom-logo';
-            logo.src = settings.custom_logo_url;
-            logo.style.cssText = 'position: fixed; top: 20px; left: 20px; max-width: 150px; max-height: 50px; z-index: 1000;';
-            containerRef.current.appendChild(logo);
-          }
-        }
-
-        // Render OpenCollection viewer
-        new window.OpenCollection({
-          target: containerRef.current,
-          opencollection: collection,
-          theme: 'light',
-          showExamples: settings?.show_examples !== false,
-          showAuth: settings?.show_auth !== false
-        });
-      } catch (err) {
-        console.error('Error initializing preview:', err);
-      }
-    }
-
-    // Cleanup
-    return () => {
-      const styleEl = document.getElementById('preview-custom-css');
-      if (styleEl) {
-        styleEl.remove();
-      }
-      const logoEl = document.getElementById('preview-custom-logo');
-      if (logoEl) {
-        logoEl.remove();
+    const handleMessage = (event) => {
+      if (event.data?.type === 'BRUNO_DOCS_PREVIEW_READY') {
+        sendPreviewData();
       }
     };
-  }, [collection, settings]);
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [sendPreviewData]);
+
+  // Fallback: also send on iframe load event in case READY fires before we listen
+  const handleIframeLoad = useCallback(() => {
+    // Small delay to let the React app mount and register its listener
+    setTimeout(sendPreviewData, 200);
+  }, [sendPreviewData]);
 
   return (
     <StyledWrapper>
@@ -67,16 +68,31 @@ const PreviewModal = ({ collection, settings, onClose }) => {
         <div className="preview-container" onClick={(e) => e.stopPropagation()}>
           <div className="preview-header">
             <div className="preview-title">
-              <span className="preview-badge">PREVIEW</span>
-              <h2>Documentation Preview</h2>
+              <span className="preview-badge">{t('PREVIEW_MODAL.badge')}</span>
+              <h2>{t('PREVIEW_MODAL.title')}</h2>
             </div>
-            <button onClick={onClose} className="close-btn" title="Close preview">
-              <IconX size={20} />
-            </button>
+            <div className="preview-actions">
+              <a
+                href={previewUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="open-btn"
+                title={t('PREVIEW_MODAL.openInNewTab')}
+              >
+                <IconExternalLink size={16} />
+              </a>
+              <button onClick={onClose} className="close-btn" title={t('PREVIEW_MODAL.closePreview')}>
+                <IconX size={20} />
+              </button>
+            </div>
           </div>
-          <div
-            ref={containerRef}
-            className="preview-content"
+          <iframe
+            ref={iframeRef}
+            src={previewUrl}
+            className="preview-iframe"
+            title={t('PREVIEW_MODAL.title')}
+            onLoad={handleIframeLoad}
+            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
           />
         </div>
       </div>
@@ -100,70 +116,81 @@ const StyledWrapper = styled.div`
   }
 
   .preview-container {
-    background: white;
-    border-radius: 12px;
+    background: ${({ theme }) => theme.colors.sidebar.bg};
+    border-radius: ${({ theme }) => theme.border.radius.lg};
     width: 100%;
     max-width: 1400px;
     height: 90vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
   }
 
   .preview-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 24px;
-    border-bottom: 1px solid #e5e7eb;
+    padding: 14px 20px;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    flex-shrink: 0;
   }
 
   .preview-title {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 
     h2 {
       margin: 0;
-      font-size: 18px;
+      font-size: ${({ theme }) => theme.font.size.md};
       font-weight: 600;
-      color: #111827;
+      color: ${({ theme }) => theme.colors.text.primary};
     }
   }
 
   .preview-badge {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: ${({ theme }) => theme.colors.brand};
     color: white;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: ${({ theme }) => theme.border.radius.sm};
+    font-size: ${({ theme }) => theme.font.size.xs};
     font-weight: 700;
     letter-spacing: 0.5px;
   }
 
+  .preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .open-btn,
   .close-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border: none;
-    background: #f3f4f6;
-    border-radius: 6px;
+    background: ${({ theme }) => theme.colors.background.subtle};
+    border-radius: ${({ theme }) => theme.border.radius.sm};
     cursor: pointer;
-    color: #6b7280;
-    transition: all 0.2s;
+    color: ${({ theme }) => theme.colors.text.secondary};
+    transition: background-color ${({ theme }) => theme.transition.fast};
+    text-decoration: none;
 
     &:hover {
-      background: #e5e7eb;
-      color: #111827;
+      background: ${({ theme }) => theme.colors.background.hover};
+      color: ${({ theme }) => theme.colors.text.primary};
     }
   }
 
-  .preview-content {
+  .preview-iframe {
     flex: 1;
-    overflow: auto;
-    background: #f9fafb;
+    width: 100%;
+    border: none;
+    background: ${({ theme }) => theme.colors.sidebar.bg};
   }
 `;
 

@@ -8,7 +8,7 @@ use crate::{
     errors::{AppError, AppResult},
     models::{
         collection::Collection as CollectionModel,
-        example::{Example, ExampleResponse},
+        example::{Example, ExampleResponse, ExampleSummary},
         item::{Item, ItemType},
     },
     services::workspace::WorkspaceService,
@@ -95,22 +95,37 @@ impl ExampleService {
         Ok(resp)
     }
 
-    pub async fn list(&self, item_uid: &str, user_id: ObjectId) -> AppResult<Vec<ExampleResponse>> {
+    pub async fn list(&self, item_uid: &str, user_id: ObjectId) -> AppResult<Vec<ExampleSummary>> {
         let item = self.get_item_and_check_access(item_uid, user_id).await?;
-        let mut cursor = self.examples.find(doc! { "requestUid": &item.uid, "deletedAt": { "$exists": false } }).await.map_err(AppError::from)?;
+        let mut cursor = self.examples
+            .find(doc! { "requestUid": &item.uid, "deletedAt": { "$exists": false } })
+            .projection(doc! { "body": 0, "requestSnapshot": 0 })
+            .await
+            .map_err(AppError::from)?;
         let mut result = Vec::new();
-        while let Some(Ok(e)) = cursor.next().await { result.push(ExampleResponse::from(e)); }
+        while let Some(Ok(e)) = cursor.next().await { result.push(ExampleSummary::from(e)); }
         Ok(result)
     }
 
-    /// Load all examples for every request in a collection (bulk load).
-    pub async fn list_for_collection(&self, collection_uid: &str, user_id: ObjectId) -> AppResult<Vec<ExampleResponse>> {
+    /// Get a single example with full body and requestSnapshot (for lazy loading).
+    pub async fn get_by_uid(&self, example_uid: &str, user_id: ObjectId) -> AppResult<ExampleResponse> {
+        let example = self.get_example_raw(example_uid).await?;
+        let item = self.items.find_one(doc! { "uid": &example.request_uid }).await.map_err(AppError::from)?
+            .ok_or_else(|| AppError::NotFound("Item not found".into()))?;
+        let col = self.get_collection(&item.collection_uid).await?;
+        self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
+        Ok(ExampleResponse::from(example))
+    }
+
+    /// Load all examples for every request in a collection (bulk load) — returns
+    /// lightweight summaries without body/requestSnapshot to keep the payload small.
+    pub async fn list_for_collection(&self, collection_uid: &str, user_id: ObjectId) -> AppResult<Vec<ExampleSummary>> {
         let col = self.get_collection(collection_uid).await?;
         self.ws_service.get_with_role(&col.workspace_uid, user_id).await?;
 
         // Collect all request UIDs belonging to this collection
         let mut item_cursor = self.items
-            .find(doc! { "collectionUid": collection_uid, "deletedAt": { "$exists": false }, "itemType": "request" })
+            .find(doc! { "collectionUid": collection_uid, "deletedAt": { "$exists": false }, "type": "request" })
             .await
             .map_err(AppError::from)?;
         let mut request_uids: Vec<String> = Vec::new();
@@ -124,10 +139,11 @@ impl ExampleService {
 
         let mut cursor = self.examples
             .find(doc! { "requestUid": { "$in": &request_uids }, "deletedAt": { "$exists": false } })
+            .projection(doc! { "body": 0, "requestSnapshot": 0 })
             .await
             .map_err(AppError::from)?;
         let mut result = Vec::new();
-        while let Some(Ok(e)) = cursor.next().await { result.push(ExampleResponse::from(e)); }
+        while let Some(Ok(e)) = cursor.next().await { result.push(ExampleSummary::from(e)); }
         Ok(result)
     }
 
@@ -155,7 +171,7 @@ impl ExampleService {
 
         let ex_oid = example.id.unwrap();
         let now = Utc::now();
-        let mut update = doc! { "updated_at": now.to_rfc3339() };
+        let mut update = doc! { "updated_at": bson::DateTime::from_chrono(now) };
         if let Some(n) = &name { update.insert("name", n); }
         if let Some(d) = &description { update.insert("description", d); }
         if let Some(sc) = status_code { update.insert("status_code", sc as i32); }
@@ -197,7 +213,7 @@ impl ExampleService {
         let deleted_uid = example.uid.clone();
         self.examples.update_one(
             doc! { "_id": example.id.unwrap() },
-            doc! { "$set": { "deletedAt": chrono::Utc::now().to_rfc3339() } },
+            doc! { "$set": { "deletedAt": bson::DateTime::now() } },
         ).await.map_err(AppError::from)?;
         self.ws_manager.broadcast(
             &workspace_uid,

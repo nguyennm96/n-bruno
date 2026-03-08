@@ -30,7 +30,9 @@ export interface CloudExample {
     status_code: number;
     status_text?: string;
     headers: Record<string, string>;
+    /** Populated only by the full get() endpoint; absent in list responses. */
     body?: string;
+    /** Populated only by the full get() endpoint; absent in list responses. */
     requestSnapshot?: Record<string, unknown>;
     responseTime?: number;
     responseSize?: number;
@@ -41,6 +43,7 @@ export declare class ExampleService {
     private client;
     constructor(client: BrunoApiClient);
     create(itemUid: string, data: CloudExampleRequest): Promise<CloudExample>;
+    get(exampleUid: string): Promise<CloudExample>;
     list(itemUid: string): Promise<CloudExample[]>;
     listForCollection(collectionUid: string): Promise<CloudExample[]>;
     update(exampleUid: string, data: CloudExampleUpdate): Promise<CloudExample>;

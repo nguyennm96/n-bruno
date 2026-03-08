@@ -18,7 +18,7 @@ const StyledWrapper = styled.div`
     cursor: pointer;
     border-radius: 4px;
     transition: color 0.15s ease;
-    font-size: 12px;
+    font-size: ${(props) => props.theme.font.size.sm};
     white-space: nowrap;
     overflow: hidden;
     min-width: 0;
@@ -78,7 +78,7 @@ const StyledWrapper = styled.div`
 
     .file-name {
       flex: 1;
-      font-size: 12px;
+      font-size: ${(props) => props.theme.font.size.sm};
       color: ${(props) => props.theme.text};
       overflow: hidden;
       text-overflow: ellipsis;

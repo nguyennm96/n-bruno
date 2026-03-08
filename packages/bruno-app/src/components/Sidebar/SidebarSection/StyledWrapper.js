@@ -87,7 +87,7 @@ const StyledWrapper = styled.div`
 
     .section-title {
       color: ${(props) => props.theme.sidebar.color};
-      font-size: 12px;
+      font-size: ${(props) => props.theme.font.size.sm};
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;

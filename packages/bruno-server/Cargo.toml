@@ -62,11 +62,21 @@ utoipa-swagger-ui = { version = "6", features = ["axum"] }
 
 # Import/Export helpers (Phase 10)
 url = "2"
+urlencoding = "2"
 
 # Base64 encoding
 base64 = "0.21"
 
+# HTTP client (for SendGrid email API)
+reqwest = { version = "0.12", features = ["json"] }
+
+# Hashing (invite tokens)
+sha2 = "0.10"
+hex = "0.4"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
-axum-test = "15"
+axum-test = { version = "15", features = ["ws"] }
 uuid = { version = "1", features = ["v4"] }
+testcontainers = "0.22"
+testcontainers-modules = { version = "0.10", features = ["mongo"] }

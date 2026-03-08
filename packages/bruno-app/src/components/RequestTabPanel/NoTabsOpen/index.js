@@ -19,6 +19,7 @@ import ImportCollection from 'components/Sidebar/ImportCollection';
 import ImportCollectionLocation from 'components/Sidebar/ImportCollectionLocation';
 import GlobalSearchModal from 'components/GlobalSearchModal';
 import { storage } from 'utils/storage';
+import { useTranslation } from 'react-i18next';
 
 const isMac = typeof window !== 'undefined' && navigator.platform?.toLowerCase().includes('mac');
 const MOD = isMac ? '\u2318' : 'Ctrl';
@@ -136,6 +137,7 @@ const StyledWrapper = styled.div`
 `;
 
 const NoTabsOpen = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
@@ -154,12 +156,12 @@ const NoTabsOpen = () => {
       }
       setCreateCollectionModalOpen(true);
     } catch {
-      toast.error('Error preparing workspace');
+      toast.error(t('SIDEBAR.PREPARE_WORKSPACE_ERROR'));
     }
   };
 
   const handleOpenCollection = () => {
-    dispatch(openCollection()).catch(() => toast.error('An error occurred while opening the collection'));
+    dispatch(openCollection()).catch(() => toast.error(t('WELCOME.COLLECTION_OPEN_ERROR')));
   };
 
   const handleImportSubmit = ({ rawData, type, ...rest }) => {
@@ -176,14 +178,14 @@ const NoTabsOpen = () => {
       rawData.zipFilePath
         ? importCollectionFromZip(rawData.zipFilePath, collectionLocation)
         : importCollection(rawData, collectionLocation, rest)
-    ).catch(() => toast.error('An error occurred while importing the collection'));
+    ).catch(() => toast.error(t('WELCOME.COLLECTION_IMPORT_ERROR')));
   };
 
   const handleImportLocationSubmit = (collectionLocation) => {
     setImportCollectionLocationModalOpen(false);
     if (importData) {
       dispatch(importCollection(importData.collection, collectionLocation)).catch(() =>
-        toast.error('An error occurred while importing the collection')
+        toast.error(t('WELCOME.COLLECTION_IMPORT_ERROR'))
       );
       setImportData(null);
     }
@@ -191,22 +193,22 @@ const NoTabsOpen = () => {
 
   const actions = [
     {
-      label: 'New Collection',
+      label: t('WELCOME.CREATE_COLLECTION'),
       keys: [MOD, 'N'],
       onClick: handleNewCollection
     },
     ...(!isAuthenticated ? [{
-      label: 'Open Collection',
+      label: t('WELCOME.OPEN_COLLECTION'),
       keys: [MOD, 'O'],
       onClick: handleOpenCollection
     }] : []),
     {
-      label: 'Import Collection',
+      label: t('WELCOME.IMPORT_COLLECTION'),
       keys: null,
       onClick: () => setImportCollectionModalOpen(true)
     },
     {
-      label: 'Global Search',
+      label: t('SIDEBAR.GLOBAL_SEARCH'),
       keys: [MOD, 'K'],
       onClick: () => setShowGlobalSearch(true)
     }
@@ -255,11 +257,11 @@ const NoTabsOpen = () => {
 
         <div className="type-icons">
           <span className="type-icon" title="HTTP"><IconWorld size={20} strokeWidth={1.4} /></span>
-          <span className="type-icon" title="GraphQL"><IconBrandGraphql size={20} strokeWidth={1.4} /></span>
-          <span className="type-icon" title="gRPC"><IconPlugConnected size={20} strokeWidth={1.4} /></span>
-          <span className="type-icon" title="WebSocket"><IconBroadcast size={20} strokeWidth={1.4} /></span>
+          <span className="type-icon" title={t('REQUEST.GRAPHQL_TYPE')}><IconBrandGraphql size={20} strokeWidth={1.4} /></span>
+          <span className="type-icon" title={t('REQUEST.GRPC_TYPE')}><IconPlugConnected size={20} strokeWidth={1.4} /></span>
+          <span className="type-icon" title={t('REQUEST.WEBSOCKET_TYPE')}><IconBroadcast size={20} strokeWidth={1.4} /></span>
           <span className="type-icon" title="Search"><IconSearch size={20} strokeWidth={1.4} /></span>
-          <span className="type-icon" title="New Request"><IconPlus size={20} strokeWidth={1.4} /></span>
+          <span className="type-icon" title={t('REQUEST.NEW_REQUEST')}><IconPlus size={20} strokeWidth={1.4} /></span>
           <span className="type-icon" title="Open"><IconFolder size={20} strokeWidth={1.4} /></span>
           <span className="type-icon" title="Import"><IconDownload size={20} strokeWidth={1.4} /></span>
         </div>

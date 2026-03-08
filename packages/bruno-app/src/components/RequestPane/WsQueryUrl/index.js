@@ -15,6 +15,7 @@ import { interpolateUrl } from 'utils/url';
 import { getAllVariables } from 'utils/collections';
 import useDebounce from 'hooks/useDebounce';
 import get from 'lodash/get';
+import { useTranslation } from 'react-i18next';
 
 const CONNECTION_STATUS = {
   CONNECTING: 'connecting',
@@ -38,6 +39,7 @@ const useWsConnectionStatus = (requestId) => {
 
 const WsQueryUrl = ({ item, collection, handleRun }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const { theme, displayedTheme } = useTheme();
   // TODO: reaper, better state for connecting
   const saveShortcut = isMacOS() ? '⌘S' : 'Ctrl+S';
@@ -68,12 +70,12 @@ const WsQueryUrl = ({ item, collection, handleRun }) => {
     e && e.stopPropagation();
     closeWsConnection(item.uid)
       .then(() => {
-        notify && toast.success('WebSocket connection closed');
+        notify && toast.success(t('REQUEST.WEBSOCKET.CONNECTION_CLOSED'));
         setConnectionStatus('disconnected');
       })
       .catch((err) => {
         console.error('Failed to close WebSocket connection:', err);
-        notify && toast.error('Failed to close WebSocket connection');
+        notify && toast.error(t('REQUEST.WEBSOCKET.FAILED_CLOSE_CONNECTION'));
       });
   };
 
@@ -92,7 +94,7 @@ const WsQueryUrl = ({ item, collection, handleRun }) => {
   const handleRunClick = async (e) => {
     e.stopPropagation();
     if (!url) {
-      toast.error('Please enter a valid WebSocket URL');
+      toast.error(t('REQUEST.WEBSOCKET.ENTER_VALID_URL'));
       return;
     }
     handleRun(e);
@@ -154,7 +156,7 @@ const WsQueryUrl = ({ item, collection, handleRun }) => {
                 className={`${hasChanges ? 'cursor-pointer' : 'cursor-default'}`}
               />
               <span className="infotip-text text-xs">
-                Save <span className="shortcut">({saveShortcut})</span>
+                {t('COMMON.SAVE')} <span className="shortcut">({saveShortcut})</span>
               </span>
             </div>
 
@@ -167,7 +169,7 @@ const WsQueryUrl = ({ item, collection, handleRun }) => {
                     size={20}
                     className="cursor-pointer"
                   />
-                  <span className="infotip-text text-xs">Close Connection</span>
+                  <span className="infotip-text text-xs">{t('REQUEST.WEBSOCKET.CLOSE_CONNECTION')}</span>
                 </div>
               </div>
             )}
@@ -183,7 +185,7 @@ const WsQueryUrl = ({ item, collection, handleRun }) => {
                     strokeWidth={1.5}
                     size={20}
                   />
-                  <span className="infotip-text text-xs">Connect</span>
+                  <span className="infotip-text text-xs">{t('REQUEST.WEBSOCKET.CONNECT')}</span>
                 </div>
               </div>
             )}

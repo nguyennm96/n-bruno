@@ -6,6 +6,10 @@ import type {
   AuthResponse,
   UserResponse,
   TokenResponse,
+  UpdateProfileRequest,
+  UpdateProfileResponse,
+  ForgotPasswordRequest,
+  ResetPasswordRequest,
 } from '../types';
 
 export class AuthService {
@@ -64,6 +68,49 @@ export class AuthService {
    */
   async getMe(): Promise<UserResponse> {
     const response = await this.client.getClient().get<UserResponse>('/api/auth/me');
+    return response.data;
+  }
+
+  /**
+   * Update the current user's name and/or avatar
+   */
+  async updateProfile(data: UpdateProfileRequest): Promise<UpdateProfileResponse> {
+    const response = await this.client.getClient().patch<UpdateProfileResponse>('/api/auth/me', data);
+    return response.data;
+  }
+
+  /**
+   * Request a 6-digit OTP sent to the user's email for password reset
+   */
+  async forgotPassword(email: string): Promise<void> {
+    await this.client.getClient().post('/api/auth/forgot-password', { email } satisfies ForgotPasswordRequest);
+  }
+
+  /**
+   * Reset password using the OTP received by email
+   */
+  async resetPassword(data: ResetPasswordRequest): Promise<void> {
+    await this.client.getClient().post('/api/auth/reset-password', data);
+  }
+
+  /**
+   * Get the OAuth authorization URL for a given provider ('google' | 'github').
+   * The Electron process will open this URL in the system browser.
+   */
+  async oauthAuthorize(provider: string): Promise<{ url: string }> {
+    const response = await this.client.getClient().get<{ data: { url: string } }>(
+      `/api/auth/oauth/${provider}/authorize`
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Exchange a one-time OAuth code (from bruno:// callback) for JWT tokens.
+   */
+  async oauthExchange(code: string): Promise<AuthResponse> {
+    const response = await this.client.getClient().post<AuthResponse>('/api/auth/oauth/exchange', { code });
+    const { access_token, refresh_token } = (response.data as any).data;
+    this.client.setTokens(access_token, refresh_token);
     return response.data;
   }
 }

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react';
 import { common } from 'lowlight';
@@ -70,6 +71,7 @@ const ChevronIcon = () => (
 
 // ── Language Dropdown Portal ────────────────────────────────────────────────────
 const LangDropdown = ({ anchorRef, open, onClose, languages, selected, onSelect }) => {
+  const { t } = useTranslation();
   const dropdownRef = useRef(null);
   const searchRef = useRef(null);
   const [search, setSearch] = useState('');
@@ -150,7 +152,7 @@ const LangDropdown = ({ anchorRef, open, onClose, languages, selected, onSelect 
           outline: 'none',
           border: '1px solid'
         }}
-        placeholder="Search language…"
+        placeholder={t('MARKDOWN_EDITOR.CODE_BLOCK.SEARCH_PLACEHOLDER')}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         onKeyDown={(e) => {
@@ -196,6 +198,7 @@ const LangDropdown = ({ anchorRef, open, onClose, languages, selected, onSelect 
  * Renders: language selector + Format + Copy buttons above the code content.
  */
 const CodeBlockView = ({ node, updateAttributes, extension, getPos }) => {
+  const { t } = useTranslation();
   const language = node.attrs.language || 'plaintext';
   const [langOpen, setLangOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -288,27 +291,27 @@ const CodeBlockView = ({ node, updateAttributes, extension, getPos }) => {
         {canFormat && (
           <button
             className="cbv-btn"
-            title="Format code (Prettier)"
+            title={t('MARKDOWN_EDITOR.CODE_BLOCK.FORMAT_TITLE')}
             disabled={formatting}
             onMouseDown={(e) => {
               e.preventDefault(); handleFormat();
             }}
           >
             <FormatIcon />
-            <span>{formatting ? 'Formatting…' : 'Format'}</span>
+            <span>{formatting ? t('MARKDOWN_EDITOR.CODE_BLOCK.FORMATTING') : t('MARKDOWN_EDITOR.CODE_BLOCK.FORMAT')}</span>
           </button>
         )}
 
         {/* Copy button */}
         <button
           className="cbv-btn"
-          title="Copy code"
+          title={t('MARKDOWN_EDITOR.CODE_BLOCK.COPY_TITLE')}
           onMouseDown={(e) => {
             e.preventDefault(); handleCopy();
           }}
         >
           <CopyIcon />
-          <span>{copied ? 'Copied!' : 'Copy'}</span>
+          <span>{copied ? t('MARKDOWN_EDITOR.CODE_BLOCK.COPIED') : t('MARKDOWN_EDITOR.CODE_BLOCK.COPY')}</span>
         </button>
       </div>
 

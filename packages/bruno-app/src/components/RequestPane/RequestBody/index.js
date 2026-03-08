@@ -1,5 +1,6 @@
 import React from 'react';
 import get from 'lodash/get';
+import { useTranslation } from 'react-i18next';
 import CodeEditor from 'components/CodeEditor';
 import FormUrlEncodedParams from 'components/RequestPane/FormUrlEncodedParams';
 import MultipartFormParams from 'components/RequestPane/MultipartFormParams';
@@ -12,6 +13,7 @@ import FileBody from '../FileBody/index';
 
 const RequestBody = ({ item, collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const body = item.draft ? get(item, 'draft.request.body') : get(item, 'request.body');
   const bodyMode = item.draft ? get(item, 'draft.request.body.mode') : get(item, 'request.body.mode');
   const { displayedTheme } = useTheme();
@@ -77,6 +79,6 @@ const RequestBody = ({ item, collection }) => {
     return <MultipartFormParams item={item} collection={collection} />;
   }
 
-  return <StyledWrapper className="w-full">No Body</StyledWrapper>;
+  return <StyledWrapper className="w-full">{t('REQUEST.BODY.NONE')}</StyledWrapper>;
 };
 export default RequestBody;

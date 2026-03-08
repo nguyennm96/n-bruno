@@ -17,7 +17,7 @@ const StyledWrapper = styled.div`
     width: 100%;
     height: 32px;
     padding: 0 32px 0 32px;
-    font-size: 12px;
+    font-size: ${(props) => props.theme.font.size.sm};
     color: ${(props) => props.theme.sidebar.color};
     background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
     border: 1px solid transparent;

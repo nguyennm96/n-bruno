@@ -52,7 +52,7 @@ const SidebarSection = ({
                 }
               }}
             >
-              <ActionIcon size="sm" className="section-toggle">
+              <ActionIcon size="sm" className="section-toggle" label={localExpanded ? 'Collapse section' : 'Expand section'}>
                 {localExpanded ? (
                   <IconChevronDown size={12} stroke={1.5} />
                 ) : (

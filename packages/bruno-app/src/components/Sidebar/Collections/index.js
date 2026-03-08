@@ -5,7 +5,6 @@ import CreateCollection from '../CreateCollection';
 import StyledWrapper from './StyledWrapper';
 import CreateOrOpenCollection from './CreateOrOpenCollection';
 import CollectionSearch from './CollectionSearch/index';
-import { normalizePath } from 'utils/common/path';
 import { isScratchCollection } from 'utils/collections';
 
 const Collections = ({ showSearch }) => {
@@ -23,7 +22,7 @@ const Collections = ({ showSearch }) => {
       if (isScratchCollection(c, workspaces)) {
         return false;
       }
-      return activeWorkspace.collections?.some((wc) => normalizePath(wc.path) === normalizePath(c.pathname));
+      return activeWorkspace.collections?.some((wc) => wc.uid === c.uid);
     });
   }, [activeWorkspace, collections, workspaces]);
 

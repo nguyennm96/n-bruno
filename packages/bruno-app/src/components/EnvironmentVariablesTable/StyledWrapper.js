@@ -21,7 +21,7 @@ const Wrapper = styled.div`
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 12px;
+    font-size: ${(props) => props.theme.font.size.sm};
 
     td {
       vertical-align: middle;

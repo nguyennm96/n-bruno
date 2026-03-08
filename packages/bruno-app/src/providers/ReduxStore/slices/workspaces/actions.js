@@ -9,13 +9,16 @@ import {
   removeCollectionFromWorkspace,
   updateWorkspaceLoadingState,
   setWorkspaceScratchCollection,
-  setWorkspaceDotEnvVariables
+  setWorkspaceDotEnvVariables,
+  setWorkspaceMembers,
+  setWorkspacePendingInvites,
+  setMembersLoading
 } from '../workspaces';
 import { showHomePage } from '../app';
 import { createCollection, openCollection, openMultipleCollections, openScratchCollectionEvent } from '../collections/actions';
 import { removeCollection, addTransientDirectory, updateCollectionMountStatus, toggleCollection, toggleCollectionItem } from '../collections';
 import { updateGlobalEnvironments } from '../global-environments';
-import { addTab, focusTab } from '../tabs';
+import { addTab, focusTab, resetTabs } from '../tabs';
 import { normalizePath } from 'utils/common/path';
 import toast from 'react-hot-toast';
 import { apiSpecAddFileEvent } from '../apiSpec';
@@ -78,52 +81,8 @@ export const createWorkspaceAction = (workspaceName, workspaceFolderName, worksp
   };
 };
 
-export const openWorkspace = () => {
-  return async (dispatch) => {
-    try {
-      const workspacePath = await storage.browseDirectory();
-      if (workspacePath) {
-        const result = await storage.openWorkspace(workspacePath);
-        const { workspaceConfig, workspaceUid } = result;
-
-        dispatch(createWorkspace({
-          uid: workspaceUid,
-          pathname: workspacePath,
-          ...workspaceConfig
-        }));
-
-        await dispatch(switchWorkspace(workspaceUid));
-
-        return result;
-      }
-    } catch (error) {
-      throw error;
-    }
-  };
-};
-
-export const openWorkspaceDialog = () => {
-  return async (dispatch) => {
-    try {
-      const result = await storage.openWorkspaceDialog();
-      if (result) {
-        const { workspaceConfig, workspaceUid } = result;
-
-        dispatch(createWorkspace({
-          uid: workspaceUid,
-          pathname: result.workspacePath,
-          ...workspaceConfig
-        }));
-
-        await dispatch(switchWorkspace(workspaceUid));
-
-        return result;
-      }
-    } catch (error) {
-      throw error;
-    }
-  };
-};
+// File-based workspace opening is no longer supported. Workspaces are IDB-only.
+// Use createWorkspaceAction to create a new workspace instead.
 
 export const removeCollectionFromWorkspaceAction = (workspaceUid, collectionPath) => {
   return async (dispatch, getState) => {
@@ -138,12 +97,9 @@ export const removeCollectionFromWorkspaceAction = (workspaceUid, collectionPath
 
       const normalizedCollectionPath = normalizePath(collectionPath);
 
-      // In cloud mode the caller may pass collection.uid (e.g. "abc123") instead of the
-      // full pathname ("cloud://abc123"), so we match by either.
+      // Match by uid or pathname (pathname === uid for cloud/IDB collections)
       const collection = collectionsState.collections.find(
-        (c) =>
-          normalizePath(c.pathname) === normalizedCollectionPath
-          || c.uid === collectionPath
+        (c) => c.uid === collectionPath || normalizePath(c.pathname) === normalizedCollectionPath
       );
 
       if (storage.isCloudMode()) {
@@ -178,6 +134,9 @@ export const removeCollectionFromWorkspaceAction = (workspaceUid, collectionPath
 };
 
 const loadWorkspaceCollectionsForSwitch = async (dispatch, workspace) => {
+  // Clear stale collections from previous workspace before loading new ones
+  dispatch({ type: 'collections/clearAllCollections' });
+
   // IDB mode: load collections directly from IndexedDB
   if (!storage.isCloudMode()) {
     try {
@@ -273,7 +232,7 @@ async function refreshCloudWorkspace(workspaceUid, dispatch, getState, _createCo
   if (!brunoApi) return;
 
   try {
-    const { transformCloudItemToLocal, transformCloudEnvironmentToLocal } = await import('utils/storage/transform');
+    const { transformCloudItemToLocal, transformCloudEnvironmentToLocal, transformCloudExampleToLocal } = await import('utils/storage/transform');
     const { cacheCloudCollection, clearCloudCollectionCache } = await import('utils/cache/indexedDB');
     const { removeCollection } = await import('../collections');
 
@@ -298,10 +257,31 @@ async function refreshCloudWorkspace(workspaceUid, dispatch, getState, _createCo
         environments = rawEnvs.map(transformCloudEnvironmentToLocal);
       } catch {}
 
+      // Fetch examples and attach to request items
+      try {
+        const cloudExamples = await brunoApi.examples.listForCollection(collection.uid);
+        if (cloudExamples && cloudExamples.length > 0) {
+          const byRequestUid = {};
+          for (const ex of cloudExamples) {
+            if (!byRequestUid[ex.requestUid]) byRequestUid[ex.requestUid] = [];
+            byRequestUid[ex.requestUid].push(ex);
+          }
+          const attachExamples = (itemList) => {
+            for (const item of itemList) {
+              if (item.type !== 'folder' && byRequestUid[item.uid]) {
+                item.examples = byRequestUid[item.uid].map(transformCloudExampleToLocal);
+              }
+              if (item.items?.length) attachExamples(item.items);
+            }
+          };
+          attachExamples(items);
+        }
+      } catch {}
+
       const collectionData = {
         uid: collection.uid,
         name: collection.name,
-        pathname: `cloud://${collection.uid}`,
+        pathname: collection.uid,
         items,
         environments,
         version: '1',
@@ -662,6 +642,7 @@ async function applyRemoteWsEvent(wsEvent, dispatch, getState, _createCollection
 
 export const switchWorkspace = (workspaceUid) => {
   return async (dispatch, getState) => {
+    dispatch(resetTabs());
     dispatch(setActiveWorkspace(workspaceUid));
 
     const workspace = getState().workspaces.workspaces.find((w) => w.uid === workspaceUid);
@@ -957,8 +938,9 @@ export const loadWorkspaceCollections = (workspaceUid, force = false) => {
 
       let collections = [];
 
-      // In local (IDB) mode, query by uid; legacy filesystem mode uses pathname
-      const storageKey = !storage.isCloudMode() ? workspace.uid : workspace.pathname;
+      // Cloud mode: collections come from the server, no IDB lookup needed.
+      // Local/IDB mode: load collections from IDB indexed by workspace.uid.
+      const storageKey = storage.isCloudMode() ? null : workspace.uid;
       if (!storageKey) {
         collections = [];
       } else {
@@ -969,7 +951,7 @@ export const loadWorkspaceCollections = (workspaceUid, force = false) => {
         collections = rawCollections.map((collection) => ({
           uid: collection.uid,
           name: collection.name,
-          path: collection.pathname || collection.uid
+          path: collection.uid
         }));
       }
 
@@ -1012,105 +994,12 @@ export const loadLastOpenedWorkspaces = () => {
 
         if (!existingWorkspace) {
           dispatch(createWorkspace(workspace));
-
-          if (workspace.pathname) {
-            try {
-              await storage.startWorkspaceWatcher(workspace.pathname);
-            } catch (error) {
-            }
-          }
         }
       }
 
       return workspaces;
     } catch (error) {
       throw error;
-    }
-  };
-};
-
-export const workspaceOpenedEvent = (workspacePath, workspaceUid, workspaceConfig) => {
-  return async (dispatch, getState) => {
-    dispatch(createWorkspace({
-      uid: workspaceUid,
-      pathname: workspacePath,
-      ...workspaceConfig
-    }));
-
-    // Ensure this workspace exists in IDB (handles first launch + restarts)
-    if (!storage.isCloudMode()) {
-      try {
-        const { idbGet, idbPut, STORES } = await import('utils/idb/localStore');
-        const existing = await idbGet(STORES.WORKSPACES, workspaceUid);
-        if (!existing) {
-          await idbPut(STORES.WORKSPACES, {
-            uid: workspaceUid,
-            name: workspaceConfig?.name || 'My Workspace',
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          });
-        }
-      } catch (_) {}
-    }
-
-    try {
-      await dispatch(loadWorkspaceCollections(workspaceUid));
-    } catch (error) {
-    }
-
-    // If this is the default workspace or no workspace is active yet, switch to it
-    const state = getState();
-    const activeWorkspaceUid = state.workspaces.activeWorkspaceUid;
-
-    if (!activeWorkspaceUid || workspaceConfig.type === 'default') {
-      dispatch(switchWorkspace(workspaceUid));
-    }
-  };
-};
-
-export const workspaceConfigUpdatedEvent = (workspacePath, workspaceUid, workspaceConfig) => {
-  return async (dispatch, getState) => {
-    if (!workspaceConfig) {
-      return;
-    }
-
-    const { collections, apiSpecs, ...configWithoutCollections } = workspaceConfig;
-
-    dispatch(updateWorkspace({
-      uid: workspaceUid,
-      ...configWithoutCollections
-    }));
-
-    const activeWorkspaceUid = getState().workspaces.activeWorkspaceUid;
-    if (activeWorkspaceUid === workspaceUid) {
-      try {
-        await dispatch(loadWorkspaceCollections(workspaceUid, true));
-
-        const workspace = getState().workspaces.workspaces.find((w) => w.uid === workspaceUid);
-        const openCollections = getState().collections.collections.map((c) => normalizePath(c.pathname));
-
-        if (workspace?.collections?.length > 0) {
-          const newCollectionPaths = workspace.collections
-            .map((workspaceCollection) => workspaceCollection.path)
-            .filter((collectionPath) => collectionPath && !openCollections.includes(normalizePath(collectionPath)));
-
-          // Deduplicate paths to prevent "collection already opened" toast
-          const uniqueNewCollectionPaths = [...new Map(
-            newCollectionPaths.map((p) => [normalizePath(p), p])
-          ).values()];
-
-          if (uniqueNewCollectionPaths.length > 0) {
-            try {
-              await dispatch(openMultipleCollections(uniqueNewCollectionPaths, { workspacePath: workspace.pathname }));
-            } catch (error) {
-            }
-          }
-        }
-
-        // Load API specs when workspace config is updated
-        await dispatch(loadWorkspaceApiSpecs(workspaceUid));
-      } catch (error) {
-      }
     }
   };
 };
@@ -1245,7 +1134,7 @@ export const importCollectionInWorkspace = (collection, workspaceUid, collection
           const collectionData = {
             uid: importResult.collectionUid,
             name: importResult.collectionName,
-            pathname: `cloud://${importResult.collectionUid}`,
+            pathname: importResult.collectionUid,
             items,
             environments,
             version: '1',
@@ -1264,7 +1153,7 @@ export const importCollectionInWorkspace = (collection, workspaceUid, collection
             collection: {
               uid: importResult.collectionUid,
               name: importResult.collectionName,
-              path: `cloud://${importResult.collectionUid}`
+              path: importResult.collectionUid
             }
           }));
 
@@ -1283,7 +1172,7 @@ export const importCollectionInWorkspace = (collection, workspaceUid, collection
         dispatch(createCollection(collectionName, { workspaceUid, collectionUid, isCloud: true }));
         dispatch(addCollectionToWorkspace({
           workspaceUid,
-          collection: { uid: collectionUid, name: collectionName, path: `cloud://${collectionUid}` }
+          collection: { uid: collectionUid, name: collectionName, path: collectionUid }
         }));
       }
       return result;
@@ -1473,7 +1362,7 @@ export const exportWorkspaceAction = (workspaceUid) => {
       }
 
       if (!workspace.pathname) {
-        throw new Error('Workspace path not found');
+        return { success: false, error: 'Export is not available for IDB-only workspaces' };
       }
 
       const result = await storage.exportWorkspace(workspace.pathname, workspace.name);
@@ -1495,13 +1384,56 @@ export const importWorkspaceAction = (zipFilePath, extractLocation) => {
       const result = await storage.importWorkspace(zipFilePath, extractLocation);
 
       if (result.success) {
+        const { nanoid } = await import('nanoid');
+        const { idbPut, idbPutBulk, STORES } = await import('utils/idb/localStore');
+        const workspaceUid = nanoid();
+        const now = Date.now();
+
+        await idbPut(STORES.WORKSPACES, {
+          uid: workspaceUid,
+          name: result.workspaceName || 'Imported Workspace',
+          createdAt: now,
+          updatedAt: now
+        });
+
         dispatch(createWorkspace({
-          uid: result.workspaceUid,
-          pathname: result.workspacePath,
-          ...result.workspaceConfig
+          uid: workspaceUid,
+          name: result.workspaceName || 'Imported Workspace',
+          pathname: null
         }));
 
-        await dispatch(switchWorkspace(result.workspaceUid));
+        // Import all collections parsed from the extracted ZIP
+        if (result.collections && result.collections.length > 0) {
+          let colSeq = 0;
+          for (const col of result.collections) {
+            const collectionUid = nanoid();
+            await idbPut(STORES.COLLECTIONS, {
+              uid: collectionUid,
+              workspaceUid,
+              name: col.brunoConfig?.name || 'Imported Collection',
+              brunoConfig: col.brunoConfig || {},
+              root: col.root || {},
+              format: col.format || 'yml',
+              seq: colSeq++,
+              createdAt: now,
+              updatedAt: now
+            });
+
+            if (col.folders.length > 0) {
+              await idbPutBulk(STORES.FOLDERS, col.folders.map((f) => ({ ...f, collectionUid, createdAt: now, updatedAt: now })));
+            }
+            if (col.requests.length > 0) {
+              await idbPutBulk(STORES.REQUESTS, col.requests.map((r) => ({ ...r, collectionUid, createdAt: now, updatedAt: now })));
+            }
+            if (col.environments.length > 0) {
+              await idbPutBulk(STORES.ENVIRONMENTS, col.environments.map((e) => ({ ...e, collectionUid, createdAt: now, updatedAt: now })));
+            }
+          }
+        }
+
+        await dispatch(switchWorkspace(workspaceUid));
+
+        return { ...result, workspaceUid };
       }
 
       return result;
@@ -1647,5 +1579,89 @@ export const mountScratchCollection = (workspaceUid) => {
       }
       return null;
     }
+  };
+};
+
+// ─── Member Management Actions ────────────────────────────────────────────────
+
+export const fetchWorkspaceMembersAction = (workspaceUid) => {
+  return async (dispatch) => {
+    const brunoApi = window.__BRUNO_API__;
+    if (!brunoApi) return;
+
+    try {
+      dispatch(setMembersLoading({ workspaceUid, loading: true }));
+      const [members, invites] = await Promise.all([
+        brunoApi.workspaces.getMembers(workspaceUid),
+        brunoApi.workspaces.listPendingInvites(workspaceUid).catch(() => [])
+      ]);
+      dispatch(setWorkspaceMembers({ workspaceUid, members }));
+      dispatch(setWorkspacePendingInvites({ workspaceUid, invites }));
+    } catch (error) {
+      console.error('[fetchWorkspaceMembers]', error);
+    } finally {
+      dispatch(setMembersLoading({ workspaceUid, loading: false }));
+    }
+  };
+};
+
+export const inviteMemberAction = (workspaceUid, email, role) => {
+  return async (dispatch) => {
+    const brunoApi = window.__BRUNO_API__;
+    if (!brunoApi) throw new Error('API not initialized');
+
+    const result = await brunoApi.workspaces.addMember(workspaceUid, { email, role });
+    await dispatch(fetchWorkspaceMembersAction(workspaceUid));
+    return result;
+  };
+};
+
+export const removeMemberAction = (workspaceUid, userId) => {
+  return async (dispatch) => {
+    const brunoApi = window.__BRUNO_API__;
+    if (!brunoApi) throw new Error('API not initialized');
+
+    await brunoApi.workspaces.removeMember(workspaceUid, userId);
+    await dispatch(fetchWorkspaceMembersAction(workspaceUid));
+  };
+};
+
+export const updateMemberRoleAction = (workspaceUid, userId, role) => {
+  return async (dispatch) => {
+    const brunoApi = window.__BRUNO_API__;
+    if (!brunoApi) throw new Error('API not initialized');
+
+    await brunoApi.workspaces.updateMemberRole(workspaceUid, userId, { role });
+    await dispatch(fetchWorkspaceMembersAction(workspaceUid));
+  };
+};
+
+export const cancelInviteAction = (workspaceUid, inviteId) => {
+  return async (dispatch) => {
+    const brunoApi = window.__BRUNO_API__;
+    if (!brunoApi) throw new Error('API not initialized');
+
+    await brunoApi.workspaces.cancelInvite(workspaceUid, inviteId);
+    await dispatch(fetchWorkspaceMembersAction(workspaceUid));
+  };
+};
+
+export const leaveWorkspaceAction = (workspaceUid) => {
+  return async (dispatch) => {
+    const brunoApi = window.__BRUNO_API__;
+    if (!brunoApi) throw new Error('API not initialized');
+
+    await brunoApi.workspaces.leaveWorkspace(workspaceUid);
+    dispatch(removeWorkspace(workspaceUid));
+  };
+};
+
+export const transferOwnershipAction = (workspaceUid, newOwnerUserId) => {
+  return async (dispatch) => {
+    const brunoApi = window.__BRUNO_API__;
+    if (!brunoApi) throw new Error('API not initialized');
+
+    await brunoApi.workspaces.transferOwnership(workspaceUid, newOwnerUserId);
+    await dispatch(fetchWorkspaceMembersAction(workspaceUid));
   };
 };

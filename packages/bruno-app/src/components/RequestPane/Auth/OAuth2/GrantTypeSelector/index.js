@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import MenuDropdown from 'ui/MenuDropdown';
 import { useDispatch } from 'react-redux';
@@ -9,6 +10,7 @@ import { useEffect } from 'react';
 import { useState } from 'react';
 
 const GrantTypeSelector = ({ item = {}, request, updateAuth, collection }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const oAuth = get(request, 'auth.oauth2', {});
   const [valuesCache, setValuesCache] = useState({
@@ -69,7 +71,7 @@ const GrantTypeSelector = ({ item = {}, request, updateAuth, collection }) => {
           <IconKey size={14} className="oauth2-icon" />
         </div>
         <span className="oauth2-section-label">
-          Grant Type
+          {t('REQUEST.AUTH.GRANT_TYPE')}
         </span>
       </div>
       <div className="inline-flex items-center cursor-pointer grant-type-mode-selector w-fit">

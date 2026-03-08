@@ -70,7 +70,7 @@ const StyledWrapper = styled.div`
   }
 
   .category-header {
-    font-size: 10px;
+    font-size: ${({ theme }) => theme.font.size.xs};
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -117,7 +117,7 @@ const StyledWrapper = styled.div`
   }
 
   .client-name {
-    font-size: 10px;
+    font-size: ${({ theme }) => theme.font.size.xs};
     color: ${(props) => props.theme.colors.text.muted};
     white-space: nowrap;
     flex-shrink: 0;

@@ -69,7 +69,9 @@ import {
   deleteItem as _deleteItem,
   renameItem as _renameItem,
   renameCollection as _renameCollection,
-  setDotEnvVariables as _setDotEnvVariables
+  setDotEnvVariables as _setDotEnvVariables,
+  updateRequestDocs as _updateRequestDocs,
+  setExampleBody as _setExampleBody
 } from './index';
 
 import { each } from 'lodash';
@@ -3400,6 +3402,67 @@ export const clearAllUserCollections = () => async (dispatch, getState) => {
   } catch (error) {
     console.error('Failed to clear user collections:', error);
     toast.error('Failed to clear collections');
+    throw error;
+  }
+};
+
+/**
+ * Lazy-load the body content of a cloud example.
+ * Called when ResponseExampleResponseContent mounts and body.content is null/undefined.
+ */
+export const loadExampleBody = (exampleUid, itemUid, collectionUid) => async (dispatch) => {
+  try {
+    const brunoApi = window.__BRUNO_API__;
+    if (!brunoApi) return;
+
+    const cloudExample = await brunoApi.examples.get(exampleUid);
+    dispatch(_setExampleBody({
+      collectionUid,
+      itemUid,
+      exampleUid,
+      body: cloudExample.body ?? null,
+      requestSnapshot: cloudExample.requestSnapshot
+    }));
+  } catch (error) {
+    console.error('Failed to load example body:', error);
+  }
+};
+
+/**
+ * Generate Markdown documentation for a request using the server-side AI.
+ * Requires an authenticated session and the server to have an LLM API key configured.
+ */
+export const generateRequestDocs = (itemUid, collectionUid) => async (dispatch, getState) => {
+  try {
+    const brunoApi = window.__BRUNO_API__;
+    if (!brunoApi) throw new Error('API client not initialized');
+
+    const state = getState();
+    const collection = findCollectionByUid(state.collections.collections, collectionUid);
+    if (!collection) throw new Error('Collection not found');
+
+    const item = findItemInCollection(collection, itemUid);
+    if (!item) throw new Error('Request not found');
+
+    const request = item.draft?.request ?? item.request;
+
+    const docsRequest = {
+      name: item.name,
+      method: request?.method || 'GET',
+      url: request?.url || '',
+      headers: (request?.headers || []).filter((h) => h.enabled).map((h) => ({ key: h.name, value: h.value })),
+      params: (request?.params || []).filter((p) => p.enabled).map((p) => ({ key: p.name, value: p.value })),
+      body: request?.body?.mode ? { mode: request.body.mode, content: request.body[request.body.mode] ?? null } : null,
+      auth_type: request?.auth?.mode ?? null
+    };
+
+    const { docs } = await brunoApi.ai.generateDocs(docsRequest);
+
+    dispatch(_updateRequestDocs({ itemUid, collectionUid, docs }));
+    toast.success('Documentation generated');
+  } catch (error) {
+    console.error('Failed to generate docs:', error);
+    toast.error('Failed to generate documentation');
     throw error;
   }
 };

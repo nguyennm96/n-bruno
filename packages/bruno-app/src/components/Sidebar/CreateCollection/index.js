@@ -12,12 +12,14 @@ import Dropdown from 'components/Dropdown';
 import { multiLineMsg } from 'utils/common';
 import { formatIpcError } from 'utils/common/error';
 import { DEFAULT_COLLECTION_FORMAT } from 'utils/common/constants';
+import { useTranslation } from 'react-i18next';
 import StyledWrapper from './StyledWrapper';
 import Button from 'ui/Button';
 
 const CreateCollection = ({ onClose }) => {
   const inputRef = useRef();
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const [showFileFormat, setShowFileFormat] = useState(false);
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
@@ -43,10 +45,10 @@ const CreateCollection = ({ onClose }) => {
 
         await dispatch(createCollection(collectionName, { format: values.format }));
 
-        toast.success(collectionName ? `Collection "${collectionName}" created!` : 'Collection created!');
+        toast.success(collectionName ? t('COLLECTION.CREATE_NAMED_SUCCESS', { defaultValue: `Collection "${collectionName}" created!`, name: collectionName }) : t('COLLECTION.CREATE_SUCCESS', 'Collection created!'));
         onClose();
       } catch (e) {
-        toast.error(multiLineMsg('An error occurred while creating the collection', formatIpcError(e)));
+        toast.error(multiLineMsg(t('COLLECTION.CREATE_ERROR', 'An error occurred while creating the collection'), formatIpcError(e)));
       }
     }
   });
@@ -64,7 +66,7 @@ const CreateCollection = ({ onClose }) => {
           className="btn-advanced"
           type="button"
         >
-          Options
+          {t('COMMON.OPTIONS', 'Options')}
         </button>
         <IconCaretDown className="caret ml-1" size={14} strokeWidth={2} />
       </div>
@@ -78,13 +80,16 @@ const CreateCollection = ({ onClose }) => {
           <form className="bruno-form" onSubmit={formik.handleSubmit}>
             <div>
               <label htmlFor="collection-name" className="flex items-center font-medium">
-                Name
+                {t('COMMON.NAME', 'Name')}
                 <Help width="350">
                   <p>
-                    Give your collection a name or leave it blank to auto-generate one.
+                    {t('COLLECTION.CREATE_NAME_HELP', 'Give your collection a name or leave it blank to auto-generate one.')}
                   </p>
                   <p className="mt-2">
-                    Collections are automatically stored in {isAuthenticated ? 'your user directory' : 'the anonymous directory'}.
+                    {t('COLLECTION.CREATE_STORAGE_HELP', {
+                      defaultValue: 'Collections are automatically stored in {{target}}.',
+                      target: isAuthenticated ? t('COLLECTION.USER_DIRECTORY', 'your user directory') : t('COLLECTION.ANON_DIRECTORY', 'the anonymous directory')
+                    })}
                   </p>
                 </Help>
               </label>
@@ -95,7 +100,7 @@ const CreateCollection = ({ onClose }) => {
                 ref={inputRef}
                 className="block textbox mt-2 w-full"
                 onChange={formik.handleChange}
-                placeholder="Leave blank to auto-generate"
+                placeholder={t('COLLECTION.CREATE_NAME_PLACEHOLDER', 'Leave blank to auto-generate')}
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
@@ -109,16 +114,16 @@ const CreateCollection = ({ onClose }) => {
               {showFileFormat && (
                 <div className="mt-4">
                   <label htmlFor="format" className="flex items-center font-medium">
-                    File Format
+                    {t('COLLECTION.FILE_FORMAT', 'File Format')}
                     <Help width="300">
                       <p>
-                        Choose the file format for storing requests in this collection.
+                        {t('COLLECTION.FILE_FORMAT_HELP', 'Choose the file format for storing requests in this collection.')}
                       </p>
                       <p className="mt-2">
-                        <strong>OpenCollection (YAML):</strong> Industry-standard YAML format (.yml files)
+                        <strong>{t('COLLECTION.OPENCOLLECTION', 'OpenCollection (YAML)')}:</strong> {t('COLLECTION.OPENCOLLECTION_HELP', 'Industry-standard YAML format (.yml files)')}
                       </p>
                       <p className="mt-1">
-                        <strong>BRU:</strong> AhaMan's native file format (.bru files)
+                        <strong>BRU:</strong> {t('COLLECTION.BRU_FORMAT_HELP', 'AhaMan\'s native file format (.bru files)')}
                       </p>
                     </Help>
                   </label>
@@ -129,8 +134,8 @@ const CreateCollection = ({ onClose }) => {
                     value={formik.values.format}
                     onChange={formik.handleChange}
                   >
-                    <option value="yml">OpenCollection (YAML)</option>
-                    <option value="bru">BRU Format (.bru)</option>
+                    <option value="yml">{t('COLLECTION.OPENCOLLECTION', 'OpenCollection (YAML)')}</option>
+                    <option value="bru">{t('COLLECTION.BRU_FORMAT', 'BRU Format (.bru)')}</option>
                   </select>
                   {formik.touched.format && formik.errors.format ? (
                     <div className="text-red-500">{formik.errors.format}</div>
@@ -149,16 +154,16 @@ const CreateCollection = ({ onClose }) => {
                       setShowFileFormat(!showFileFormat);
                     }}
                   >
-                    {showFileFormat ? 'Hide File Format' : 'Show File Format'}
+                    {showFileFormat ? t('COLLECTION.HIDE_FILE_FORMAT', 'Hide File Format') : t('COLLECTION.SHOW_FILE_FORMAT', 'Show File Format')}
                   </div>
                 </Dropdown>
               </div>
               <div className="flex justify-end">
                 <Button type="button" color="secondary" variant="ghost" onClick={onClose} className="mr-2">
-                  Cancel
+                  {t('COMMON.CANCEL', 'Cancel')}
                 </Button>
                 <Button type="submit">
-                  Create
+                  {t('COMMON.CREATE', 'Create')}
                 </Button>
               </div>
             </div>

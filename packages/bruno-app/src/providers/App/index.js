@@ -49,10 +49,8 @@ export const AppProvider = (props) => {
     dispatch(refreshScreenWidth());
   }, []);
 
-  // Bootstrap IDB workspaces in local mode.
-  // Electron sends main:workspace-opened for its known workspaces (default).
-  // Any workspace created via the app UI is only in IDB — we need to add those to Redux too.
-  // We wait briefly to let the Electron workspace-opened events arrive first, then add any IDB-only workspaces.
+  // Bootstrap IDB workspaces. All workspace data lives in IndexedDB.
+  // On first launch with no workspaces, a default one is created automatically.
   useEffect(() => {
     // Wait for auth initialization to complete before deciding whether to bootstrap local workspaces.
     // If the user is authenticated (cloud mode), skip IDB bootstrap entirely —
@@ -69,30 +67,43 @@ export const AppProvider = (props) => {
       try {
         const { loadWorkspacesFromIdb } = await import('utils/idb/collectionTree');
         const { createWorkspace: createWorkspaceSlice } = await import('providers/ReduxStore/slices/workspaces');
-        const { switchWorkspace, loadWorkspaceCollections } = await import('providers/ReduxStore/slices/workspaces/actions');
-        const { getUiState } = await import('utils/idb/localStore');
+        const { switchWorkspace } = await import('providers/ReduxStore/slices/workspaces/actions');
+        const { getUiState, idbPut, STORES } = await import('utils/idb/localStore');
 
         const idbWorkspaces = await loadWorkspacesFromIdb();
         const currentState = store.getState();
         const reduxWorkspaceUids = new Set(currentState.workspaces.workspaces.map((w) => w.uid));
 
-        // Add any IDB workspaces not already in Redux (i.e. user-created, not Electron default)
+        // Register any IDB workspaces not already in Redux.
         for (const ws of idbWorkspaces) {
           if (!reduxWorkspaceUids.has(ws.uid)) {
             store.dispatch(createWorkspaceSlice({ uid: ws.uid, name: ws.name, pathname: null }));
-            await store.dispatch(loadWorkspaceCollections(ws.uid));
           }
         }
 
-        // Restore the last active workspace (if saved and different from current)
-        const savedActiveUid = await getUiState('active_workspace');
         const finalState = store.getState();
         const allUids = new Set(finalState.workspaces.workspaces.map((w) => w.uid));
-        if (savedActiveUid && allUids.has(savedActiveUid)) {
-          const currentActive = finalState.workspaces.activeWorkspaceUid;
-          if (currentActive !== savedActiveUid) {
-            store.dispatch(switchWorkspace(savedActiveUid));
-          }
+
+        // If no workspaces exist, create a default one
+        if (allUids.size === 0) {
+          const { nanoid } = await import('nanoid');
+          const defaultUid = nanoid();
+          const now = Date.now();
+          await idbPut(STORES.WORKSPACES, { uid: defaultUid, name: 'My Workspace', createdAt: now, updatedAt: now });
+          store.dispatch(createWorkspaceSlice({ uid: defaultUid, name: 'My Workspace', pathname: null }));
+          store.dispatch(switchWorkspace(defaultUid));
+          return;
+        }
+
+        // Switch to the last active workspace (or first available), always ensuring
+        // switchWorkspace is called so collections are fully loaded into Redux.
+        const savedActiveUid = await getUiState('active_workspace');
+        const targetUid = (savedActiveUid && allUids.has(savedActiveUid))
+          ? savedActiveUid
+          : finalState.workspaces.workspaces[0]?.uid;
+
+        if (targetUid) {
+          store.dispatch(switchWorkspace(targetUid));
         }
       } catch (e) {
         console.warn('[IDB Bootstrap] Failed:', e?.message);
@@ -115,8 +126,8 @@ export const AppProvider = (props) => {
         return;
       }
 
-      // Local mode: bootstrap IDB workspaces after Electron workspace-opened events settle
-      setTimeout(runIdbBootstrap, 800);
+      // Local mode: bootstrap IDB workspaces
+      setTimeout(runIdbBootstrap, 0);
     });
 
     return () => {

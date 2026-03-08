@@ -6,6 +6,7 @@
  */
 
 import React, { createRef } from 'react';
+import i18next from 'i18next';
 import { isEqual, escapeRegExp } from 'lodash';
 import { defineCodeMirrorBrunoVariablesMode } from 'utils/common/codemirror';
 import { setupAutoComplete, showRootHints } from 'utils/codemirror/autocomplete';
@@ -313,7 +314,7 @@ export default class CodeEditor extends React.Component {
     return (
       <StyledWrapper
         className={`h-full w-full flex flex-col relative graphiql-container ${this.props.readOnly ? 'read-only' : ''}`}
-        aria-label="Code Editor"
+        aria-label={i18next.t('COMMON.CODE_EDITOR')}
         font={this.props.font}
         fontSize={this.props.fontSize}
       >

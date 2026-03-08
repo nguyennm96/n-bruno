@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import toast from 'react-hot-toast';
 import { storage } from 'utils/storage';
-import { transformCloudItemToLocal, transformCloudEnvironmentToLocal } from 'utils/storage/transform';
+import { transformCloudItemToLocal, transformCloudEnvironmentToLocal, transformCloudExampleToLocal } from 'utils/storage/transform';
 import { getAllDrafts as getAllCloudDrafts } from 'utils/storage/cloudDrafts';
 import {
   getCollectionUiState,
@@ -50,7 +50,7 @@ export const register = createAsyncThunk('auth/register', async ({ email, passwo
     });
 
     // Cache user profile for offline session restore
-    await storage.saveUserCache({ id: user.id, name: user.name, email: user.email });
+    await storage.saveUserCache({ id: user.id, name: user.name, email: user.email, avatar: user.avatar ?? null });
 
     toast.success(`Welcome, ${user.name}!`);
 
@@ -101,7 +101,7 @@ export const login = createAsyncThunk('auth/login', async ({ email, password }, 
     });
 
     // Cache user profile for offline session restore
-    await storage.saveUserCache({ id: user.id, name: user.name, email: user.email });
+    await storage.saveUserCache({ id: user.id, name: user.name, email: user.email, avatar: user.avatar ?? null });
 
     // Initialize cloud data after successful login (don't await - runs in background)
     // If this fails, user is still logged in successfully
@@ -166,16 +166,27 @@ export const logout = createAsyncThunk('auth/logout', async (_, { getState, disp
     dispatch({ type: 'workspaces/resetWorkspaces' });
     dispatch({ type: 'cloudSync/resetCloudSync' });
 
-    // Re-open local default workspace
+    // Re-open local default workspace using IDB
     try {
-      const { ipcRenderer } = window;
-      if (ipcRenderer) {
-        const result = await ipcRenderer.invoke('renderer:get-default-workspace');
-        if (result) {
-          const { workspaceOpenedEvent } = await import('./workspaces/actions');
-          dispatch(workspaceOpenedEvent(result.workspacePath, result.workspaceUid, result.workspaceConfig));
-        }
+      const { loadWorkspacesFromIdb } = await import('utils/idb/collectionTree');
+      const { createWorkspace: createWorkspaceSlice } = await import('providers/ReduxStore/slices/workspaces');
+      const { switchWorkspace } = await import('./workspaces/actions');
+      const { idbPut, STORES } = await import('utils/idb/localStore');
+
+      let idbWorkspaces = await loadWorkspacesFromIdb();
+
+      if (idbWorkspaces.length === 0) {
+        const { nanoid } = await import('nanoid');
+        const uid = nanoid();
+        const now = Date.now();
+        await idbPut(STORES.WORKSPACES, { uid, name: 'My Workspace', createdAt: now, updatedAt: now });
+        idbWorkspaces = [{ uid, name: 'My Workspace' }];
       }
+
+      for (const ws of idbWorkspaces) {
+        dispatch(createWorkspaceSlice({ uid: ws.uid, name: ws.name, pathname: null }));
+      }
+      dispatch(switchWorkspace(idbWorkspaces[0].uid));
     } catch (e) {
       console.error('Failed to re-open local workspace after logout:', e);
     }
@@ -315,11 +326,34 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
           console.warn(`⚠️  [Step 3] Failed to load environments for "${collection.name}":`, envErr?.message);
         }
 
+        // Fetch examples and attach to request items
+        try {
+          const cloudExamples = await brunoApi.examples.listForCollection(collection.uid);
+          if (cloudExamples && cloudExamples.length > 0) {
+            const byRequestUid = {};
+            for (const ex of cloudExamples) {
+              if (!byRequestUid[ex.requestUid]) byRequestUid[ex.requestUid] = [];
+              byRequestUid[ex.requestUid].push(ex);
+            }
+            const attachExamples = (items) => {
+              for (const item of items) {
+                if (item.type !== 'folder' && byRequestUid[item.uid]) {
+                  item.examples = byRequestUid[item.uid].map(transformCloudExampleToLocal);
+                }
+                if (item.items?.length) attachExamples(item.items);
+              }
+            };
+            attachExamples(transformedItems);
+            console.log(`✅ [Step 3] Attached ${cloudExamples.length} examples for "${collection.name}"`);
+          }
+        } catch (exErr) {
+          console.warn(`⚠️  [Step 3] Failed to fetch examples for "${collection.name}":`, exErr?.message);
+        }
+
         const collectionData = {
           uid: collection.uid,
           name: collection.name,
-          pathname: `cloud://${collection.uid}`,
-          items: transformedItems,
+          pathname: collection.uid,
           version: '1',
           isCloud: true,
           workspaceId: activeWorkspaceId,
@@ -335,7 +369,7 @@ export const initializeCloudData = createAsyncThunk('auth/initializeCloudData', 
         dispatch(createCollection(collectionData));
         dispatch(addCollectionToWorkspace({
           workspaceUid: activeWorkspaceId,
-          collection: { uid: collection.uid, name: collection.name, path: `cloud://${collection.uid}` }
+          collection: { uid: collection.uid, name: collection.name, path: collection.uid }
         }));
 
         // Update local sync metadata with server version
@@ -434,12 +468,25 @@ export const refreshAccessToken = createAsyncThunk('auth/refresh', async (_, { g
 /**
  * Load saved tokens from storage on app startup
  */
+/**
+ * Decode a JWT payload without verifying the signature.
+ * Safe to use client-side — we only use the data, not trust it for auth decisions.
+ */
+const decodeJwtPayload = (token) => {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(base64));
+  } catch {
+    return null;
+  }
+};
+
 export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { dispatch, getState }) => {
   try {
     // 1. Load tokens from secure storage
     const tokens = await storage.getAuthTokens();
-    if (!tokens || !tokens.accessToken || !tokens.refreshToken) {
-      return null; // No saved auth
+    if (!tokens?.accessToken || !tokens?.refreshToken) {
+      return null;
     }
 
     if (!brunoApi) throw new Error('API client not initialized');
@@ -447,83 +494,83 @@ export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { disp
     // 2. Set tokens in API client immediately
     brunoApi.client.setTokens(tokens.accessToken, tokens.refreshToken);
 
-    // 3. Load cached user profile (saved at last login — allows offline restore)
+    // 3. Resolve user identity — try fastest source first, no network needed
+    //    a) Cached user profile (electron-store)
+    //    b) JWT payload (the access token embeds sub/name/email — instant decode)
     const cachedUser = await storage.getUserCache();
 
+    let user = null;
+
     if (cachedUser?.id) {
-      // We have enough to restore session without a network call — start cloud init immediately
+      user = { id: cachedUser.id, name: cachedUser.name, email: cachedUser.email, avatar: cachedUser.avatar ?? null };
+      console.log('🗂️  [LoadSavedAuth] User resolved from cache:', user.id);
+    } else {
+      // Decode JWT — server embeds sub (userId), email, name in the access token payload
+      const jwtPayload = decodeJwtPayload(tokens.accessToken);
+      if (jwtPayload?.sub && jwtPayload?.name && jwtPayload?.email) {
+        user = { id: jwtPayload.sub, name: jwtPayload.name, email: jwtPayload.email };
+        // Persist so next restart skips JWT decode entirely
+        await storage.saveUserCache(user);
+        console.log('💡 [LoadSavedAuth] User resolved from JWT payload:', user.id);
+      }
+    }
+
+    if (user?.id) {
+      // 4. Restore session immediately — no network needed
       const state = getState();
       if (!state.auth.isInitializingCloudData) {
-        console.log('🚀 [LoadSavedAuth] Restoring session from cache for user:', cachedUser.id);
-        dispatch(initializeCloudData(cachedUser.id)).catch((error) => {
+        console.log('🚀 [LoadSavedAuth] Restoring session for user:', user.id);
+        dispatch(initializeCloudData(user.id)).catch((error) => {
           console.error('❌ [LoadSavedAuth] Failed to initialize cloud data on app start:', error);
           toast.error('Failed to load your workspaces. Please check your connection and try again.');
         });
       }
 
-      // 4. Verify tokens in background — update cache if OK, logout only on 401/403
+      // 5. Verify tokens in background — update cache if OK, logout only on 401/403
       brunoApi.auth.getMe()
         .then((response) => {
           const freshUser = response.data;
-          // Update cached user with latest data
-          storage.saveUserCache({ id: freshUser.id, name: freshUser.name, email: freshUser.email });
-          console.log('✅ [LoadSavedAuth] Token verified, user cache updated');
+          storage.saveUserCache({ id: freshUser.id, name: freshUser.name, email: freshUser.email, avatar: freshUser.avatar ?? null });
+          console.log('✅ [LoadSavedAuth] Token verified, user cache refreshed');
         })
         .catch((error) => {
           const status = error.response?.status;
           if (status === 401 || status === 403) {
-            // Tokens genuinely invalid — force logout
             console.warn('[LoadSavedAuth] Tokens revoked (401/403), clearing session');
-            dispatch({ type: 'auth/logout/pending' }); // trigger logout flow
-            storage.clearAuthTokens();
-            storage.clearUserCache();
-            brunoApi.client.clearTokens();
+            dispatch(logout());
           } else {
-            console.warn('[LoadSavedAuth] Could not verify token (network/server), staying logged in');
+            console.warn('[LoadSavedAuth] Token verify skipped (network/server unavailable), staying logged in');
           }
         });
 
-      return {
-        user: cachedUser,
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken
-      };
+      return { user, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
     }
 
-    // 5. No cached user — fall back to network verification (first boot after code update)
+    // 6. Last resort: JWT decode failed (very old token format?) — try network
+    console.log('🌐 [LoadSavedAuth] No local user data, falling back to network...');
     const response = await brunoApi.auth.getMe();
-    const user = response.data;
-
-    // Save user to cache for future restores
-    await storage.saveUserCache({ id: user.id, name: user.name, email: user.email });
+    const networkUser = response.data;
+    await storage.saveUserCache({ id: networkUser.id, name: networkUser.name, email: networkUser.email, avatar: networkUser.avatar ?? null });
 
     const state = getState();
     if (!state.auth.isInitializingCloudData) {
-      console.log('🚀 [LoadSavedAuth] Dispatching initializeCloudData for user:', user.id);
-      dispatch(initializeCloudData(user.id)).catch((error) => {
+      dispatch(initializeCloudData(networkUser.id)).catch((error) => {
         console.error('❌ [LoadSavedAuth] Failed to initialize cloud data on app start:', error);
         toast.error('Failed to load your workspaces. Please check your connection and try again.');
       });
     }
 
-    return {
-      user,
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken
-    };
+    return { user: networkUser, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
   } catch (error) {
     const status = error.response?.status;
-    const isAuthError = status === 401 || status === 403;
-
-    if (isAuthError) {
+    if (status === 401 || status === 403) {
       await storage.clearAuthTokens();
       await storage.clearUserCache();
       if (brunoApi?.client) brunoApi.client.clearTokens();
-      console.error('Saved auth tokens are invalid, clearing:', error.message);
+      console.error('[LoadSavedAuth] Tokens invalid (401/403), clearing session');
     } else {
-      console.error('Failed to verify saved auth (network/server issue), keeping tokens:', error.message);
+      console.error('[LoadSavedAuth] Network error, keeping tokens for next startup:', error.message);
     }
-
     return null;
   }
 });
@@ -532,8 +579,75 @@ export const loadSavedAuth = createAsyncThunk('auth/loadSaved', async (_, { disp
 // Slice
 // ──────────────────────────────────────────────────────────────────────────────
 
+// ── Profile Update ────────────────────────────────────────────────────────────
+
+export const updateProfile = createAsyncThunk('auth/updateProfile', async ({ name, avatar }, { rejectWithValue }) => {
+  try {
+    if (!brunoApi) throw new Error('API client not initialized');
+    const response = await brunoApi.auth.updateProfile({ name, avatar });
+    const updated = response.data;
+    return { name: updated.name, avatar: updated.avatar ?? null };
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to update profile');
+  }
+});
+
+// ── Forgot / Reset Password ───────────────────────────────────────────────────
+
+export const forgotPassword = createAsyncThunk('auth/forgotPassword', async ({ email }, { rejectWithValue }) => {
+  try {
+    if (!brunoApi) throw new Error('API client not initialized');
+    await brunoApi.auth.forgotPassword(email);
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to send OTP');
+  }
+});
+
+export const resetPassword = createAsyncThunk('auth/resetPassword', async ({ email, otp, newPassword }, { rejectWithValue }) => {
+  try {
+    if (!brunoApi) throw new Error('API client not initialized');
+    await brunoApi.auth.resetPassword({ email, otp, new_password: newPassword });
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to reset password');
+  }
+});
+
+/**
+ * Login via OAuth social provider using the one-time code from the bruno:// callback.
+ * The `otc` (one-time code) is extracted by the Electron protocol handler and sent to the renderer.
+ */
+export const loginWithOAuth = createAsyncThunk(
+  'auth/loginWithOAuth',
+  async ({ provider, code }, { dispatch, getState, rejectWithValue }) => {
+    try {
+      if (!brunoApi) throw new Error('API client not initialized');
+
+      brunoApi.client.clearTokens();
+
+      const response = await brunoApi.auth.oauthExchange(code);
+      const { access_token, refresh_token, user } = response.data;
+
+      await storage.saveAuthTokens({ accessToken: access_token, refreshToken: refresh_token });
+      await storage.saveUserCache({ id: user.id, name: user.name, email: user.email, avatar: user.avatar ?? null });
+
+      const state = getState();
+      if (!state.auth.isInitializingCloudData) {
+        dispatch(initializeCloudData(user.id)).catch((error) => {
+          console.error('❌ [OAuth] Failed to initialize cloud data:', error);
+        });
+      }
+
+      return { user, accessToken: access_token, refreshToken: refresh_token };
+    } catch (error) {
+      const message = error.response?.data?.error?.message || error.response?.data?.error || error.message || 'OAuth login failed';
+      toast.error(message);
+      return rejectWithValue(message);
+    }
+  }
+);
+
 const initialState = {
-  user: null, // { id, email, name }
+  user: null, // { id, email, name, avatar }
   accessToken: null,
   refreshToken: null,
   isAuthenticated: false,
@@ -590,6 +704,24 @@ const authSlice = createSlice({
         state.refreshToken = action.payload.refreshToken;
       })
       .addCase(login.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      });
+
+    // ── Login with OAuth ──
+    builder
+      .addCase(loginWithOAuth.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(loginWithOAuth.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.accessToken = action.payload.accessToken;
+        state.refreshToken = action.payload.refreshToken;
+      })
+      .addCase(loginWithOAuth.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       });
@@ -666,12 +798,22 @@ const authSlice = createSlice({
       .addCase(initializeCloudData.rejected, (state) => {
         state.isInitializingCloudData = false;
       });
+
+    // ── Update Profile ──
+    builder
+      .addCase(updateProfile.fulfilled, (state, action) => {
+        if (state.user) {
+          state.user.name = action.payload.name ?? state.user.name;
+          state.user.avatar = action.payload.avatar;
+        }
+      });
+
+    // forgotPassword and resetPassword manage their own loading state in the component
   }
 });
 
 export const { clearError, setTokens } = authSlice.actions;
 export default authSlice.reducer;
-
 // ──────────────────────────────────────────────────────────────────────────────
 // Selectors
 // ──────────────────────────────────────────────────────────────────────────────
@@ -681,4 +823,5 @@ export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
 export const selectUser = (state) => state.auth.user;
 export const selectIsAuthLoading = (state) => state.auth.isLoading;
 export const selectIsAuthInitializing = (state) => state.auth.isInitializing;
+export const selectIsInitializingCloudData = (state) => state.auth.isInitializingCloudData;
 export const selectAuthError = (state) => state.auth.error;

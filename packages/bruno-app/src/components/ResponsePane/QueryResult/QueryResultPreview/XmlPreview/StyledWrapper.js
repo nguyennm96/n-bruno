@@ -2,7 +2,7 @@ import styled from 'styled-components';
 
 const StyledWrapper = styled.div`
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
+  font-size: ${(props) => props.theme.font.size.sm};
   line-height: 20px;
   padding: 16px;
   overflow: auto;

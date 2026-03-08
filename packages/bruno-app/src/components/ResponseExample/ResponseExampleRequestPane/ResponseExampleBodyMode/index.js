@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { updateResponseExampleRequest } from 'providers/ReduxStore/slices/collections';
 import BodyModeSelector from 'components/BodyModeSelector';
@@ -7,6 +8,7 @@ import xmlFormat from 'xml-formatter';
 import { toastError } from 'utils/common/error';
 
 const ResponseExampleBodyMode = ({ item, collection, exampleUid, body, bodyMode, onBodyEdit, editMode = false }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
 
   const onModeChange = (value) => {
@@ -81,7 +83,7 @@ const ResponseExampleBodyMode = ({ item, collection, exampleUid, body, bodyMode,
           className="btn-action text-link mr-2 py-1 px-2 text-xs"
           onClick={onPrettify}
         >
-          Prettify
+          {t('COMMON.PRETTIFY')}
         </button>
       )}
       <BodyModeSelector

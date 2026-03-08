@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import StyledWrapper from './StyledWrapper';
 
 const Cache = () => {
+  const { t } = useTranslation();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [purging, setPurging] = useState(false);
@@ -28,14 +30,14 @@ const Cache = () => {
     try {
       const result = await window.ipcRenderer.invoke('renderer:purge-cache');
       if (result.success) {
-        toast.success('Cache purged successfully');
+        toast.success(t('CACHE.purgeCacheSuccess'));
         await fetchStats();
       } else {
-        toast.error(result.error || 'Failed to purge cache');
+        toast.error(result.error || t('CACHE.purgeCacheFailed'));
       }
     } catch (error) {
       console.error('Error purging cache:', error);
-      toast.error('Failed to purge cache');
+      toast.error(t('CACHE.purgeCacheFailed'));
     } finally {
       setPurging(false);
     }
@@ -43,32 +45,32 @@ const Cache = () => {
 
   return (
     <StyledWrapper className="w-full">
-      <div className="section-title">Collection Cache</div>
+      <div className="section-title">{t('CACHE.title')}</div>
       <p className="description mb-4">
-        Bruno caches parsed collection files to improve loading performance. Clearing the cache will cause collections to be fully re-parsed on next load.
+        {t('CACHE.description')}
       </p>
 
       <div className="cache-stats">
         {loading ? (
           <div className="stat-item">
-            <span className="stat-label">Loading...</span>
+            <span className="stat-label">{t('COMMON.LOADING')}</span>
           </div>
         ) : stats?.error ? (
           <div className="stat-item">
-            <span className="stat-label">Error: {stats.error}</span>
+            <span className="stat-label">{t('CACHE.errorLoading', { error: stats.error })}</span>
           </div>
         ) : (
           <>
             <div className="stat-item">
-              <span className="stat-label">Cached Collections</span>
+              <span className="stat-label">{t('CACHE.cachedCollections')}</span>
               <span className="stat-value">{stats?.totalCollections ?? 0}</span>
             </div>
             <div className="stat-item">
-              <span className="stat-label">Cached Files</span>
+              <span className="stat-label">{t('CACHE.cachedFiles')}</span>
               <span className="stat-value">{stats?.totalFiles ?? 0}</span>
             </div>
             <div className="stat-item">
-              <span className="stat-label">Cache Version</span>
+              <span className="stat-label">{t('CACHE.cacheVersion')}</span>
               <span className="stat-value">{stats?.version ?? 'N/A'}</span>
             </div>
           </>
@@ -80,7 +82,7 @@ const Cache = () => {
         onClick={handlePurgeCache}
         disabled={purging || loading}
       >
-        {purging ? 'Purging...' : 'Purge Cache'}
+        {purging ? t('CACHE.purging') : t('CACHE.purgeCache')}
       </button>
     </StyledWrapper>
   );

@@ -100,6 +100,8 @@ const Wrapper = styled.div`
     }
 
     /* Single source of truth for hover/focus states: background and menu icon visibility */
+    transition: background-color 0.1s ease;
+
     &:hover,
     &.item-hovered,
     &.item-keyboard-focused {

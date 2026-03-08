@@ -4,7 +4,6 @@ use axum::{
     response::Json,
     Json as JsonBody,
 };
-use bson::oid::ObjectId;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -27,11 +26,24 @@ pub struct UpdateWorkspaceRequest {
     pub description: Option<String>,
 }
 
+/// Invite or add member by email + role.
 #[derive(Debug, Deserialize)]
 pub struct AddMemberRequest {
-    pub user_id: String,
+    pub email: String,
     pub role: WorkspaceRole,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateMemberRoleRequest {
+    pub role: WorkspaceRole,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TransferOwnershipRequest {
+    /// ObjectId hex of the user who will become the new Owner.
+    pub user_id: String,
+}
+
 
 pub async fn create_workspace(
     State(state): State<AppState>,
@@ -94,42 +106,73 @@ pub async fn delete_workspace(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// GET /api/workspaces/:id/members — returns members with name + email.
 pub async fn list_members(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(workspace_id): Path<String>,
 ) -> AppResult<Json<Value>> {
     let user_id = extract_user_id(&claims)?;
-    let members = state.workspace_service.list_members(&workspace_id, user_id).await?;
-    let data: Vec<Value> = members.iter().map(|m| json!({
-        "userUid": m.user_id.to_hex(),
-        "role": m.role,
-        "joined_at": m.joined_at,
-    })).collect();
-    Ok(Json(json!({ "data": data })))
+    let members = state.workspace_service.list_members_with_info(&workspace_id, user_id).await?;
+    Ok(Json(json!({ "data": members })))
 }
 
+/// POST /api/workspaces/:id/members — invite/add by email + role (Owner only).
 pub async fn add_member(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(workspace_id): Path<String>,
     JsonBody(body): JsonBody<AddMemberRequest>,
-) -> AppResult<StatusCode> {
+) -> AppResult<(StatusCode, Json<Value>)> {
     let user_id = extract_user_id(&claims)?;
-    let target_oid = ObjectId::parse_str(&body.user_id)
-        .map_err(|_| AppError::BadRequest("Invalid user ID".into()))?;
-    state.workspace_service.add_member(&workspace_id, user_id, target_oid, body.role).await?;
-    Ok(StatusCode::NO_CONTENT)
+    let result = state.workspace_service
+        .add_member_by_email(&workspace_id, user_id, body.email, body.role, &state.invite_service)
+        .await?;
+    Ok((StatusCode::OK, Json(json!({ "data": result }))))
 }
 
+/// DELETE /api/workspaces/:id/members/:user_id — remove member (Owner only).
 pub async fn remove_member(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path((workspace_id, target_user_id)): Path<(String, String)>,
 ) -> AppResult<StatusCode> {
     let user_id = extract_user_id(&claims)?;
-    let target_oid = ObjectId::parse_str(&target_user_id)
-        .map_err(|_| AppError::BadRequest("Invalid user ID".into()))?;
-    state.workspace_service.remove_member(&workspace_id, user_id, target_oid).await?;
+    state.workspace_service.remove_member(&workspace_id, user_id, &target_user_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// PATCH /api/workspaces/:id/members/:user_id — update role (Owner only).
+pub async fn update_member_role(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((workspace_id, target_user_id)): Path<(String, String)>,
+    JsonBody(body): JsonBody<UpdateMemberRoleRequest>,
+) -> AppResult<StatusCode> {
+    let user_id = extract_user_id(&claims)?;
+    state.workspace_service.update_member_role(&workspace_id, user_id, &target_user_id, body.role).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// DELETE /api/workspaces/:id/leave — leave workspace (Editor/Viewer only).
+pub async fn leave_workspace(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(workspace_id): Path<String>,
+) -> AppResult<StatusCode> {
+    let user_id = extract_user_id(&claims)?;
+    state.workspace_service.leave_workspace(&workspace_id, user_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// PATCH /api/workspaces/:id/transfer-ownership — transfer ownership (Owner only).
+pub async fn transfer_ownership(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(workspace_id): Path<String>,
+    JsonBody(body): JsonBody<TransferOwnershipRequest>,
+) -> AppResult<StatusCode> {
+    let user_id = extract_user_id(&claims)?;
+    state.workspace_service.transfer_ownership(&workspace_id, user_id, &body.user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

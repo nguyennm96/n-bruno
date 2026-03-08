@@ -11,6 +11,7 @@ import catppuccinMacchiato from './dark/catppuccin-macchiato';
 import catppuccinMocha from './dark/catppuccin-mocha';
 import nord from './dark/nord';
 import vscodeDark from './dark/vscode';
+import ahamove from './dark/ahamove';
 
 const themes = {
   light,
@@ -25,7 +26,8 @@ const themes = {
   'catppuccin-mocha': catppuccinMocha,
   nord,
   'vscode-light': vscodeLight,
-  'vscode-dark': vscodeDark
+  'vscode-dark': vscodeDark,
+  ahamove
 };
 
 // Theme metadata for UI display
@@ -93,6 +95,11 @@ export const themeRegistry = {
   'vscode-dark': {
     id: 'vscode-dark',
     name: 'VS Code Dark',
+    mode: 'dark'
+  },
+  'ahamove': {
+    id: 'ahamove',
+    name: 'Ahamove',
     mode: 'dark'
   }
 };

@@ -32,9 +32,12 @@ pub struct Environment {
     pub variables: Vec<EnvVariable>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub updated_at: DateTime<Utc>,
     #[serde(rename = "deletedAt", skip_serializing_if = "Option::is_none")]
+    #[serde(default, with = "crate::serde_helpers::flexible_bson_datetime_optional")]
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
@@ -88,7 +91,9 @@ pub struct EnvironmentResponse {
     pub variables: Vec<EnvVariable>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -104,5 +109,75 @@ impl From<Environment> for EnvironmentResponse {
             created_at: e.created_at,
             updated_at: e.updated_at,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn env_new_workspace_sets_correct_fields() {
+        let vars = vec![EnvVariable {
+            uid: None,
+            name: "BASE_URL".into(),
+            value: "https://api.dev".into(),
+            enabled: true,
+            secret: None,
+        }];
+        let env = Environment::new_workspace("Dev".into(), "ws-uid".into(), vars);
+        assert_eq!(env.name, "Dev");
+        assert_eq!(env.workspace_uid, Some("ws-uid".into()));
+        assert!(env.collection_uid.is_none());
+        assert_eq!(env.variables.len(), 1);
+        assert_eq!(env.uid.len(), 21);
+        assert!(env.id.is_none());
+        assert!(env.deleted_at.is_none());
+    }
+
+    #[test]
+    fn env_new_collection_sets_correct_fields() {
+        let env = Environment::new_collection("Prod".into(), "col-uid".into(), vec![]);
+        assert_eq!(env.name, "Prod");
+        assert!(env.workspace_uid.is_none());
+        assert_eq!(env.collection_uid, Some("col-uid".into()));
+    }
+
+    #[test]
+    fn env_new_is_alias_for_new_workspace() {
+        let env = Environment::new("Legacy".into(), "ws-uid".into(), vec![]);
+        assert_eq!(env.workspace_uid, Some("ws-uid".into()));
+        assert!(env.collection_uid.is_none());
+    }
+
+    #[test]
+    fn env_uid_is_unique() {
+        let uids: std::collections::HashSet<_> = (0..50)
+            .map(|_| Environment::new("E".into(), "ws".into(), vec![]).uid)
+            .collect();
+        assert_eq!(uids.len(), 50);
+    }
+
+    #[test]
+    fn env_variable_secret_flag() {
+        let v = EnvVariable {
+            uid: Some("abc".into()),
+            name: "API_KEY".into(),
+            value: "secret-value".into(),
+            enabled: false,
+            secret: Some(true),
+        };
+        assert_eq!(v.secret, Some(true));
+        assert!(!v.enabled);
+    }
+
+    #[test]
+    fn environment_response_from_excludes_deleted_at() {
+        let env = Environment::new("Dev".into(), "ws".into(), vec![]);
+        let resp = EnvironmentResponse::from(env.clone());
+        assert_eq!(resp.uid, env.uid);
+        assert_eq!(resp.name, env.name);
+        assert_eq!(resp.workspace_uid, env.workspace_uid);
+        assert!(resp.collection_uid.is_none());
     }
 }

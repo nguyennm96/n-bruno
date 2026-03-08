@@ -33,7 +33,9 @@ export interface CloudExample {
   status_code: number;
   status_text?: string;
   headers: Record<string, string>;
+  /** Populated only by the full get() endpoint; absent in list responses. */
   body?: string;
+  /** Populated only by the full get() endpoint; absent in list responses. */
   requestSnapshot?: Record<string, unknown>;
   responseTime?: number;
   responseSize?: number;
@@ -46,6 +48,11 @@ export class ExampleService {
 
   async create(itemUid: string, data: CloudExampleRequest): Promise<CloudExample> {
     const res = await this.client.getClient().post<{ data: CloudExample }>(`/api/items/${itemUid}/examples`, data);
+    return res.data.data;
+  }
+
+  async get(exampleUid: string): Promise<CloudExample> {
+    const res = await this.client.getClient().get<{ data: CloudExample }>(`/api/examples/${exampleUid}`);
     return res.data.data;
   }
 

@@ -42,12 +42,42 @@ pub async fn create_indexes(db: &Database) -> anyhow::Result<()> {
     create_index(db, "refresh_tokens", "token_hash").await?;
     create_index(db, "refresh_tokens", "user_id").await?;
 
+    // ── password_reset_tokens: TTL on expires_at, index on user_id ──
+    {
+        let col = db.collection::<Document>("password_reset_tokens");
+        let ttl_opts = IndexOptions::builder()
+            .expire_after(Some(Duration::from_secs(0)))
+            .build();
+        let ttl_index = IndexModel::builder()
+            .keys(doc! { "expires_at": 1 })
+            .options(ttl_opts)
+            .build();
+        col.create_index(ttl_index).await?;
+    }
+    create_index(db, "password_reset_tokens", "user_id").await?;
+
     // ── workspaces: unique uid ──
     create_unique_index(db, "workspaces", "uid").await?;
 
     // ── workspace_members ──
     create_index(db, "workspace_members", "workspace_id").await?;
     create_index(db, "workspace_members", "user_id").await?;
+
+    // ── workspace_invites: TTL on expires_at, index on workspace_id+email, unique token_hash ──
+    {
+        let col = db.collection::<Document>("workspace_invites");
+        let ttl_opts = IndexOptions::builder()
+            .expire_after(Some(Duration::from_secs(0)))
+            .build();
+        let ttl_index = IndexModel::builder()
+            .keys(doc! { "expires_at": 1 })
+            .options(ttl_opts)
+            .build();
+        col.create_index(ttl_index).await?;
+    }
+    create_index(db, "workspace_invites", "workspace_id").await?;
+    create_index(db, "workspace_invites", "email").await?;
+    create_unique_index(db, "workspace_invites", "token_hash").await?;
 
     // ── collections: unique uid, index on workspaceUid ──
     create_unique_index(db, "collections", "uid").await?;

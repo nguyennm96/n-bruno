@@ -2,11 +2,13 @@ import React from 'react';
 import { IconDownload, IconCopy, IconEye, IconAlertTriangle } from '@tabler/icons';
 import toast from 'react-hot-toast';
 import get from 'lodash/get';
+import { useTranslation } from 'react-i18next';
 import StyledWrapper from './StyledWrapper';
 import { formatSize } from 'utils/common/index';
 import Button from 'ui/Button/index';
 
 const LargeResponseWarning = ({ item, responseSize, onRevealResponse }) => {
+  const { t } = useTranslation();
   const { ipcRenderer } = window;
   const response = item.response || {};
 
@@ -16,12 +18,12 @@ const LargeResponseWarning = ({ item, responseSize, onRevealResponse }) => {
         .invoke('renderer:save-response-to-file', response, item.requestSent.url, item.pathname)
         .then((result) => {
           if (result && result.success) {
-            toast.success('Response downloaded to file');
+            toast.success(t('RESPONSE_PANE.MESSAGES.DOWNLOAD_SUCCESS'));
           }
           resolve();
         })
         .catch((err) => {
-          toast.error(get(err, 'error.message') || 'Something went wrong!');
+          toast.error(get(err, 'error.message') || t('ERRORS.GENERIC'));
           reject(err);
         });
     });
@@ -34,12 +36,12 @@ const LargeResponseWarning = ({ item, responseSize, onRevealResponse }) => {
         : JSON.stringify(response.data, null, 2);
 
       navigator.clipboard.writeText(textToCopy).then(() => {
-        toast.success('Response copied to clipboard');
+        toast.success(t('RESPONSE_PANE.MESSAGES.COPY_SUCCESS'));
       }).catch(() => {
-        toast.error('Failed to copy response');
+        toast.error(t('RESPONSE_PANE.MESSAGES.COPY_FAILED'));
       });
     } catch (error) {
-      toast.error('Failed to copy response');
+      toast.error(t('RESPONSE_PANE.MESSAGES.COPY_FAILED'));
     }
   };
 
@@ -51,12 +53,12 @@ const LargeResponseWarning = ({ item, responseSize, onRevealResponse }) => {
         </div>
         <div className="warning-content">
           <div className="warning-title">
-            Large Response Warning
+            {t('RESPONSE_PANE.LARGE_RESPONSE.TITLE')}
           </div>
           <div className="warning-description">
-            Handling responses over <span className="size-highlight supported-size">{formatSize(10 * 1024 * 1024)}</span> could degrade performance.
+            {t('RESPONSE_PANE.LARGE_RESPONSE.DESCRIPTION_PREFIX')} <span className="size-highlight supported-size">{formatSize(10 * 1024 * 1024)}</span> {t('RESPONSE_PANE.LARGE_RESPONSE.DESCRIPTION_SUFFIX')}
             <br />
-            Size of current response: <span className="size-highlight current-size">{formatSize(responseSize)}</span>
+            {t('RESPONSE_PANE.LARGE_RESPONSE.CURRENT_SIZE_PREFIX')} <span className="size-highlight current-size">{formatSize(responseSize)}</span>
           </div>
         </div>
       </div>
@@ -65,33 +67,33 @@ const LargeResponseWarning = ({ item, responseSize, onRevealResponse }) => {
           icon={<IconEye size={18} strokeWidth={1.5} />}
           iconPosition="left"
           onClick={onRevealResponse}
-          title="Show response content"
+          title={t('RESPONSE_PANE.ACTIONS.SHOW_RESPONSE_CONTENT')}
           color="secondary"
           size="sm"
         >
-          View
+          {t('RESPONSE_PANE.ACTIONS.VIEW')}
         </Button>
         <Button
           icon={<IconDownload size={18} strokeWidth={1.5} />}
           iconPosition="left"
           onClick={downloadResponseToFile}
           disabled={!response.dataBuffer}
-          title="Download response to file"
+          title={t('RESPONSE_PANE.ACTIONS.DOWNLOAD_RESPONSE_TO_FILE')}
           color="secondary"
           size="sm"
         >
-          Download
+          {t('RESPONSE_PANE.ACTIONS.DOWNLOAD')}
         </Button>
         <Button
           icon={<IconCopy size={18} strokeWidth={1.5} />}
           iconPosition="left"
           onClick={copyResponse}
           disabled={!response.data}
-          title="Copy response to clipboard"
+          title={t('RESPONSE_PANE.ACTIONS.COPY_RESPONSE_TO_CLIPBOARD')}
           color="secondary"
           size="sm"
         >
-          Copy
+          {t('RESPONSE_PANE.ACTIONS.COPY')}
         </Button>
       </div>
     </StyledWrapper>

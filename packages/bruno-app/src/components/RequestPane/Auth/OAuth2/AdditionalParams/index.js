@@ -1,4 +1,5 @@
 import { useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 import get from 'lodash/get';
 import { useTheme } from 'providers/Theme';
@@ -10,6 +11,7 @@ import StyledWrapper from './StyledWrapper';
 import Table from 'components/Table/index';
 
 const AdditionalParams = ({ item = {}, request, updateAuth, collection, handleSave }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { storedTheme } = useTheme();
 
@@ -138,7 +140,7 @@ const AdditionalParams = ({ item = {}, request, updateAuth, collection, handleSa
     );
   };
 
-  // Add a class to the Add Parameter button if it's disabled
+  // Add a class to the t('REQUEST.AUTH.ADD_PARAM') button if it's disabled
   const addButtonDisabled = hasEmptyRow();
 
   // Define available tabs for each grant type
@@ -171,7 +173,7 @@ const AdditionalParams = ({ item = {}, request, updateAuth, collection, handleSa
           <IconAdjustmentsHorizontal size={14} className="oauth2-icon" />
         </div>
         <span className="oauth2-section-label">
-          Additional Parameters
+          {t('REQUEST.AUTH.ADDITIONAL_PARAMS')}
         </span>
       </div>
 
@@ -281,7 +283,7 @@ const AdditionalParams = ({ item = {}, request, updateAuth, collection, handleSa
         onClick={addButtonDisabled ? null : handleAddNewAdditionalParam}
       >
         <IconPlus size={16} strokeWidth={1.5} style={{ marginLeft: '2px' }} />
-        <span className="ml-1 text-gray-500">Add Parameter</span>
+        <span className="ml-1 text-gray-500">{t('REQUEST.AUTH.ADD_PARAM')}</span>
       </div>
     </StyledWrapper>
   );

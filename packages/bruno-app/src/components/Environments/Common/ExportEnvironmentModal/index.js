@@ -7,8 +7,10 @@ import { useDispatch } from 'react-redux';
 import toast from 'react-hot-toast';
 import StyledWrapper from './StyledWrapper';
 import Button from 'ui/Button';
+import { useTranslation } from 'react-i18next';
 
 const ExportEnvironmentModal = ({ onClose, environments = [], environmentType }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
 
   // Helper function to truncate environment names
@@ -92,41 +94,41 @@ const ExportEnvironmentModal = ({ onClose, environments = [], environmentType })
 
     if (isMultiple) {
       return [
-        { value: 'single-file', label: 'Single JSON file', description: 'All environments in one JSON array' },
-        { value: 'folder', label: 'Separate files in folder', description: 'Each environment as a separate JSON file', disabled: false }
+        { value: 'single-file', label: t('ENVIRONMENTS.EXPORT_FORMAT_SINGLE_FILE'), description: t('ENVIRONMENTS.EXPORT_FORMAT_SINGLE_FILE_DESC') },
+        { value: 'folder', label: t('ENVIRONMENTS.EXPORT_FORMAT_FOLDER'), description: t('ENVIRONMENTS.EXPORT_FORMAT_FOLDER_DESC'), disabled: false }
       ];
     }
 
     return [
-      { value: 'single-object', label: 'Single JSON file', description: 'Export as a single environment JSON object' },
-      { value: 'folder', label: 'Separate files in folder', description: 'Each environment as a separate JSON file', disabled: true }
+      { value: 'single-object', label: t('ENVIRONMENTS.EXPORT_FORMAT_SINGLE_OBJECT'), description: t('ENVIRONMENTS.EXPORT_FORMAT_SINGLE_OBJECT_DESC') },
+      { value: 'folder', label: t('ENVIRONMENTS.EXPORT_FORMAT_FOLDER'), description: t('ENVIRONMENTS.EXPORT_FORMAT_FOLDER_DESC'), disabled: true }
     ];
-  }, [selectedCount, exportFormat]);
+  }, [selectedCount, exportFormat, t]);
 
   const handleExport = async () => {
     try {
       setIsExporting(true);
 
       if (!filePath) {
-        toast.error('Please select a location to save the files');
+        toast.error(t('ENVIRONMENTS.EXPORT_SELECT_LOCATION'));
         return;
       }
 
       if (selectedCount === 0) {
-        toast.error('Please select at least one environment to export');
+        toast.error(t('ENVIRONMENTS.EXPORT_SELECT_ENV'));
         return;
       }
 
       await exportBrunoEnvironment({ environments: selectedEnvs, environmentType, filePath, exportFormat });
 
       const successMessage = exportFormat === 'folder'
-        ? `Environments exported successfully to bruno-${environmentType}-environments folder`
-        : 'Environment(s) exported successfully';
+        ? t('ENVIRONMENTS.EXPORT_SUCCESS_FOLDER', { type: environmentType })
+        : t('ENVIRONMENTS.EXPORT_SUCCESS');
       toast.success(successMessage);
       onClose();
     } catch (error) {
       console.error('Export error:', error);
-      toast.error(error.message || 'Failed to export environments');
+      toast.error(error.message || t('ENVIRONMENTS.EXPORT_FAILED'));
     } finally {
       setIsExporting(false);
     }
@@ -137,7 +139,7 @@ const ExportEnvironmentModal = ({ onClose, environments = [], environmentType })
       <StyledWrapper>
         <Modal
           size="md"
-          title="Export Environments"
+          title={t('ENVIRONMENTS.EXPORT_ENVIRONMENTS_TITLE')}
           hideFooter={true}
           handleCancel={onClose}
         >
@@ -148,14 +150,14 @@ const ExportEnvironmentModal = ({ onClose, environments = [], environmentType })
                 <div className="flex flex-col h-full">
                   <div className="flex justify-between items-center mb-2 pb-1">
                     <h3 className="font-medium text-theme">
-                      {environmentType === 'global' ? 'Global Environments' : 'Collection Environments'}
+                      {environmentType === 'global' ? t('ENVIRONMENTS.GLOBAL_ENVIRONMENTS') : t('ENVIRONMENTS.COLLECTION_ENVIRONMENTS')}
                     </h3>
                     <button
                       type="button"
                       onClick={handleSelectAll}
                       className="text-xs text-link px-1 py-0.5 rounded transition-colors"
                     >
-                      {environments.every((env) => selectedEnvironments[env.uid]) ? 'Deselect All' : 'Select All'}
+                      {environments.every((env) => selectedEnvironments[env.uid]) ? t('ENVIRONMENTS.DESELECT_ALL') : t('ENVIRONMENTS.SELECT_ALL')}
                     </button>
                   </div>
                   <div className="flex flex-col gap-1 flex-1 overflow-y-auto">
@@ -177,12 +179,12 @@ const ExportEnvironmentModal = ({ onClose, environments = [], environmentType })
                 <div className="flex flex-col h-full">
                   <div className="flex justify-between items-center mb-2 pb-1">
                     <h3 className="font-medium text-theme">
-                      {environmentType === 'global' ? 'Global Environments' : 'Collection Environments'}
+                      {environmentType === 'global' ? t('ENVIRONMENTS.GLOBAL_ENVIRONMENTS') : t('ENVIRONMENTS.COLLECTION_ENVIRONMENTS')}
                     </h3>
                   </div>
                   <div className="flex items-center justify-center flex-1 p-4 text-center">
                     <span className="text-xs text-muted">
-                      No {environmentType === 'global' ? 'global' : 'collection'} environments
+                      {environmentType === 'global' ? t('ENVIRONMENTS.NO_GLOBAL_ENVIRONMENTS') : t('ENVIRONMENTS.NO_COLLECTION_ENVIRONMENTS')}
                     </span>
                   </div>
                 </div>
@@ -232,7 +234,7 @@ const ExportEnvironmentModal = ({ onClose, environments = [], environmentType })
                   onClick={browse}
                   onChange={(e) => setFilePath(e.target.value)}
                   disabled={isExporting || selectedCount <= 0}
-                  placeholder="Select a target location"
+                  placeholder={t('ENVIRONMENTS.EXPORT_LOCATION_PLACEHOLDER')}
                   autoComplete="off"
                   autoCorrect="off"
                   autoCapitalize="off"
@@ -261,7 +263,7 @@ const ExportEnvironmentModal = ({ onClose, environments = [], environmentType })
                 disabled={isExporting || selectedCount === 0}
                 className="mt-2"
               >
-                {isExporting ? 'Exporting...' : `Export ${selectedCount || ''} Environment${selectedCount !== 1 ? 's' : ''}`}
+                {isExporting ? t('ENVIRONMENTS.EXPORTING') : t('ENVIRONMENTS.EXPORT_BUTTON', { count: selectedCount || 0 })}
               </Button>
             </div>
           </div>

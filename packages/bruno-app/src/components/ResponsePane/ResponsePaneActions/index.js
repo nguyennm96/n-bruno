@@ -1,4 +1,5 @@
 import React, { forwardRef, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { IconDots, IconDownload, IconEraser, IconBookmark, IconCopy, IconLayoutColumns, IconLayoutRows } from '@tabler/icons';
 import MenuDropdown from 'ui/MenuDropdown';
@@ -26,10 +27,10 @@ const StyledMenuIcon = styled.button`
   }
 `;
 
-const MenuIcon = forwardRef((props, ref) => (
+const MenuIcon = forwardRef(({ title, ...props }, ref) => (
   <StyledMenuIcon
     ref={ref}
-    title="More actions"
+    title={title}
     {...props}
   >
     <IconDots size={16} strokeWidth={1.5} />
@@ -39,6 +40,7 @@ const MenuIcon = forwardRef((props, ref) => (
 MenuIcon.displayName = 'MenuIcon';
 
 const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, selectedTab, data, dataBuffer }) => {
+  const { t } = useTranslation();
   const { orientation } = useResponseLayoutToggle();
 
   // Refs to access child component imperative handles (click, isDisabled)
@@ -166,7 +168,7 @@ const ResponsePaneActions = ({ item, collection, responseSize, selectedFormat, s
           placement="bottom-end"
           data-testid="response-actions-menu"
         >
-          <MenuIcon />
+          <MenuIcon title={t('COMMON.MORE_ACTIONS')} />
         </MenuDropdown>
       </div>
       <div className="actions-buttons flex items-center gap-[2px]">

@@ -1,5 +1,6 @@
 import Modal from 'components/Modal/index';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import CodeView from './CodeView';
 import StyledWrapper from './StyledWrapper';
 import { isValidUrl } from 'utils/url';
@@ -30,6 +31,7 @@ const truncateUrl = (url, maxLen = 48) => {
 };
 
 const GenerateCodeItem = ({ collectionUid, item, onClose, isExample = false, exampleUid = null }) => {
+  const { t } = useTranslation();
   const languages = getLanguages();
   const collection = useSelector((state) => state.collections.collections?.find((c) => c.uid === collectionUid));
   const { globalEnvironments, activeGlobalEnvironmentUid } = useSelector((state) => state.globalEnvironments);
@@ -111,9 +113,10 @@ const GenerateCodeItem = ({ collectionUid, item, onClose, isExample = false, exa
   // Build modal title with method + truncated URL
   const method = get(requestData, 'request.method', '');
   const urlDisplay = truncateUrl(finalUrl);
+  const exampleName = isExample ? (get(item, 'draft.examples', []).find((e) => e.uid === exampleUid)?.name || t('GENERATE_CODE.DEFAULT_EXAMPLE')) : null;
   const titleBase = isExample
-    ? `Code Snippet — ${get(item, 'draft.examples', []).find((e) => e.uid === exampleUid)?.name || 'Example'}`
-    : 'Code Snippet';
+    ? t('GENERATE_CODE.EXAMPLE_TITLE', { name: exampleName })
+    : t('GENERATE_CODE.TITLE');
   const modalTitle = (method && urlDisplay)
     ? `${titleBase} · ${method} ${urlDisplay}`
     : titleBase;
@@ -129,8 +132,8 @@ const GenerateCodeItem = ({ collectionUid, item, onClose, isExample = false, exa
             />
           ) : (
             <div className="error-message">
-              <h1>Invalid URL: {finalUrl}</h1>
-              <p>Please check the URL and try again</p>
+              <h1>{t('GENERATE_CODE.INVALID_URL_TITLE', { url: finalUrl })}</h1>
+              <p>{t('GENERATE_CODE.CHECK_URL')}</p>
             </div>
           )}
         </div>

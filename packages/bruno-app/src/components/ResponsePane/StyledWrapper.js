@@ -101,7 +101,7 @@ const StyledWrapper = styled.div`
     padding: 0 4px;
     border-radius: 999px;
     background: ${(props) => props.theme.requestTabPanel.url.bg};
-    font-size: 10px;
+    font-size: ${(props) => props.theme.font.size.xs};
     line-height: 1;
   }
 

@@ -32,7 +32,7 @@ const StyledWrapper = styled.div`
         margin-bottom: 8px;
         font-weight: 500;
         color: ${(props) => props.theme.colors.text.primary};
-        font-size: 14px;
+        font-size: ${(props) => props.theme.font.size.md};
       }
 
       input,
@@ -44,7 +44,7 @@ const StyledWrapper = styled.div`
         background: ${(props) => props.theme.colors.bg.secondary};
         color: ${(props) => props.theme.colors.text.primary};
         font-family: inherit;
-        font-size: 14px;
+        font-size: ${(props) => props.theme.font.size.md};
         transition: border-color 0.2s, background-color 0.2s;
 
         &:hover {
@@ -84,7 +84,7 @@ const StyledWrapper = styled.div`
         padding: 10px 24px;
         border-radius: 6px;
         font-weight: 500;
-        font-size: 14px;
+        font-size: ${(props) => props.theme.font.size.md};
         transition: all 0.2s;
 
         &.primary {
@@ -108,7 +108,7 @@ const StyledWrapper = styled.div`
 
     .hint {
       margin-top: 16px;
-      font-size: 13px;
+      font-size: ${(props) => props.theme.font.size.base};
       color: ${(props) => props.theme.colors.text.muted};
       line-height: 1.5;
     }

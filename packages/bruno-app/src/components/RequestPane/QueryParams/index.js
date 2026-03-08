@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import get from 'lodash/get';
 import InfoTip from 'components/InfoTip';
 import { useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from 'providers/Theme';
 import {
   moveQueryParam,
@@ -17,6 +18,7 @@ import BulkEditor from '../../BulkEditor';
 const QueryParams = ({ item, collection }) => {
   const dispatch = useDispatch();
   const { storedTheme } = useTheme();
+  const { t } = useTranslation();
   const params = item.draft ? get(item, 'draft.request.params') : get(item, 'request.params');
   const queryParams = params.filter((param) => param.type === 'query');
   const pathParams = params.filter((param) => param.type === 'path');
@@ -61,15 +63,15 @@ const QueryParams = ({ item, collection }) => {
   const queryColumns = [
     {
       key: 'name',
-      name: 'Name',
+      name: t('COMMON.NAME'),
       isKeyField: true,
-      placeholder: 'Name',
+      placeholder: t('COMMON.NAME'),
       width: '30%'
     },
     {
       key: 'value',
-      name: 'Value',
-      placeholder: 'Value',
+      name: t('COMMON.VALUE'),
+      placeholder: t('COMMON.VALUE'),
       render: ({ value, onChange }) => (
         <MultiLineEditor
           value={value || ''}
@@ -80,7 +82,7 @@ const QueryParams = ({ item, collection }) => {
           collection={collection}
           item={item}
           variablesAutocomplete={true}
-          placeholder={!value ? 'Value' : ''}
+          placeholder={!value ? t('COMMON.VALUE') : ''}
         />
       )
     }
@@ -89,15 +91,15 @@ const QueryParams = ({ item, collection }) => {
   const pathColumns = [
     {
       key: 'name',
-      name: 'Name',
+      name: t('COMMON.NAME'),
       isKeyField: true,
       width: '30%',
       readOnly: true
     },
     {
       key: 'value',
-      name: 'Value',
-      placeholder: 'Value',
+      name: t('COMMON.VALUE'),
+      placeholder: t('COMMON.VALUE'),
       render: ({ row, value, onChange }) => (
         <MultiLineEditor
           value={value || ''}
@@ -136,7 +138,7 @@ const QueryParams = ({ item, collection }) => {
   return (
     <StyledWrapper className="w-full flex flex-col">
       <div className="flex-1">
-        <div className="mb-3 title text-xs">Query</div>
+        <div className="mb-3 title text-xs">{t('REQUEST.PARAMS.QUERY')}</div>
         <EditableTable
           columns={queryColumns}
           rows={queryParams || []}
@@ -147,12 +149,12 @@ const QueryParams = ({ item, collection }) => {
         />
         <div className="flex justify-end mt-2">
           <button className="btn-action text-link select-none" onClick={toggleBulkEditMode}>
-            Bulk Edit
+            {t('REQUEST.PARAMS.BULK_EDIT')}
           </button>
         </div>
 
         <div className="mb-3 title text-xs flex items-stretch">
-          <span>Path</span>
+          <span>{t('REQUEST.PARAMS.PATH')}</span>
           <InfoTip infotipId="path-param-InfoTip">
             <div>
               Path variables are automatically added whenever the

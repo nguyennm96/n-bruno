@@ -7,6 +7,7 @@ use axum_test::TestServer;
 use serde_json::{json, Value};
 
 mod common;
+#[allow(unused_imports)]
 use common::*;
 
 // ── Auth Flow ─────────────────────────────────────────────────────────────────
@@ -685,197 +686,971 @@ async fn test_import_export_roundtrip() {
     assert_eq!(exported["item"][0]["name"], "Test Request");
 }
 
-// ── WebSocket Flow ────────────────────────────────────────────────────────
-// NOTE: WebSocket tests require tokio-tungstenite or similar for WS client testing
-// axum-test doesn't provide built-in WebSocket testing helpers
-// TODO: Implement WebSocket tests using tokio-tungstenite
+// ── Auth Edge Cases ───────────────────────────────────────────────────────────
 
-/*
 #[tokio::test]
-async fn test_websocket_connection_requires_auth() {
+async fn test_logout_revokes_refresh_token() {
     let server = create_test_server().await;
+    let (access_token, refresh_token, _, _) = register_user_full(&server).await;
 
-    // Try to connect without token
-    let ws_result = server.get_websocket("/ws").await;
+    // Logout with the refresh token
+    let resp = server
+        .post("/api/auth/logout")
+        .authorization_bearer(&access_token)
+        .json(&json!({ "refresh_token": refresh_token }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::NO_CONTENT);
 
-    // Should fail - connection upgrade should be rejected without valid token
-    assert!(ws_result.is_err(), "WebSocket connection should fail without token");
+    // Attempt to use the revoked refresh token → should fail
+    let resp2 = server
+        .post("/api/auth/refresh")
+        .json(&json!({ "refresh_token": refresh_token }))
+        .await;
+    resp2.assert_status(axum::http::StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
-async fn test_websocket_subscribe_and_broadcast() {
+async fn test_malformed_bearer_token_returns_401() {
+    let server = create_test_server().await;
+    let resp = server
+        .get("/api/auth/me")
+        .authorization_bearer("this.is.not.a.valid.jwt")
+        .await;
+    resp.assert_status(axum::http::StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_register_short_password_returns_422() {
+    let server = create_test_server().await;
+    let resp = server
+        .post("/api/auth/register")
+        .json(&json!({ "email": unique_email(), "password": "short", "name": "User" }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn test_login_nonexistent_user_returns_401() {
+    let server = create_test_server().await;
+    let resp = server
+        .post("/api/auth/login")
+        .json(&json!({ "email": "nobody@example.com", "password": "password123" }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_refresh_with_invalid_token_returns_401() {
+    let server = create_test_server().await;
+    let resp = server
+        .post("/api/auth/refresh")
+        .json(&json!({ "refresh_token": "notavalidtoken" }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_register_invalid_email_returns_422() {
+    let server = create_test_server().await;
+    let resp = server
+        .post("/api/auth/register")
+        .json(&json!({ "email": "not-an-email", "password": "password123", "name": "User" }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+// ── Workspace Edge Cases ──────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_delete_workspace() {
     let server = create_test_server().await;
     let (token, _) = register_and_login(&server).await;
-    let ws_id = create_workspace(&server, &token, "WS for WebSocket Test").await;
+    let ws_id = create_workspace(&server, &token, "To Delete").await;
 
-    // Connect WebSocket with valid token
-    let mut ws = server.get_websocket(&format!("/ws?token={}", token))
-        .await
-        .expect("Should connect with valid token");
-
-    // Subscribe to workspace
-    ws.send_text(&json!({
-        "type": "Subscribe",
-        "workspace_id": ws_id
-    }).to_string()).await;
-
-    // Give server time to process subscription
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-    // Create a collection in the workspace (via REST API)
-    let create_resp: Value = server.post(&format!("/api/workspaces/{ws_id}/collections"))
+    // Delete
+    server
+        .delete(&format!("/api/workspaces/{ws_id}"))
         .authorization_bearer(&token)
-        .json(&json!({ "name": "Test Collection for WS" }))
-        .await.json();
-
-    let col_id = create_resp["data"]["id"].as_str().unwrap();
-
-    // Wait for WebSocket message
-    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-
-    // Check if we received a broadcast event
-    if let Some(msg) = ws.receive_text().await {
-        let event: Value = serde_json::from_str(&msg)
-            .expect("Should be valid JSON");
-
-        assert_eq!(event["type"], "Event");
-        assert_eq!(event["workspace_id"], ws_id);
-
-        let payload = &event["event"];
-        assert_eq!(payload["type"], "CollectionChanged");
-        assert_eq!(payload["payload"]["action"], "created");
-        assert_eq!(payload["payload"]["data"]["id"], col_id);
-    } else {
-        panic!("Should receive WebSocket broadcast event");
-    }
-
-    ws.close().await;
-}
-
-#[tokio::test]
-async fn test_websocket_ping_pong() {
-    let server = create_test_server().await;
-    let (token, _) = register_and_login(&server).await;
-
-    let mut ws = server.get_websocket(&format!("/ws?token={}", token))
         .await
-        .expect("Should connect");
+        .assert_status(axum::http::StatusCode::NO_CONTENT);
 
-    // Send ping
-    ws.send_text(&json!({ "type": "Ping" }).to_string()).await;
-
-    // Wait for pong
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-    if let Some(msg) = ws.receive_text().await {
-        let response: Value = serde_json::from_str(&msg)
-            .expect("Should be valid JSON");
-        assert_eq!(response["type"], "Pong");
-    } else {
-        panic!("Should receive Pong response");
-    }
-
-    ws.close().await;
+    // Get should now return 404
+    server
+        .get(&format!("/api/workspaces/{ws_id}"))
+        .authorization_bearer(&token)
+        .await
+        .assert_status(axum::http::StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
-async fn test_websocket_unsubscribe() {
+async fn test_list_workspace_members() {
     let server = create_test_server().await;
     let (token, _) = register_and_login(&server).await;
     let ws_id = create_workspace(&server, &token, "WS").await;
 
-    let mut ws = server.get_websocket(&format!("/ws?token={}", token))
-        .await
-        .expect("Should connect");
-
-    // Subscribe
-    ws.send_text(&json!({
-        "type": "Subscribe",
-        "workspace_id": ws_id
-    }).to_string()).await;
-
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-    // Unsubscribe
-    ws.send_text(&json!({
-        "type": "Unsubscribe",
-        "workspace_id": ws_id
-    }).to_string()).await;
-
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-    // Create collection (should NOT receive event after unsubscribe)
-    server.post(&format!("/api/workspaces/{ws_id}/collections"))
+    let resp: Value = server
+        .get(&format!("/api/workspaces/{ws_id}/members"))
         .authorization_bearer(&token)
-        .json(&json!({ "name": "Test" }))
+        .await
+        .json();
+
+    // Creator is auto-added as owner
+    let members = resp["data"].as_array().unwrap();
+    assert_eq!(members.len(), 1);
+    assert_eq!(members[0]["role"], "owner");
+}
+
+#[tokio::test]
+async fn test_add_and_remove_member() {
+    let server = create_test_server().await;
+    let (token_a, _, _, _) = register_user_full(&server).await;
+    let (_, _, email_b, user_b_id) = register_user_full(&server).await;
+    let ws_id = create_workspace(&server, &token_a, "Shared WS").await;
+
+    // Add user B as editor
+    server
+        .post(&format!("/api/workspaces/{ws_id}/members"))
+        .authorization_bearer(&token_a)
+        .json(&json!({ "email": email_b, "role": "editor" }))
+        .await
+        .assert_status(axum::http::StatusCode::OK);
+
+    // Verify membership
+    let members: Value = server
+        .get(&format!("/api/workspaces/{ws_id}/members"))
+        .authorization_bearer(&token_a)
+        .await
+        .json();
+    assert_eq!(members["data"].as_array().unwrap().len(), 2);
+
+    // Remove user B
+    server
+        .delete(&format!("/api/workspaces/{ws_id}/members/{user_b_id}"))
+        .authorization_bearer(&token_a)
+        .await
+        .assert_status(axum::http::StatusCode::NO_CONTENT);
+
+    // Verify removed
+    let members_after: Value = server
+        .get(&format!("/api/workspaces/{ws_id}/members"))
+        .authorization_bearer(&token_a)
+        .await
+        .json();
+    assert_eq!(members_after["data"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn test_editor_cannot_delete_workspace() {
+    let server = create_test_server().await;
+    let (token_a, _, _, _) = register_user_full(&server).await;
+    let (token_b, _, email_b, _) = register_user_full(&server).await;
+    let ws_id = create_workspace(&server, &token_a, "WS").await;
+
+    // Add user B as editor
+    server
+        .post(&format!("/api/workspaces/{ws_id}/members"))
+        .authorization_bearer(&token_a)
+        .json(&json!({ "email": email_b, "role": "editor" }))
         .await;
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+    // Editor tries to delete workspace → should be forbidden
+    server
+        .delete(&format!("/api/workspaces/{ws_id}"))
+        .authorization_bearer(&token_b)
+        .await
+        .assert_status(axum::http::StatusCode::FORBIDDEN);
+}
 
-    // Should not receive any message
-    let msg = ws.receive_text().await;
-    assert!(msg.is_none() || !msg.unwrap().contains("CollectionChanged"),
-        "Should not receive events after unsubscribe");
+#[tokio::test]
+async fn test_workspace_name_empty_returns_422() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let resp = server
+        .post("/api/workspaces")
+        .authorization_bearer(&token)
+        .json(&json!({ "name": "" }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn test_get_workspace_not_found() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let resp = server
+        .get("/api/workspaces/nonexistent-uid-12345")
+        .authorization_bearer(&token)
+        .await;
+    resp.assert_status(axum::http::StatusCode::NOT_FOUND);
+}
+
+// ── Collection Edge Cases ─────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_get_collection() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "My API").await;
+
+    let resp: Value = server
+        .get(&format!("/api/collections/{col_id}"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(resp["data"]["name"], "My API");
+    assert_eq!(resp["data"]["uid"], col_id);
+}
+
+#[tokio::test]
+async fn test_clone_collection() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Original").await;
+
+    // Add an item to original
+    create_request_item(&server, &token, &col_id, "GET users").await;
+
+    // Clone
+    let resp = server
+        .post(&format!("/api/collections/{col_id}/clone"))
+        .authorization_bearer(&token)
+        .json(&json!({ "name": "Original (Copy)" }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::CREATED);
+
+    let body: Value = resp.json();
+    let clone_id = body["data"]["uid"].as_str().unwrap();
+    assert_ne!(clone_id, col_id);
+    assert_eq!(body["data"]["name"], "Original (Copy)");
+
+    // Cloned collection should have the same items
+    let items: Value = server
+        .get(&format!("/api/collections/{clone_id}/items"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(items["data"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn test_resequence_items() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+
+    let item1 = create_request_item(&server, &token, &col_id, "Item A").await;
+    let item2 = create_request_item(&server, &token, &col_id, "Item B").await;
+
+    // Resequence: swap order
+    let resp = server
+        .patch(&format!("/api/collections/{col_id}/resequence"))
+        .authorization_bearer(&token)
+        .json(&json!({
+            "items": [
+                { "uid": item1, "seq": 2.0 },
+                { "uid": item2, "seq": 1.0 },
+            ]
+        }))
+        .await;
+    resp.assert_status_ok();
+}
+
+#[tokio::test]
+async fn test_collection_not_found() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let resp = server
+        .get("/api/collections/nonexistent-col-uid")
+        .authorization_bearer(&token)
+        .await;
+    resp.assert_status(axum::http::StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_viewer_cannot_create_collection() {
+    let server = create_test_server().await;
+    let (token_a, _, _, _) = register_user_full(&server).await;
+    let (token_b, _, email_b, _) = register_user_full(&server).await;
+    let ws_id = create_workspace(&server, &token_a, "WS").await;
+
+    // Add user B as viewer
+    server
+        .post(&format!("/api/workspaces/{ws_id}/members"))
+        .authorization_bearer(&token_a)
+        .json(&json!({ "email": email_b, "role": "viewer" }))
+        .await;
+    let resp = server
+        .post(&format!("/api/workspaces/{ws_id}/collections"))
+        .authorization_bearer(&token_b)
+        .json(&json!({ "name": "Forbidden Col" }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::FORBIDDEN);
+}
+
+// ── Item Edge Cases ───────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_get_item() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let item_id = create_request_item(&server, &token, &col_id, "My Request").await;
+
+    let resp: Value = server
+        .get(&format!("/api/items/{item_id}"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(resp["data"]["name"], "My Request");
+    assert_eq!(resp["data"]["type"], "request");
+}
+
+#[tokio::test]
+async fn test_update_item() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let item_id = create_request_item(&server, &token, &col_id, "Old Name").await;
+
+    let resp: Value = server
+        .patch(&format!("/api/items/{item_id}"))
+        .authorization_bearer(&token)
+        .json(&json!({ "name": "New Name" }))
+        .await
+        .json();
+    assert_eq!(resp["data"]["name"], "New Name");
+}
+
+#[tokio::test]
+async fn test_move_item_into_folder() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let folder_id = create_folder_item(&server, &token, &col_id, "Folder A").await;
+    let item_id = create_request_item(&server, &token, &col_id, "Request").await;
+
+    // Move item into folder
+    let resp = server
+        .patch(&format!("/api/items/{item_id}/move"))
+        .authorization_bearer(&token)
+        .json(&json!({ "parentUid": folder_id, "seq": 1.0 }))
+        .await;
+    resp.assert_status_ok();
+
+    // Verify
+    let item: Value = server
+        .get(&format!("/api/items/{item_id}"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(item["data"]["parentUid"], folder_id);
+}
+
+#[tokio::test]
+async fn test_clone_item() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let item_id = create_request_item(&server, &token, &col_id, "Original Request").await;
+
+    let resp = server
+        .post(&format!("/api/items/{item_id}/clone"))
+        .authorization_bearer(&token)
+        .json(&json!({ "name": "Cloned Request" }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::CREATED);
+
+    let body: Value = resp.json();
+    let clone_id = body["data"]["uid"].as_str().unwrap();
+    assert_ne!(clone_id, item_id.as_str());
+    assert_eq!(body["data"]["name"], "Cloned Request");
+
+    // Both items should exist
+    let items: Value = server
+        .get(&format!("/api/collections/{col_id}/items"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(items["data"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn test_item_not_found() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let resp = server
+        .get("/api/items/nonexistent-item-uid")
+        .authorization_bearer(&token)
+        .await;
+    resp.assert_status(axum::http::StatusCode::NOT_FOUND);
+}
+
+// ── Environment Edge Cases ────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_delete_environment() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let env_id = create_workspace_environment(&server, &token, &ws_id, "Dev").await;
+
+    server
+        .delete(&format!("/api/environments/{env_id}"))
+        .authorization_bearer(&token)
+        .await
+        .assert_status(axum::http::StatusCode::NO_CONTENT);
+
+    // Should be gone from list
+    let envs: Value = server
+        .get(&format!("/api/workspaces/{ws_id}/environments"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(envs["data"].as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn test_list_environments() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    create_workspace_environment(&server, &token, &ws_id, "Dev").await;
+    create_workspace_environment(&server, &token, &ws_id, "Prod").await;
+
+    let envs: Value = server
+        .get(&format!("/api/workspaces/{ws_id}/environments"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(envs["data"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn test_collection_environment_crud() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+
+    // Create collection-level env
+    let env_id = create_collection_environment(&server, &token, &col_id, "Col Env").await;
+    assert!(!env_id.is_empty());
+
+    // List
+    let envs: Value = server
+        .get(&format!("/api/collections/{col_id}/environments"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(envs["data"].as_array().unwrap().len(), 1);
+
+    // Update
+    let updated: Value = server
+        .patch(&format!("/api/environments/{env_id}"))
+        .authorization_bearer(&token)
+        .json(&json!({
+            "variables": [{ "name": "API_KEY", "value": "abc123", "enabled": true }]
+        }))
+        .await
+        .json();
+    assert_eq!(updated["data"]["variables"].as_array().unwrap().len(), 1);
+
+    // Delete
+    server
+        .delete(&format!("/api/environments/{env_id}"))
+        .authorization_bearer(&token)
+        .await
+        .assert_status(axum::http::StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn test_environment_not_found() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let resp = server
+        .delete("/api/environments/nonexistent-env-uid")
+        .authorization_bearer(&token)
+        .await;
+    resp.assert_status(axum::http::StatusCode::NOT_FOUND);
+}
+
+// ── Example Edge Cases ────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_get_example() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let item_id = create_request_item(&server, &token, &col_id, "Req").await;
+    let ex_id = create_example(&server, &token, &item_id, "200 OK").await;
+
+    let resp: Value = server
+        .get(&format!("/api/examples/{ex_id}"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(resp["data"]["name"], "200 OK");
+    assert_eq!(resp["data"]["status_code"], 200);
+    // Full get should include body
+    assert!(resp["data"]["body"].is_string());
+}
+
+#[tokio::test]
+async fn test_update_example() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let item_id = create_request_item(&server, &token, &col_id, "Req").await;
+    let ex_id = create_example(&server, &token, &item_id, "Original").await;
+
+    let resp: Value = server
+        .patch(&format!("/api/examples/{ex_id}"))
+        .authorization_bearer(&token)
+        .json(&json!({ "name": "Updated", "status_code": 201 }))
+        .await
+        .json();
+    assert_eq!(resp["data"]["name"], "Updated");
+    assert_eq!(resp["data"]["status_code"], 201);
+}
+
+#[tokio::test]
+async fn test_delete_example() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let item_id = create_request_item(&server, &token, &col_id, "Req").await;
+    let ex_id = create_example(&server, &token, &item_id, "To Delete").await;
+
+    server
+        .delete(&format!("/api/examples/{ex_id}"))
+        .authorization_bearer(&token)
+        .await
+        .assert_status(axum::http::StatusCode::NO_CONTENT);
+
+    // List should be empty
+    let examples: Value = server
+        .get(&format!("/api/items/{item_id}/examples"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(examples["data"].as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn test_list_examples_for_item() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let item_id = create_request_item(&server, &token, &col_id, "Req").await;
+    create_example(&server, &token, &item_id, "200 OK").await;
+    create_example(&server, &token, &item_id, "404 Not Found").await;
+
+    let examples: Value = server
+        .get(&format!("/api/items/{item_id}/examples"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(examples["data"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn test_list_collection_examples() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let item1 = create_request_item(&server, &token, &col_id, "Req1").await;
+    let item2 = create_request_item(&server, &token, &col_id, "Req2").await;
+    create_example(&server, &token, &item1, "Ex1").await;
+    create_example(&server, &token, &item2, "Ex2").await;
+
+    let examples: Value = server
+        .get(&format!("/api/collections/{col_id}/examples"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    // Both examples belong to this collection
+    assert_eq!(examples["data"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn test_example_list_excludes_body_field() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let item_id = create_request_item(&server, &token, &col_id, "Req").await;
+    create_example(&server, &token, &item_id, "200 OK").await;
+
+    // List endpoint returns ExampleSummary which should NOT include body/request_snapshot
+    let examples: Value = server
+        .get(&format!("/api/items/{item_id}/examples"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    let ex = &examples["data"][0];
+    assert!(ex["body"].is_null(), "list endpoint should not expose body field");
+    assert!(ex["request_snapshot"].is_null(), "list endpoint should not expose request_snapshot field");
+}
+
+#[tokio::test]
+async fn test_example_not_found() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let resp = server
+        .get("/api/examples/nonexistent-ex-uid")
+        .authorization_bearer(&token)
+        .await;
+    resp.assert_status(axum::http::StatusCode::NOT_FOUND);
+}
+
+// ── Sync Flow ─────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_sync_changes_empty() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+
+    let resp: Value = server
+        .get(&format!("/api/workspaces/{ws_id}/changes"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert!(resp["data"].is_object() || resp["data"].is_array());
+}
+
+#[tokio::test]
+async fn test_sync_changes_with_since_param() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    create_collection(&server, &token, &ws_id, "Col").await;
+
+    // Since a past timestamp
+    let resp = server
+        .get(&format!("/api/workspaces/{ws_id}/changes?since=2020-01-01T00:00:00Z"))
+        .authorization_bearer(&token)
+        .await;
+    resp.assert_status_ok();
+    let body: Value = resp.json();
+    assert!(body["data"].is_object() || body["data"].is_array());
+}
+
+#[tokio::test]
+async fn test_sync_changes_non_member_returns_403() {
+    let server = create_test_server().await;
+    let (token_a, _, _, _) = register_user_full(&server).await;
+    let (token_b, _, _, _) = register_user_full(&server).await;
+    let ws_id = create_workspace(&server, &token_a, "WS").await;
+
+    // User B is not a member
+    let resp = server
+        .get(&format!("/api/workspaces/{ws_id}/changes"))
+        .authorization_bearer(&token_b)
+        .await;
+    // Should return 404 (not a member, can't see workspace exists) or 403
+    let status = resp.status_code().as_u16();
+    assert!(status == 404 || status == 403, "Expected 403 or 404 for non-member, got {status}");
+}
+
+// ── Insomnia Import ───────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_import_insomnia_collection() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+
+    // Minimal valid Insomnia export v4
+    let insomnia_json = json!({
+        "_type": "export",
+        "__export_format": 4,
+        "__export_date": "2024-01-01T00:00:00.000Z",
+        "__export_source": "insomnia.desktop.app:v2023.5.8",
+        "resources": [
+            {
+                "_id": "wrk_001",
+                "_type": "workspace",
+                "name": "My Insomnia Collection",
+                "description": "",
+                "scope": "collection"
+            },
+            {
+                "_id": "req_001",
+                "_type": "request",
+                "parentId": "wrk_001",
+                "name": "Get Users",
+                "method": "GET",
+                "url": "https://api.example.com/users",
+                "headers": [],
+                "body": {}
+            }
+        ]
+    });
+
+    let resp = server
+        .post(&format!("/api/workspaces/{ws_id}/import/insomnia"))
+        .authorization_bearer(&token)
+        .json(&json!({ "json": insomnia_json.to_string() }))
+        .await;
+
+    resp.assert_status(axum::http::StatusCode::CREATED);
+    let body: Value = resp.json();
+    assert_eq!(body["data"]["collection_name"], "My Insomnia Collection");
+    assert!(body["data"]["collectionUid"].is_string());
+    assert_eq!(body["data"]["imported"]["requests"], 1);
+}
+
+// ── Public Docs Flow ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_publish_and_unpublish_docs() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "My API").await;
+
+    // Publish with a custom slug (visibility is camelCase: "public" not "Public")
+    let slug = format!("test-slug-{}", uuid::Uuid::new_v4().simple());
+    let pub_resp = server
+        .post(&format!("/api/collections/{col_id}/docs/publish"))
+        .authorization_bearer(&token)
+        .json(&json!({
+            "visibility": { "type": "public" },
+            "custom_slug": slug
+        }))
+        .await;
+    pub_resp.assert_status(axum::http::StatusCode::CREATED);
+    let pub_body: Value = pub_resp.json();
+    assert_eq!(pub_body["data"]["slug"], slug);
+
+    // Get docs status — field is "enabled" not "published"
+    let status: Value = server
+        .get(&format!("/api/collections/{col_id}/docs/status"))
+        .authorization_bearer(&token)
+        .await
+        .json();
+    assert_eq!(status["data"]["enabled"], true);
+
+    // Public access without auth
+    let public_resp = server
+        .get(&format!("/api/public/docs/{slug}"))
+        .await;
+    public_resp.assert_status_ok();
+
+    // Unpublish
+    server
+        .delete(&format!("/api/collections/{col_id}/docs/unpublish"))
+        .authorization_bearer(&token)
+        .await
+        .assert_status(axum::http::StatusCode::NO_CONTENT);
+
+    // After unpublish, public access should fail
+    let after: axum_test::TestResponse = server
+        .get(&format!("/api/public/docs/{slug}"))
+        .await;
+    after.assert_status(axum::http::StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_check_slug_availability() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let slug = format!("unique-slug-{}", uuid::Uuid::new_v4().simple());
+
+    // Slug should be available before publishing (response is NOT wrapped in "data")
+    let avail: Value = server
+        .get(&format!("/api/collections/docs/check-slug/{slug}"))
+        .await
+        .json();
+    assert_eq!(avail["available"], true);
+
+    // Publish with that slug
+    server
+        .post(&format!("/api/collections/{col_id}/docs/publish"))
+        .authorization_bearer(&token)
+        .json(&json!({
+            "visibility": { "type": "public" },
+            "custom_slug": slug
+        }))
+        .await;
+
+    // Now slug should be unavailable
+    let unavail: Value = server
+        .get(&format!("/api/collections/docs/check-slug/{slug}"))
+        .await
+        .json();
+    assert_eq!(unavail["available"], false);
+}
+
+#[tokio::test]
+async fn test_viewer_cannot_publish_docs() {
+    let server = create_test_server().await;
+    let (token_a, _, _, _) = register_user_full(&server).await;
+    let (token_b, _, email_b, _) = register_user_full(&server).await;
+    let ws_id = create_workspace(&server, &token_a, "WS").await;
+    let col_id = create_collection(&server, &token_a, &ws_id, "Col").await;
+
+    // Add user B as viewer
+    server
+        .post(&format!("/api/workspaces/{ws_id}/members"))
+        .authorization_bearer(&token_a)
+        .json(&json!({ "email": email_b, "role": "viewer" }))
+        .await;
+
+    // Viewer tries to publish → forbidden
+    let resp = server
+        .post(&format!("/api/collections/{col_id}/docs/publish"))
+        .authorization_bearer(&token_b)
+        .json(&json!({
+            "visibility": { "type": "public" }
+        }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn test_update_docs() {
+    let server = create_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+    let col_id = create_collection(&server, &token, &ws_id, "Col").await;
+    let slug = format!("test-update-{}", uuid::Uuid::new_v4().simple());
+
+    // Publish first
+    server
+        .post(&format!("/api/collections/{col_id}/docs/publish"))
+        .authorization_bearer(&token)
+        .json(&json!({
+            "visibility": { "type": "public" },
+            "custom_slug": slug
+        }))
+        .await;
+
+    // Update settings
+    let resp = server
+        .patch(&format!("/api/collections/{col_id}/docs"))
+        .authorization_bearer(&token)
+        .json(&json!({
+            "settings": { "showTryItOut": false }
+        }))
+        .await;
+    resp.assert_status_ok();
+}
+
+// ── WebSocket Flow ────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_websocket_ping_pong() {
+    let server = create_ws_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+
+    let mut ws = server
+        .get_websocket(&format!("/ws?token={token}"))
+        .await
+        .into_websocket()
+        .await;
+
+    ws.send_text(json!({ "type": "Ping" }).to_string()).await;
+    let response: Value = ws.receive_json().await;
+    assert_eq!(response["type"], "Pong");
 
     ws.close().await;
 }
 
 #[tokio::test]
-async fn test_websocket_multiple_clients() {
-    let server = create_test_server().await;
-    let (token_a, _) = register_and_login(&server).await;
-    let (token_b, _) = register_and_login(&server).await;
+async fn test_websocket_invalid_token_gets_error() {
+    let server = create_ws_test_server().await;
+
+    // Connect with invalid token — the WS connection upgrades but server sends back an error message
+    let mut ws = server
+        .get_websocket("/ws?token=invalid.jwt.token")
+        .await
+        .into_websocket()
+        .await;
+
+    let response: Value = ws.receive_json().await;
+    assert_eq!(response["type"], "Error");
+
+    ws.close().await;
+}
+
+#[tokio::test]
+async fn test_websocket_subscribe_and_unsubscribe() {
+    let server = create_ws_test_server().await;
+    let (token, _) = register_and_login(&server).await;
+    let ws_id = create_workspace(&server, &token, "WS").await;
+
+    let mut ws = server
+        .get_websocket(&format!("/ws?token={token}"))
+        .await
+        .into_websocket()
+        .await;
+
+    // Subscribe
+    ws.send_text(json!({ "type": "Subscribe", "workspace_id": ws_id }).to_string()).await;
+
+    // Unsubscribe
+    ws.send_text(json!({ "type": "Unsubscribe", "workspace_id": ws_id }).to_string()).await;
+
+    // Ping to verify connection is still alive
+    ws.send_text(json!({ "type": "Ping" }).to_string()).await;
+    let response: Value = ws.receive_json().await;
+    assert_eq!(response["type"], "Pong");
+
+    ws.close().await;
+}
+
+#[tokio::test]
+async fn test_websocket_subscribe_broadcasts_collection_change() {
+    let server = create_ws_test_server().await;
+    let (token_a, _, _, _) = register_user_full(&server).await;
+    let (token_b, _, email_b, _) = register_user_full(&server).await;
     let ws_id = create_workspace(&server, &token_a, "Shared WS").await;
 
-    // Add user B as member
-    let user_b_resp: Value = server.post("/api/auth/register")
-        .json(&json!({
-            "email": unique_email(),
-            "password": "password123",
-            "name": "User B"
-        }))
-        .await.json();
-    let user_b_id = user_b_resp["data"]["id"].as_str().unwrap();
-
-    server.post(&format!("/api/workspaces/{ws_id}/members"))
+    // Add user B as editor
+    server
+        .post(&format!("/api/workspaces/{ws_id}/members"))
         .authorization_bearer(&token_a)
-        .json(&json!({
-            "user_id": user_b_id,
-            "role": "editor"
-        }))
+        .json(&json!({ "email": email_b, "role": "editor" }))
         .await;
 
-    // Both users connect
-    let mut ws_a = server.get_websocket(&format!("/ws?token={}", token_a))
+    // User B subscribes
+    let mut ws_b = server
+        .get_websocket(&format!("/ws?token={token_b}"))
         .await
-        .expect("User A should connect");
+        .into_websocket()
+        .await;
+    ws_b.send_text(json!({ "type": "Subscribe", "workspace_id": ws_id }).to_string()).await;
 
-    let mut ws_b = server.get_websocket(&format!("/ws?token={}", token_b))
-        .await
-        .expect("User B should connect");
-
-    // Both subscribe
-    ws_a.send_text(&json!({ "type": "Subscribe", "workspace_id": ws_id }).to_string()).await;
-    ws_b.send_text(&json!({ "type": "Subscribe", "workspace_id": ws_id }).to_string()).await;
-
+    // Give server time to process subscription
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-    // User A creates collection
-    server.post(&format!("/api/workspaces/{ws_id}/collections"))
+    // User A creates a collection (triggers broadcast)
+    server
+        .post(&format!("/api/workspaces/{ws_id}/collections"))
         .authorization_bearer(&token_a)
-        .json(&json!({ "name": "Shared Collection" }))
+        .json(&json!({ "name": "Broadcast Test" }))
         .await;
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+    // User B should receive the event
+    let event: Value = ws_b.receive_json().await;
+    assert_eq!(event["type"], "Event");
+    assert_eq!(event["workspace_id"], ws_id);
 
-    // User B should receive event (but not User A, sender is excluded)
-    let msg_b = ws_b.receive_text().await;
-    assert!(msg_b.is_some(), "User B should receive broadcast");
-
-    let event_b: Value = serde_json::from_str(&msg_b.unwrap()).unwrap();
-    assert_eq!(event_b["type"], "Event");
-
-    ws_a.close().await;
     ws_b.close().await;
 }
-*/

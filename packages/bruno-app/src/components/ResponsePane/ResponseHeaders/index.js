@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import StyledWrapper from './StyledWrapper';
 
 const ResponseHeaders = ({ headers }) => {
+  const { t } = useTranslation();
   const headersArray = typeof headers === 'object' ? Object.entries(headers) : [];
 
   return (
@@ -10,8 +12,8 @@ const ResponseHeaders = ({ headers }) => {
         <table>
           <thead>
             <tr>
-              <td>Name</td>
-              <td>Value</td>
+              <td>{t('COMMON.NAME')}</td>
+              <td>{t('COMMON.VALUE')}</td>
             </tr>
           </thead>
           <tbody>

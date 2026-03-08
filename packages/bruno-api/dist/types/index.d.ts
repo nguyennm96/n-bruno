@@ -15,6 +15,7 @@ export interface AuthResponse {
         id: string;
         email: string;
         name: string;
+        avatar?: string | null;
         access_token: string;
         refresh_token: string;
     };
@@ -24,6 +25,8 @@ export interface UserResponse {
         id: string;
         email: string;
         name: string;
+        avatar?: string | null;
+        created_at?: string;
     };
 }
 export interface TokenResponse {
@@ -31,6 +34,27 @@ export interface TokenResponse {
         access_token: string;
         refresh_token: string;
     };
+}
+export interface UpdateProfileRequest {
+    name?: string;
+    avatar?: string | null;
+}
+export interface UpdateProfileResponse {
+    data: {
+        id: string;
+        email: string;
+        name: string;
+        avatar?: string | null;
+        created_at?: string;
+    };
+}
+export interface ForgotPasswordRequest {
+    email: string;
+}
+export interface ResetPasswordRequest {
+    email: string;
+    otp: string;
+    new_password: string;
 }
 export interface ApiError {
     error: string;
@@ -70,7 +94,7 @@ export interface WorkspaceResponse {
     data: Workspace;
 }
 export interface WorkspaceMember {
-    user_id: string;
+    userId: string;
     role: 'owner' | 'editor' | 'viewer';
     joined_at: string;
     user?: {
@@ -168,4 +192,89 @@ export interface EnvironmentUpdateRequest {
 export interface ApiResponse<T> {
     data: T;
     message?: string;
+}
+export type WorkspaceRole = 'owner' | 'editor' | 'viewer';
+export interface WorkspaceInvite {
+    id: string;
+    workspaceId: string;
+    email: string;
+    role: WorkspaceRole;
+    invitedBy: {
+        id: string;
+        name: string;
+        email: string;
+    };
+    expiresAt: string;
+    status: 'pending' | 'accepted' | 'revoked';
+    createdAt: string;
+}
+export interface AddMemberRequest {
+    email: string;
+    role: WorkspaceRole;
+}
+export interface AddMemberResponse {
+    action: 'added' | 'invited';
+    member?: WorkspaceMember;
+    invite?: WorkspaceInvite;
+}
+export interface UpdateMemberRoleRequest {
+    role: WorkspaceRole;
+}
+export interface InviteValidationResponse {
+    valid: boolean;
+    workspace?: {
+        name: string;
+        uid: string;
+    };
+    invitedBy?: {
+        name: string;
+        email: string;
+    };
+    role?: WorkspaceRole;
+    email?: string;
+}
+export interface UserSearchResult {
+    id: string;
+    name: string;
+    email: string;
+}
+export interface DocKeyValue {
+    name: string;
+    value: string;
+    enabled: boolean;
+}
+export interface DocBody {
+    mode: string;
+    content?: string | null;
+}
+export interface DocExampleRequest {
+    method?: string | null;
+    url?: string | null;
+    headers?: DocKeyValue[] | null;
+    body?: DocBody | null;
+}
+export interface DocExampleResponse {
+    status?: number | null;
+    status_text?: string | null;
+    headers?: DocKeyValue[] | null;
+    body?: string | null;
+}
+export interface DocExample {
+    name: string;
+    description?: string | null;
+    request?: DocExampleRequest | null;
+    response?: DocExampleResponse | null;
+}
+export interface GenerateDocsRequest {
+    name: string;
+    method: string;
+    url: string;
+    headers?: DocKeyValue[] | null;
+    params?: DocKeyValue[] | null;
+    body?: DocBody | null;
+    auth_type?: string | null;
+    examples?: DocExample[] | null;
+}
+export interface GenerateDocsResponse {
+    docs: string;
 }

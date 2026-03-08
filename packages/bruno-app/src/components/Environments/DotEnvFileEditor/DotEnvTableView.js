@@ -1,4 +1,5 @@
 import React, { useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TableVirtuoso } from 'react-virtuoso';
 import { IconTrash } from '@tabler/icons';
 import MultiLineEditor from 'components/MultiLineEditor/index';
@@ -27,6 +28,7 @@ const DotEnvTableView = ({
   onReset,
   isSaving
 }) => {
+  const { t } = useTranslation();
   const handleTotalHeightChanged = useCallback((h) => {
     onHeightChange(h);
   }, [onHeightChange]);
@@ -57,7 +59,7 @@ const DotEnvTableView = ({
               id={`${index}.name`}
               name={`${index}.name`}
               value={variable.name}
-              placeholder={isLastEmptyRow ? 'Name' : ''}
+              placeholder={isLastEmptyRow ? t('COMMON.NAME') : ''}
               onChange={(e) => onNameChange(index, e)}
               onBlur={() => onNameBlur(index)}
               onKeyDown={(e) => onNameKeyDown(index, e)}
@@ -72,7 +74,7 @@ const DotEnvTableView = ({
                 theme={theme}
                 name={`${index}.value`}
                 value={variable.value}
-                placeholder={isLastEmptyRow ? 'Value' : ''}
+                placeholder={isLastEmptyRow ? t('COMMON.VALUE') : ''}
                 onChange={(newValue) => currentFormik.setFieldValue(`${index}.value`, newValue, true)}
                 onSave={onSave}
               />
@@ -83,7 +85,7 @@ const DotEnvTableView = ({
           {!isLastEmptyRow && (
             <button
               type="button"
-              aria-label="Delete variable"
+              aria-label={t('COMMON.DELETE_VARIABLE')}
               onClick={() => onRemoveVar(variable.uid)}
             >
               <IconTrash strokeWidth={1.5} size={18} />
@@ -104,8 +106,8 @@ const DotEnvTableView = ({
         totalListHeightChanged={handleTotalHeightChanged}
         fixedHeaderContent={() => (
           <tr>
-            <td>Name</td>
-            {showValueColumn && <td>Value</td>}
+            <td>{t('COMMON.NAME')}</td>
+            {showValueColumn && <td>{t('COMMON.VALUE')}</td>}
             <td className="delete-col"></td>
           </tr>
         )}

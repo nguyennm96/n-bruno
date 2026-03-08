@@ -186,6 +186,8 @@ const MarkdownEditor = ({ value, onEdit, onSave, placeholder, height = 200 }) =>
       StarterKit.configure({
         // Disable built-in code block — we use CodeBlockLowlight instead
         codeBlock: false,
+        // Disable built-in link — we use @tiptap/extension-link directly with custom config
+        link: false,
         // Use built-in history
         history: true
       }),

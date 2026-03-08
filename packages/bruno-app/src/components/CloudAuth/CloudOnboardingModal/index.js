@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import Portal from 'components/Portal';
 import Modal from 'components/Modal';
@@ -13,6 +14,7 @@ import StyledWrapper from './StyledWrapper';
  * Shown when user logs in for first time and has no workspaces
  */
 const CloudOnboardingModal = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const isCreating = useSelector(selectIsCreating);
 
@@ -23,7 +25,7 @@ const CloudOnboardingModal = () => {
     e?.preventDefault();
 
     if (!workspaceName.trim()) {
-      toast.error('Workspace name is required');
+      toast.error(t('CLOUD_ONBOARDING.workspaceNameRequired'));
       return;
     }
 
@@ -49,25 +51,25 @@ const CloudOnboardingModal = () => {
   return (
     <Portal>
       <StyledWrapper>
-        <Modal size="md" title="Welcome to Bruno Cloud! ☁️" hideFooter={true}>
+        <Modal size="md" title={t('CLOUD_ONBOARDING.title')} hideFooter={true}>
           <div className="onboarding-content">
             <div className="onboarding-icon">🎉</div>
 
-            <h2>Let's get you started</h2>
+            <h2>{t('CLOUD_ONBOARDING.letsGetStarted')}</h2>
 
             <p className="onboarding-description">
-              Your cloud account is ready! Create your first workspace to start syncing your API collections across devices.
+              {t('CLOUD_ONBOARDING.cloudReady')}
             </p>
 
             <form onSubmit={handleCreateWorkspace}>
               <div className="form-group">
-                <label htmlFor="workspace-name">Workspace Name</label>
+                <label htmlFor="workspace-name">{t('CLOUD_ONBOARDING.workspaceName')}</label>
                 <input
                   id="workspace-name"
                   type="text"
                   value={workspaceName}
                   onChange={(e) => setWorkspaceName(e.target.value)}
-                  placeholder="e.g., My API, Backend Team, etc."
+                  placeholder={t('CLOUD_ONBOARDING.workspaceNamePlaceholder')}
                   autoFocus
                   disabled={isCreating}
                   maxLength={100}
@@ -75,12 +77,12 @@ const CloudOnboardingModal = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="workspace-desc">Description (optional)</label>
+                <label htmlFor="workspace-desc">{t('CLOUD_ONBOARDING.workspaceDescLabel')}</label>
                 <textarea
                   id="workspace-desc"
                   value={workspaceDesc}
                   onChange={(e) => setWorkspaceDesc(e.target.value)}
-                  placeholder="e.g., For our REST API project"
+                  placeholder={t('CLOUD_ONBOARDING.workspaceDescPlaceholder')}
                   disabled={isCreating}
                   maxLength={500}
                   rows={3}
@@ -93,13 +95,13 @@ const CloudOnboardingModal = () => {
                   disabled={isCreating || !workspaceName.trim()}
                   className="primary"
                 >
-                  {isCreating ? 'Creating workspace...' : 'Create Workspace'}
+                  {isCreating ? t('CLOUD_ONBOARDING.creatingWorkspace') : t('CLOUD_ONBOARDING.createWorkspace')}
                 </Button>
               </div>
             </form>
 
             <p className="hint">
-              💡 You can create additional workspaces later from the workspace selector.
+              {t('CLOUD_ONBOARDING.hint')}
             </p>
           </div>
         </Modal>

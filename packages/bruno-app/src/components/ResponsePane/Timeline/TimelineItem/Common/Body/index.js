@@ -1,13 +1,15 @@
 import QueryResponse from 'components/ResponsePane/QueryResponse/index';
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 
 const BodyBlock = ({ collection, data, dataBuffer, headers, error, item, type }) => {
+  const { t } = useTranslation();
   const [isBodyCollapsed, toggleBody] = useState(true);
   return (
     <div className="collapsible-section">
       <div className="section-header" onClick={() => toggleBody(!isBodyCollapsed)}>
         <pre className="flex flex-row items-center">
-          <div className="opacity-70">{isBodyCollapsed ? '▼' : '▶'}</div> Body
+          <div className="opacity-70">{isBodyCollapsed ? '▼' : '▶'}</div> {t('RESPONSE_PANE.TIMELINE.BODY_SECTION')}
         </pre>
       </div>
       {isBodyCollapsed && (
@@ -26,7 +28,7 @@ const BodyBlock = ({ collection, data, dataBuffer, headers, error, item, type })
               />
             </div>
           ) : (
-            <div className="timeline-item-timestamp">No Body found</div>
+            <div className="timeline-item-timestamp">{t('RESPONSE_PANE.TIMELINE.NO_BODY')}</div>
           )}
         </div>
       )}

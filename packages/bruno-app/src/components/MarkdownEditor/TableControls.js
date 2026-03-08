@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 
 /**
@@ -7,6 +8,7 @@ import { createPortal } from 'react-dom';
  * Menu stays open even after mouse leaves, until dismissed.
  */
 const TableControls = ({ editor }) => {
+  const { t } = useTranslation();
   const [info, setInfoState] = useState(null);
   const [activeCell, setActiveCellState] = useState(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -248,7 +250,7 @@ const TableControls = ({ editor }) => {
         >
           <button
             className={`tc-portal tc-handle-btn tc-visible${isMenuOpen ? ' tc-active' : ''}`}
-            title="Table actions"
+            title={t('MARKDOWN_EDITOR.TABLE_ACTIONS')}
             onMouseDown={(e) => {
               e.preventDefault();
               setIsMenuOpen((prev) => !prev);

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import useGraphqlSchema from './useGraphqlSchema';
 import { IconBook, IconDownload, IconLoader2, IconRefresh } from '@tabler/icons';
 import get from 'lodash/get';
@@ -6,6 +7,7 @@ import { findEnvironmentInCollection } from 'utils/collections';
 import Dropdown from '../../Dropdown';
 
 const GraphQLSchemaActions = ({ item, collection, onSchemaLoad, toggleDocs }) => {
+  const { t } = useTranslation();
   const url = item.draft ? get(item, 'draft.request.url', '') : get(item, 'request.url', '');
   const pathname = item.draft ? get(item, 'draft.pathname', '') : get(item, 'pathname', '');
   const uid = item.draft ? get(item, 'draft.uid', '') : get(item, 'uid', '');
@@ -34,7 +36,7 @@ const GraphQLSchemaActions = ({ item, collection, onSchemaLoad, toggleDocs }) =>
         {isSchemaLoading && <IconLoader2 className="animate-spin" size={18} strokeWidth={1.5} />}
         {!isSchemaLoading && schema && <IconRefresh size={18} strokeWidth={1.5} />}
         {!isSchemaLoading && !schema && <IconDownload size={18} strokeWidth={1.5} />}
-        <span className="ml-1">Schema</span>
+        <span className="ml-1">{t('REQUEST.GRAPHQL.SCHEMA')}</span>
       </div>
     );
   });
@@ -43,7 +45,7 @@ const GraphQLSchemaActions = ({ item, collection, onSchemaLoad, toggleDocs }) =>
     <div className="flex flex-grow justify-end items-center">
       <div className="flex items-center cursor-pointer hover:underline" onClick={toggleDocs}>
         <IconBook size={18} strokeWidth={1.5} />
-        <span className="ml-1">Docs</span>
+        <span className="ml-1">{t('REQUEST.GRAPHQL.DOCS')}</span>
       </div>
       <Dropdown onCreate={onSchemaDropdownCreate} icon={<MenuIcon />} placement="bottom-start">
         <div

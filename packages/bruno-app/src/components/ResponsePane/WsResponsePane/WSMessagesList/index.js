@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import classnames from 'classnames';
 import StyledWrapper from './StyledWrapper';
 import { IconExclamationCircle, IconChevronRight, IconInfoCircle, IconChevronDown, IconArrowUpRight, IconArrowDownLeft } from '@tabler/icons';
@@ -8,6 +9,7 @@ import { useSelector } from 'react-redux';
 import { Virtuoso } from 'react-virtuoso';
 
 const getContentMeta = (content) => {
+  const { t } = useTranslation();
   if (typeof content === 'object') {
     return {
       isJSON: true,
@@ -175,6 +177,7 @@ const WSMessageItem = memo(({ message, isOpen, onToggle }) => {
 });
 
 const WSMessagesList = ({ messages = [] }) => {
+  const { t } = useTranslation();
   const virtuosoRef = useRef(null);
   const [scrollerElement, setScrollerElement] = useState(null);
   const [openMessages, setOpenMessages] = useState(new Set());
@@ -238,7 +241,7 @@ const WSMessagesList = ({ messages = [] }) => {
   }, []);
 
   if (!messages.length) {
-    return <StyledWrapper><div className="empty-state">No messages yet.</div></StyledWrapper>;
+    return <StyledWrapper><div className="empty-state">{t('REQUEST.WS.NO_MESSAGES_YET')}</div></StyledWrapper>;
   }
 
   return (

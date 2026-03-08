@@ -1,4 +1,5 @@
 import get from 'lodash/get';
+import { useTranslation } from 'react-i18next';
 import { updateFolderDocs } from 'providers/ReduxStore/slices/collections';
 import { useDispatch } from 'react-redux';
 import { saveFolderRoot } from 'providers/ReduxStore/slices/collections/actions';
@@ -10,6 +11,7 @@ import StyledWrapper from './StyledWrapper';
 
 const Documentation = ({ collection, folder }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
 
   if (!folder) return null;
 
@@ -32,21 +34,21 @@ const Documentation = ({ collection, folder }) => {
         onEdit={onEdit}
         onSave={onSave}
         height={280}
-        placeholder="Click to add folder documentation..."
+        placeholder={t('FOLDER_SETTINGS.DOCUMENTATION.PLACEHOLDER')}
       />
       <div className="flex-shrink-0 flex justify-end">
         <Button type="submit" size="sm" onClick={onSave}>
-          Save
+          {t('COMMON.SAVE')}
         </Button>
       </div>
 
       {/* Requests list */}
       <div className="folder-requests-title">
-        Requests ({allRequests.length})
+        {t('FOLDER_SETTINGS.DOCUMENTATION.REQUESTS')} ({allRequests.length})
       </div>
       <div className="folder-request-list">
         {allRequests.length === 0 ? (
-          <div className="folder-empty">No requests in this folder.</div>
+          <div className="folder-empty">{t('FOLDER_SETTINGS.DOCUMENTATION.NO_REQUESTS')}</div>
         ) : (
           allRequests.map((req) => (
             <div key={req.uid} className="folder-request-item">

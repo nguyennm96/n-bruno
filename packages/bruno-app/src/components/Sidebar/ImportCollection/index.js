@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
-import { IconFileImport, IconBrandGit, IconUnlink, IconX } from '@tabler/icons';
+import { useTranslation } from 'react-i18next';
+import { IconFileImport, IconUnlink, IconX } from '@tabler/icons';
 import Modal from 'components/Modal';
 import classnames from 'classnames';
 import StyledWrapper from './StyledWrapper';
 import FileTab from './FileTab';
-import GitHubTab from './GitHubTab';
 import UrlTab from './UrlTab';
 import FullscreenLoader from './FullscreenLoader/index';
 import { useTheme } from 'providers/Theme';
 
 const IMPORT_TABS = {
   FILE: 'file',
-  GITHUB: 'github',
   URL: 'url'
 };
 
 const ImportCollection = ({ onClose, handleSubmit }) => {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -37,7 +37,7 @@ const ImportCollection = ({ onClose, handleSubmit }) => {
   }
 
   return (
-    <Modal size="md" title="Import Collection" hideFooter={true} handleCancel={onClose} dataTestId="import-collection-modal">
+    <Modal size="md" title={t('IMPORT_COLLECTION.TITLE')} hideFooter={true} handleCancel={onClose} dataTestId="import-collection-modal">
       <StyledWrapper className="flex flex-col h-full w-[600px] max-w-[600px]">
         <div className="flex w-full mb-6">
           <div className="flex justify-start w-full tabs">
@@ -47,15 +47,7 @@ const ImportCollection = ({ onClose, handleSubmit }) => {
               data-testid="file-tab"
             >
               <IconFileImport size={18} strokeWidth={1.5} className="mr-2" />
-              File
-            </div>
-            <div
-              className={getTabClassname(IMPORT_TABS.GITHUB)}
-              onClick={handleTabSelect(IMPORT_TABS.GITHUB)}
-              data-testid="github-tab"
-            >
-              <IconBrandGit size={18} strokeWidth={1.5} className="mr-2" />
-              Git Repository
+              {t('IMPORT_COLLECTION.TAB_FILE')}
             </div>
             <div
               className={getTabClassname(IMPORT_TABS.URL)}
@@ -63,7 +55,7 @@ const ImportCollection = ({ onClose, handleSubmit }) => {
               data-testid="url-tab"
             >
               <IconUnlink size={18} strokeWidth={1.5} className="mr-2" />
-              URL
+              {t('IMPORT_COLLECTION.TAB_URL')}
             </div>
           </div>
         </div>
@@ -97,12 +89,6 @@ const ImportCollection = ({ onClose, handleSubmit }) => {
         {tab === IMPORT_TABS.FILE && (
           <FileTab
             setIsLoading={setIsLoading}
-            handleSubmit={handleSubmit}
-            setErrorMessage={setErrorMessage}
-          />
-        )}
-        {tab === IMPORT_TABS.GITHUB && (
-          <GitHubTab
             handleSubmit={handleSubmit}
             setErrorMessage={setErrorMessage}
           />

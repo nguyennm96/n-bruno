@@ -9,9 +9,11 @@ import StyledWrapper from './StyledWrapper';
 import { IconWand } from '@tabler/icons';
 import toast from 'react-hot-toast';
 import { prettifyJsonString } from 'utils/common/index';
+import { useTranslation } from 'react-i18next';
 
 const GraphQLVariables = ({ variables, item, collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
 
   const { displayedTheme } = useTheme();
   const preferences = useSelector((state) => state.app.preferences);
@@ -27,10 +29,10 @@ const GraphQLVariables = ({ variables, item, collection }) => {
           collectionUid: collection.uid
         })
       );
-      toast.success('Variables prettified');
+      toast.success(t('REQUEST.GRAPHQL.VARIABLES_PRETTIFIED'));
     } catch (error) {
       console.error(error);
-      toast.error('Error occurred while prettifying GraphQL variables');
+      toast.error(t('REQUEST.GRAPHQL.PRETTIFY_VARIABLES_ERROR'));
     }
   };
 

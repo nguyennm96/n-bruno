@@ -13,6 +13,7 @@ import { exportApiSpec } from 'utils/exporters/openapi-spec';
 import { each } from 'lodash';
 import { showApiSpecPage } from 'providers/ReduxStore/slices/app';
 import { validateName, validateNameError } from 'utils/common/regex';
+import { useTranslation } from 'react-i18next';
 
 export const getEnvironmentVariablesKeyValuePairs = (envVariables) => {
   let variables = {};
@@ -25,6 +26,7 @@ export const getEnvironmentVariablesKeyValuePairs = (envVariables) => {
 };
 
 const CreateApiSpec = ({ onClose }) => {
+  const { t } = useTranslation();
   const inputRef = useRef();
   const dispatch = useDispatch();
   const workspaces = useSelector((state) => state.workspaces.workspaces);
@@ -98,7 +100,7 @@ const CreateApiSpec = ({ onClose }) => {
           setTimeout(() => {
             dispatch(showApiSpecPage());
           }, 200);
-          toast.success('ApiSpec created');
+          toast.success(t('SIDEBAR.API_SPEC_CREATED'));
           onClose();
         })
         .catch((err) => toast.error(err?.message));
@@ -157,7 +159,7 @@ const CreateApiSpec = ({ onClose }) => {
         })
         .catch((err) => {
           console.error('Error loading collection:', err);
-          toast.error('Failed to load collection');
+          toast.error(t('SIDEBAR.API_SPEC_LOAD_COLLECTION_ERROR'));
         });
     }
   }, [formik.values.collectionLocation]);
@@ -166,11 +168,11 @@ const CreateApiSpec = ({ onClose }) => {
 
   return (
     <StyledWrapper>
-      <Modal size="md" title="Create API Spec" confirmText="Create" handleConfirm={onSubmit} handleCancel={onClose}>
+      <Modal size="md" title={t('MODALS.CREATE_API_SPEC_TITLE')} confirmText={t('COMMON.CREATE')} handleConfirm={onSubmit} handleCancel={onClose}>
         <form className="bruno-form" onSubmit={(e) => e.preventDefault()}>
           <div>
             <label htmlFor="api-spec-location" className="block font-semibold mb-2">
-              Template
+              {t('SIDEBAR.API_SPEC_TEMPLATE')}
             </label>
             <div className="flex items-center">
               <input
@@ -183,7 +185,7 @@ const CreateApiSpec = ({ onClose }) => {
                 checked={formik.values.importFrom === 'blank'}
               />
               <label htmlFor="blank" className="ml-1 cursor-pointer select-none">
-                Blank spec
+                {t('SIDEBAR.API_SPEC_BLANK')}
               </label>
               <input
                 id="collection"
@@ -195,7 +197,7 @@ const CreateApiSpec = ({ onClose }) => {
                 checked={formik.values.importFrom === 'collection'}
               />
               <label htmlFor="collection" className="ml-1 cursor-pointer select-none">
-                From Bruno Collection
+                {t('SIDEBAR.API_SPEC_FROM_COLLECTION')}
               </label>
             </div>
             {formik.touched.importFrom && formik.errors.importFrom ? (
@@ -204,7 +206,7 @@ const CreateApiSpec = ({ onClose }) => {
             {formik.values.importFrom === 'collection' ? (
               <>
                 <label htmlFor="collection-location" className="block font-semibold mt-3">
-                  Collection Location
+                  {t('SIDEBAR.API_SPEC_COLLECTION_LOCATION')}
                 </label>
                 <input
                   id="collection-location"
@@ -225,13 +227,13 @@ const CreateApiSpec = ({ onClose }) => {
                 ) : null}
                 <div className="mt-1">
                   <span className="text-link cursor-pointer hover:underline" onClick={browseCollection}>
-                    Browse
+                    {t('SIDEBAR.BROWSE')}
                   </span>
                 </div>
                 {environments && Object.keys(environments || {})?.length > 0 ? (
                   <>
                     <label htmlFor="api-spec-name" className="flex items-center font-semibold mt-3">
-                      Environment
+                      {t('SIDEBAR.API_SPEC_ENVIRONMENT')}
                     </label>
                     <div className="relative">
                       <select
@@ -260,7 +262,7 @@ const CreateApiSpec = ({ onClose }) => {
               <div className="text-red-500">{formik.errors.environment}</div>
             ) : null}
             <label htmlFor="api-spec-name" className="flex items-center font-semibold mt-3">
-              Spec Name
+              {t('SIDEBAR.API_SPEC_NAME')}
             </label>
             <div className="relative">
               <input
@@ -287,7 +289,7 @@ const CreateApiSpec = ({ onClose }) => {
             ) : null}
 
             <label htmlFor="api-spec-location" className="block font-semibold mt-3">
-              Spec Location
+              {t('SIDEBAR.API_SPEC_LOCATION')}
             </label>
             <input
               id="api-spec-location"
@@ -308,11 +310,11 @@ const CreateApiSpec = ({ onClose }) => {
             ) : null}
             <div className="mt-1">
               <span className="text-link cursor-pointer hover:underline" onClick={browse}>
-                Browse
+                {t('SIDEBAR.BROWSE')}
               </span>
               {!isDefaultWorkspace && (
                 <span className="text-xs opacity-60 ml-2">
-                  (defaults to workspace's apispec folder)
+                  {t('SIDEBAR.API_SPEC_DEFAULT_LOCATION_HINT')}
                 </span>
               )}
             </div>

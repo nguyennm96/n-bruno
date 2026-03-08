@@ -35,7 +35,7 @@ const StyledWrapper = styled.div`
 
         .toggle-btn {
           padding: 4px 12px;
-          font-size: 12px;
+          font-size: ${(props) => props.theme.font.size.sm};
           border: none;
           background: transparent;
           color: ${(props) => props.theme.colors.text.muted};

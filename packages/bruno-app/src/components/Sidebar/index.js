@@ -7,7 +7,6 @@ import { useSelector, useDispatch } from 'react-redux';
 import { updateLeftSidebarWidth, updateIsDragging } from 'providers/ReduxStore/slices/app';
 import CollectionsSection from './Sections/CollectionsSection/index';
 import ApiSpecsSection from './Sections/ApiSpecsSection/index';
-import CloudSyncBadge from 'components/CloudSyncBadge';
 
 const MIN_LEFT_SIDEBAR_WIDTH = 220;
 const MAX_LEFT_SIDEBAR_WIDTH = 600;
@@ -107,7 +106,6 @@ const Sidebar = () => {
                   />
                 </div>
               </div>
-              {isCloud && <CloudSyncBadge />}
             </div>
           </div>
         </aside>

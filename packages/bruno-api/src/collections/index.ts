@@ -328,12 +328,33 @@ export class CollectionService {
     slug?: string;
     public_url?: string;
     analytics?: any;
+    /** Visibility type string — password hash is never returned */
+    visibility_type?: 'public' | 'password' | 'workspaceMembers' | 'customList';
+    settings?: {
+      show_examples: boolean;
+      show_auth: boolean;
+      /** Full CSS content string (up to 100KB), not a URL */
+      custom_css?: string;
+      /** Base64 data URL of the uploaded logo image */
+      custom_logo_url?: string;
+    };
+    published_at?: string;
   }> {
     const response = await this.client.getClient().get<ApiResponse<{
       enabled: boolean;
       slug?: string;
       public_url?: string;
       analytics?: any;
+      visibility_type?: 'public' | 'password' | 'workspaceMembers' | 'customList';
+      settings?: {
+        show_examples: boolean;
+        show_auth: boolean;
+        /** Full CSS content string (up to 100KB), not a URL */
+        custom_css?: string;
+        /** Base64 data URL of the uploaded logo image */
+        custom_logo_url?: string;
+      };
+      published_at?: string;
     }>>(
       `/api/collections/${collectionId}/docs/status`
     );

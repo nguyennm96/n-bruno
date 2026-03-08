@@ -8,6 +8,7 @@ pub struct PublicDocs {
     /// Unique slug (e.g., "my-api-v2")
     pub slug: String,
     /// When the docs were first published
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub published_at: DateTime<Utc>,
     /// Permissions/visibility settings
     pub visibility: DocVisibility,
@@ -87,6 +88,7 @@ pub struct DocAnalytics {
     pub unique_visitors: i32,
     /// Last time the docs were viewed
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, with = "crate::serde_helpers::flexible_bson_datetime_optional")]
     pub last_viewed: Option<DateTime<Utc>>,
 }
 
@@ -108,6 +110,7 @@ pub struct PublishDocsRequest {
 pub struct PublishDocsResponse {
     pub slug: String,
     pub public_url: String,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub published_at: DateTime<Utc>,
 }
 
@@ -128,6 +131,16 @@ pub struct DocsStatusResponse {
     pub public_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub analytics: Option<DocAnalytics>,
+    /// Current visibility type as a plain string (password hash is never returned)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility_type: Option<String>,
+    /// Current customization settings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings: Option<DocSettings>,
+    /// When the docs were first published
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime_optional")]
+    pub published_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -144,5 +157,6 @@ pub struct VerifyPasswordResponse {
 pub struct PublicDocResponse {
     pub collection: serde_json::Value,
     pub settings: DocSettings,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub published_at: DateTime<Utc>,
 }

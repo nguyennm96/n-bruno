@@ -69,7 +69,7 @@ const StyledWrapper = styled.div`
     .env-list-search-input {
       width: 100%;
       padding: 5px 24px 5px 26px;
-      font-size: 12px;
+      font-size: ${(props) => props.theme.font.size.sm};
       background: transparent;
       border: 1px solid ${(props) => props.theme.border.border1};
       border-radius: 5px;
@@ -150,7 +150,7 @@ const StyledWrapper = styled.div`
     gap: 8px;
     padding: 4px 8px;
     margin-bottom: 1px;
-    font-size: 13px;
+    font-size: ${(props) => props.theme.font.size.base};
     color: ${(props) => props.theme.text};
     cursor: pointer;
     border-radius: 5px;
@@ -239,7 +239,7 @@ const StyledWrapper = styled.div`
         border: none;
         outline: none;
         color: ${(props) => props.theme.text};
-        font-size: 13px;
+        font-size: ${(props) => props.theme.font.size.base};
         padding: 2px 4px;
         
         &::placeholder {
@@ -263,7 +263,7 @@ const StyledWrapper = styled.div`
         border: none;
         outline: none;
         color: ${(props) => props.theme.text};
-        font-size: 13px;
+        font-size: ${(props) => props.theme.font.size.base};
         padding: 2px 4px;
         
         &::placeholder {
@@ -313,7 +313,7 @@ const StyledWrapper = styled.div`
   .env-error {
     padding: 4px 12px;
     margin-top: 4px;
-    font-size: 11px;
+    font-size: ${(props) => props.theme.font.size.xs};
     color: ${(props) => props.theme.colors.text.danger};
     background: ${(props) => `${props.theme.colors.text.danger}15`};
     border-radius: 4px;
@@ -321,7 +321,7 @@ const StyledWrapper = styled.div`
 
   .no-env-file {
     padding: 8px 12px;
-    font-size: 12px;
+    font-size: ${(props) => props.theme.font.size.sm};
     color: ${(props) => props.theme.colors.text.muted};
     font-style: italic;
   }
@@ -340,7 +340,7 @@ const StyledWrapper = styled.div`
     }
 
     .title {
-      font-size: 13px;
+      font-size: ${(props) => props.theme.font.size.base};
       font-weight: 500;
       margin-bottom: 12px;
       color: ${(props) => props.theme.colors.text.muted};

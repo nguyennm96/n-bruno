@@ -197,7 +197,7 @@ const StyledWrapper = styled.div`
     border: none;
     outline: none;
     padding: 2px 8px;
-    font-size: 12px;
+    font-size: ${(props) => props.theme.font.size.sm};
     cursor: pointer;
 
     option {

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import { useSelector, useDispatch } from 'react-redux';
 import { savePreferences } from 'providers/ReduxStore/slices/app';
@@ -24,6 +25,7 @@ const ZOOM_OPTIONS = [
 const DEFAULT_ZOOM = 100;
 
 const Zoom = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const preferences = useSelector((state) => state.app.preferences);
   const dropdownRef = useRef(null);
@@ -75,7 +77,7 @@ const Zoom = () => {
     <StyledWrapper>
       <div className="flex flex-row gap-4 items-end">
         <div className="zoom-field" ref={dropdownRef}>
-          <label className="block">Interface Zoom</label>
+          <label className="block">{t('PREFERENCES.ZOOM.TITLE')}</label>
           <div className="custom-select mt-2" onClick={() => setIsOpen(!isOpen)}>
             <span className="selected-value">{selectedOption?.label}</span>
             <IconChevronDown size={14} className="chevron-icon" />
@@ -101,7 +103,7 @@ const Zoom = () => {
             className="reset-btn"
             onClick={handleResetToDefault}
           >
-            Reset
+            {t('COMMON.RESET')}
           </button>
         )}
       </div>

@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import get from 'lodash/get';
 import debounce from 'lodash/debounce';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { savePreferences } from 'providers/ReduxStore/slices/app';
 import StyledWrapper from './StyledWrapper';
 import toast from 'react-hot-toast';
 
 const Font = () => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const preferences = useSelector((state) => state.app.preferences);
   const isInitialMount = useRef(true);
 
@@ -34,7 +36,7 @@ const Font = () => {
         }
       })
     ).catch(() => {
-      toast.error('Failed to save preferences');
+      toast.error(t('PREFERENCES.SAVE_ERROR'));
     });
   }, [dispatch, preferences]);
 
@@ -60,7 +62,7 @@ const Font = () => {
     <StyledWrapper>
       <div className="flex flex-row gap-2 w-full">
         <div className="w-4/5">
-          <label className="block">Code Editor Font</label>
+          <label className="block">{t('PREFERENCES.DISPLAY.CODE_EDITOR_FONT')}</label>
           <input
             type="text"
             className="block textbox mt-2 w-full"
@@ -73,7 +75,7 @@ const Font = () => {
           />
         </div>
         <div className="w-1/5">
-          <label className="block">Font Size</label>
+          <label className="block">{t('PREFERENCES.DISPLAY.FONT_SIZE')}</label>
           <input
             type="number"
             className="block textbox mt-2 w-full"

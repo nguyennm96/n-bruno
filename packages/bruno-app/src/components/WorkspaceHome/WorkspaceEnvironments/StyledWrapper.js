@@ -20,7 +20,7 @@ const StyledWrapper = styled.div`
     }
     
     .title {
-      font-size: 13px;
+      font-size: ${(props) => props.theme.font.size.base};
       font-weight: 500;
       margin-bottom: 12px;
       color: ${(props) => props.theme.colors.text.muted};

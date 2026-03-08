@@ -130,7 +130,7 @@ impl ItemService {
 
         let item_oid = item.id.unwrap();
         let now = Utc::now();
-        let mut update = doc! { "updated_at": now.to_rfc3339() };
+        let mut update = doc! { "updated_at": bson::DateTime::from_chrono(now) };
 
         if let Some(n) = &name { update.insert("name", n); }
         if let Some(req) = request {
@@ -189,7 +189,7 @@ impl ItemService {
         }
         self.items.update_one(
             doc! { "_id": item.id.unwrap() },
-            doc! { "$set": { "deletedAt": chrono::Utc::now().to_rfc3339() } },
+            doc! { "$set": { "deletedAt": bson::DateTime::now() } },
         ).await.map_err(AppError::from)?;
         Ok(())
     }
@@ -202,7 +202,7 @@ impl ItemService {
 
         let item_oid = item.id.unwrap();
         let now = Utc::now();
-        let mut update = doc! { "updated_at": now.to_rfc3339() };
+        let mut update = doc! { "updated_at": bson::DateTime::from_chrono(now) };
 
         match new_parent_uid {
             Some(uid) if !uid.is_empty() => { update.insert("parentUid", uid); }

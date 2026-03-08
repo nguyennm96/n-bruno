@@ -1,5 +1,6 @@
 pub mod user;
 pub mod token;
+pub mod password_reset_token;
 pub mod workspace;
 pub mod collection;
 pub mod item;
@@ -7,3 +8,5 @@ pub mod environment;
 pub mod example;
 pub mod formats;
 pub mod public_docs;
+pub mod invite;
+pub mod oauth;

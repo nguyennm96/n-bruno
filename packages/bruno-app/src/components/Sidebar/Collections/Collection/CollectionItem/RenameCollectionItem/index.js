@@ -3,6 +3,7 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import Modal from 'components/Modal';
 import { useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { isItemAFolder } from 'utils/tabs';
 import { renameItem, saveRequest, closeTabs } from 'providers/ReduxStore/slices/collections/actions';
 import path from 'utils/common/path';
@@ -19,6 +20,7 @@ import Button from 'ui/Button';
 const RenameCollectionItem = ({ collectionUid, item, onClose }) => {
   const dispatch = useDispatch();
   const isFolder = isItemAFolder(item);
+  const { t } = useTranslation();
   const inputRef = useRef();
   const [isEditing, toggleEditing] = useState(false);
   const itemName = item?.name;
@@ -75,7 +77,7 @@ const RenameCollectionItem = ({ collectionUid, item, onClose }) => {
         }
         onClose();
       } catch (error) {
-        toast.error(error.message || 'An error occurred while renaming');
+        toast.error(error.message || t('SIDEBAR.RENAME_ITEM_ERROR'));
       }
     }
   });
@@ -93,7 +95,7 @@ const RenameCollectionItem = ({ collectionUid, item, onClose }) => {
           className="btn-advanced"
           type="button"
         >
-          Options
+          {t('COMMON.OPTIONS')}
         </button>
         <IconCaretDown className="caret ml-1" size={14} strokeWidth={2} />
       </div>
@@ -105,14 +107,14 @@ const RenameCollectionItem = ({ collectionUid, item, onClose }) => {
       <StyledWrapper>
         <Modal
           size="md"
-          title={`Rename ${isFolder ? 'Folder' : 'Request'}`}
+          title={isFolder ? t('SIDEBAR.RENAME_FOLDER_TITLE') : t('SIDEBAR.RENAME_REQUEST_TITLE')}
           handleCancel={onClose}
           hideFooter
         >
           <form className="bruno-form" onSubmit={formik.handleSubmit}>
             <div className="flex flex-col mt-2">
               <label htmlFor="name" className="block font-medium">
-                {isFolder ? 'Folder' : 'Request'} Name
+                {isFolder ? t('SIDEBAR.FOLDER_NAME_LABEL') : t('SIDEBAR.REQUEST_NAME')}
               </label>
               <input
                 id="collection-item-name"
@@ -137,20 +139,18 @@ const RenameCollectionItem = ({ collectionUid, item, onClose }) => {
               <div className="mt-4">
                 <div className="flex items-center justify-between">
                   <label htmlFor="filename" className="flex items-center font-medium">
-                    {isFolder ? 'Folder' : 'File'} Name <small className="font-normal text-muted ml-1">(on filesystem)</small>
+                    {isFolder ? t('SIDEBAR.FOLDER_NAME_LABEL') : t('SIDEBAR.FILE_NAME_LABEL')} <small className="font-normal text-muted ml-1">{t('SIDEBAR.ON_FILESYSTEM')}</small>
                     { isFolder ? (
                       <Help width="300">
                         <p>
-                          You can choose to save the folder as a different name on your file system versus what is displayed in the app.
+                          {t('SIDEBAR.FOLDER_NAME_HINT')}
                         </p>
                       </Help>
                     ) : (
                       <Help width="300">
-                        <p>
-                          Bruno saves each request as a file in your collection's folder.
-                        </p>
+                        <p>{t('SIDEBAR.FILE_SAVE_HINT')}</p>
                         <p className="mt-2">
-                          You can choose a file name different from your request's name or one compatible with filesystem rules.
+                          {t('SIDEBAR.FILENAME_HINT')}
                         </p>
                       </Help>
                     )}
@@ -211,16 +211,16 @@ const RenameCollectionItem = ({ collectionUid, item, onClose }) => {
                       toggleShowFilesystemName(!showFilesystemName);
                     }}
                   >
-                    {showFilesystemName ? 'Hide Filesystem Name' : 'Show Filesystem Name'}
+                    {showFilesystemName ? t('SIDEBAR.HIDE_FILESYSTEM_NAME') : t('SIDEBAR.SHOW_FILESYSTEM_NAME')}
                   </div>
                 </Dropdown>
               </div>
               <div className="flex justify-end">
                 <Button type="button" color="secondary" variant="ghost" onClick={onClose} className="mr-2">
-                  Cancel
+                  {t('COMMON.CANCEL')}
                 </Button>
                 <Button type="submit">
-                  Rename
+                  {t('COMMON.RENAME')}
                 </Button>
               </div>
             </div>

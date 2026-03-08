@@ -20,9 +20,12 @@ pub struct Collection {
     pub bruno_config: Option<JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub root: Option<JsonValue>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub updated_at: DateTime<Utc>,
     #[serde(rename = "deletedAt", skip_serializing_if = "Option::is_none")]
+    #[serde(default, with = "crate::serde_helpers::flexible_bson_datetime_optional")]
     pub deleted_at: Option<DateTime<Utc>>,
     /// Public documentation settings (if published)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,7 +62,9 @@ pub struct CollectionResponse {
     pub bruno_config: Option<JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub root: Option<JsonValue>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub updated_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_docs: Option<PublicDocs>,
@@ -78,5 +83,52 @@ impl From<Collection> for CollectionResponse {
             updated_at: c.updated_at,
             public_docs: c.public_docs,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collection_new_sets_correct_fields() {
+        let c = Collection::new(
+            "Test API".into(),
+            Some("desc".into()),
+            "ws-uid-123".into(),
+        );
+        assert_eq!(c.name, "Test API");
+        assert_eq!(c.description, Some("desc".into()));
+        assert_eq!(c.workspace_uid, "ws-uid-123");
+        assert_eq!(c.uid.len(), 21);
+        assert!(c.id.is_none());
+        assert!(c.deleted_at.is_none());
+        assert!(c.public_docs.is_none());
+        assert!(c.bruno_config.is_none());
+    }
+
+    #[test]
+    fn collection_new_without_description() {
+        let c = Collection::new("API".into(), None, "ws".into());
+        assert!(c.description.is_none());
+    }
+
+    #[test]
+    fn collection_uid_is_unique() {
+        let uids: std::collections::HashSet<_> = (0..50)
+            .map(|_| Collection::new("X".into(), None, "ws".into()).uid)
+            .collect();
+        assert_eq!(uids.len(), 50, "UIDs should all be unique");
+    }
+
+    #[test]
+    fn collection_response_from_preserves_fields() {
+        let c = Collection::new("My Collection".into(), Some("d".into()), "ws".into());
+        let uid = c.uid.clone();
+        let resp = CollectionResponse::from(c);
+        assert_eq!(resp.uid, uid);
+        assert_eq!(resp.name, "My Collection");
+        assert_eq!(resp.description, Some("d".into()));
+        assert_eq!(resp.workspace_uid, "ws");
     }
 }

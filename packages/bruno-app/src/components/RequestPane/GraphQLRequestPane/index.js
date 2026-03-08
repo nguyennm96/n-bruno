@@ -21,22 +21,11 @@ import HeightBoundContainer from 'ui/HeightBoundContainer';
 import Settings from 'components/RequestPane/Settings';
 import ResponsiveTabs from 'ui/ResponsiveTabs';
 import AuthMode from '../Auth/AuthMode/index';
-
-const TAB_CONFIG = [
-  { key: 'query', label: 'Query' },
-  { key: 'variables', label: 'Variables' },
-  { key: 'headers', label: 'Headers' },
-  { key: 'auth', label: 'Auth' },
-  { key: 'vars', label: 'Vars' },
-  { key: 'script', label: 'Script' },
-  { key: 'assert', label: 'Assert' },
-  { key: 'tests', label: 'Tests' },
-  { key: 'docs', label: 'Docs' },
-  { key: 'settings', label: 'Settings' }
-];
+import { useTranslation } from 'react-i18next';
 
 const GraphQLRequestPane = ({ item, collection, onSchemaLoad, toggleDocs, handleGqlClickReference }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
   const preferences = useSelector((state) => state.app.preferences);
@@ -89,7 +78,18 @@ const GraphQLRequestPane = ({ item, collection, onSchemaLoad, toggleDocs, handle
     [dispatch, item.uid]
   );
 
-  const allTabs = useMemo(() => TAB_CONFIG.map(({ key, label }) => ({ key, label })), []);
+  const allTabs = useMemo(() => [
+    { key: 'query', label: t('REQUEST.PARAMS.QUERY') },
+    { key: 'variables', label: t('REQUEST.GRAPHQL.VARIABLES') },
+    { key: 'headers', label: t('REQUEST.TABS.HEADERS') },
+    { key: 'auth', label: t('REQUEST.TABS.AUTH') },
+    { key: 'vars', label: t('REQUEST.TABS.VARS') },
+    { key: 'script', label: t('REQUEST.TABS.SCRIPT') },
+    { key: 'assert', label: t('REQUEST.TABS.ASSERT') },
+    { key: 'tests', label: t('REQUEST.TABS.TESTS') },
+    { key: 'docs', label: t('REQUEST.TABS.DOCS') },
+    { key: 'settings', label: t('REQUEST.TABS.SETTINGS') }
+  ], [t]);
 
   const tabPanel = useMemo(() => {
     switch (requestPaneTab) {

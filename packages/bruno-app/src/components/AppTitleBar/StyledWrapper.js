@@ -62,7 +62,7 @@ const Wrapper = styled.div`
     }
 
     .workspace-name {
-      font-size: 13px;
+      font-size: ${(props) => props.theme.font.size.base};
       font-weight: 500;
       color: ${(props) => props.theme.sidebar.color};
       white-space: nowrap;
@@ -89,7 +89,7 @@ const Wrapper = styled.div`
     pointer-events: none;
 
     .bruno-text {
-      font-size: 13px;
+      font-size: ${(props) => props.theme.font.size.base};
       font-weight: 600;
       color: ${(props) => props.theme.text};
       letter-spacing: 0.5px;
@@ -119,12 +119,6 @@ const Wrapper = styled.div`
     padding: 4px 10px !important;
     margin: 0 !important;
 
-    &.active {
-      .check-icon {
-        opacity: 1;
-      }
-    }
-
     &:hover {
       .pin-btn:not(.pinned) {
         opacity: 1;
@@ -134,7 +128,7 @@ const Wrapper = styled.div`
     .workspace-name {
       flex: 1;
       min-width: 0;
-      font-size: 13px;
+      font-size: ${(props) => props.theme.font.size.base};
       font-weight: 400;
       color: ${(props) => props.theme.dropdown.color};
       white-space: nowrap;
@@ -153,11 +147,6 @@ const Wrapper = styled.div`
       > * {
         pointer-events: auto;
       }
-    }
-
-    .check-icon {
-      color: ${(props) => props.theme.workspace?.accent || props.theme.colors?.text?.yellow};
-      flex-shrink: 0;
     }
 
     .pin-btn {

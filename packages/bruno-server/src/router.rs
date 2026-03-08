@@ -3,14 +3,14 @@ use axum::{
     routing::{delete, get, patch, post},
     Router,
 };
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{compression::CompressionLayer, cors::CorsLayer};
 
 use crate::{
     handlers::{
-        auth, collection, environment, example, health, import_export, item, public_docs, sync,
-        workspace,
+        ai, auth, collection, environment, example, health, import_export, invite, item, public_docs,
+        sync, users, workspace,
     },
-    middleware::auth_middleware,
+    middleware::{auth_middleware, request_logger},
     state::AppState,
     ws,
 };
@@ -22,6 +22,15 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/auth/register", post(auth::register))
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/refresh", post(auth::refresh))
+        // Password reset — public (unauthenticated users)
+        .route("/api/auth/forgot-password", post(auth::forgot_password))
+        .route("/api/auth/reset-password", post(auth::reset_password))
+        // OAuth — public
+        .route("/api/auth/oauth/:provider/authorize", get(auth::oauth_authorize))
+        .route("/api/auth/oauth/:provider/callback", get(auth::oauth_callback))
+        .route("/api/auth/oauth/exchange", post(auth::oauth_exchange))
+        // Invite — public (validate before login)
+        .route("/api/invites/validate", get(invite::validate_invite))
         // Public Documentation - public access
         .route("/api/public/docs/:slug", get(public_docs::get_public_docs))
         .route(
@@ -39,15 +48,27 @@ pub fn create_router(state: AppState) -> Router {
         // Auth - protected
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::me))
+        .route("/api/auth/me", patch(auth::update_me_handler))
+        // Users
+        .route("/api/users/search", get(users::search_user))
         // Workspaces
         .route("/api/workspaces", post(workspace::create_workspace))
         .route("/api/workspaces", get(workspace::list_workspaces))
         .route("/api/workspaces/:id", get(workspace::get_workspace))
         .route("/api/workspaces/:id", patch(workspace::update_workspace))
         .route("/api/workspaces/:id", delete(workspace::delete_workspace))
+        .route("/api/workspaces/:id/leave", delete(workspace::leave_workspace))
+        .route("/api/workspaces/:id/transfer-ownership", patch(workspace::transfer_ownership))
+        // Workspace Members
         .route("/api/workspaces/:id/members", get(workspace::list_members))
         .route("/api/workspaces/:id/members", post(workspace::add_member))
         .route("/api/workspaces/:id/members/:user_id", delete(workspace::remove_member))
+        .route("/api/workspaces/:id/members/:user_id", patch(workspace::update_member_role))
+        // Workspace Invites
+        .route("/api/workspaces/:id/invites", post(invite::send_invite))
+        .route("/api/workspaces/:id/invites", get(invite::list_invites))
+        .route("/api/workspaces/:id/invites/:invite_id", delete(invite::cancel_invite))
+        .route("/api/invites/accept", post(invite::accept_invite))
         // Collections
         .route("/api/workspaces/:workspace_id/collections", post(collection::create_collection))
         .route("/api/workspaces/:workspace_id/collections", get(collection::list_collections))
@@ -107,27 +128,26 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/items/:item_id/examples", post(example::create_example))
         .route("/api/items/:item_id/examples", get(example::list_examples))
         .route("/api/collections/:id/examples", get(example::list_collection_examples))
+        .route("/api/examples/:id", get(example::get_example))
         .route("/api/examples/:id", patch(example::update_example))
         .route("/api/examples/:id", delete(example::delete_example))
-        // ── Phase 10: Import / Export ──────────────────────────────────────
-        // Import
+        // Import / Export
         .route("/api/workspaces/:workspace_id/import/postman", post(import_export::import_postman))
         .route("/api/workspaces/:workspace_id/import/insomnia", post(import_export::import_insomnia))
-        // Export collection (format=postman|openapi|swagger via query param)
         .route("/api/collections/:id/export", get(import_export::export_collection))
-        // Export entire workspace (all collections as Postman)
         .route("/api/workspaces/:workspace_id/export", get(import_export::export_workspace))
         // Sync
         .route("/api/workspaces/:id/changes", get(sync::get_workspace_changes))
+        // AI
+        .route("/api/ai/generate-docs", post(ai::generate_docs_handler))
         // Apply auth middleware to all protected routes
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     Router::new()
-        // TODO: Re-enable after fixing OpenAPI schema definitions
-        // .merge(crate::openapi::swagger_ui())
         .merge(public_routes)
         .merge(protected_routes)
-        .layer(TraceLayer::new_for_http())
+        .layer(CompressionLayer::new())
+        .layer(middleware::from_fn(request_logger))
         .layer(CorsLayer::permissive()) // Configure properly in production
         .with_state(state)
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import Modal from 'components/Modal';
 import { isItemAFolder } from 'utils/tabs';
 import { useDispatch } from 'react-redux';
@@ -8,6 +9,7 @@ import StyledWrapper from './StyledWrapper';
 import toast from 'react-hot-toast';
 
 const DeleteCollectionItem = ({ onClose, item, collectionUid }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const isFolder = isItemAFolder(item);
   const onConfirm = () => {
@@ -40,13 +42,13 @@ const DeleteCollectionItem = ({ onClose, item, collectionUid }) => {
     <StyledWrapper>
       <Modal
         size="md"
-        title={`Delete ${isFolder ? 'Folder' : 'Request'}`}
-        confirmText="Delete"
+        title={t('COLLECTION.DELETE_ITEM', { type: isFolder ? t('COMMON.FOLDER') : t('COMMON.REQUEST') })}
+        confirmText={t('COMMON.DELETE')}
         confirmButtonColor="danger"
         handleConfirm={onConfirm}
         handleCancel={onClose}
       >
-        Are you sure you want to delete <span className="font-medium">{item.name}</span> ?
+        {t('COLLECTION.CONFIRM_DELETE_ITEM', { name: '' })} <span className="font-medium">{item.name}</span> ?
       </Modal>
     </StyledWrapper>
   );

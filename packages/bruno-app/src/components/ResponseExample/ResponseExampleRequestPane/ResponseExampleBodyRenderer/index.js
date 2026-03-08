@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 import { useTheme } from 'providers/Theme';
 import get from 'lodash/get';
@@ -17,6 +18,7 @@ const ResponseExampleBodyRenderer = ({
   onBodyEdit,
   onSave
 }) => {
+  const { t } = useTranslation();
   const { displayedTheme } = useTheme();
   const preferences = useSelector((state) => state.app.preferences);
 
@@ -52,7 +54,7 @@ const ResponseExampleBodyRenderer = ({
       case 'none':
         return (
           <div className="no-body-text">
-            No Body
+            {t('REQUEST.NO_BODY')}
           </div>
         );
 

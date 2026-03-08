@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getTotalRequestCountInCollection } from 'utils/collections/';
 import { IconWorld, IconApi, IconShare, IconBook } from '@tabler/icons';
 import { useState } from 'react';
@@ -9,6 +10,7 @@ import { addTab } from 'providers/ReduxStore/slices/tabs';
 import StyledWrapper from './StyledWrapper';
 
 const Info = ({ collection }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
 
   const isCollectionLoading = collection.isLoading;
@@ -39,7 +41,7 @@ const Info = ({ collection }) => {
               <IconWorld className="w-5 h-5" stroke={1.5} />
             </div>
             <div className="ml-4">
-              <div className="font-medium">Environments</div>
+              <div className="font-medium">{t('OVERVIEW_INFO.environments')}</div>
               <div className="mt-1 flex flex-col gap-1">
                 <button
                   type="button"
@@ -54,7 +56,9 @@ const Info = ({ collection }) => {
                     );
                   }}
                 >
-                  {collectionEnvironmentCount} collection environment{collectionEnvironmentCount !== 1 ? 's' : ''}
+                  {collectionEnvironmentCount === 1
+                    ? t('OVERVIEW_INFO.collectionEnvironment', { count: collectionEnvironmentCount })
+                    : t('OVERVIEW_INFO.collectionEnvironments', { count: collectionEnvironmentCount })}
                 </button>
                 <button
                   type="button"
@@ -69,7 +73,9 @@ const Info = ({ collection }) => {
                     );
                   }}
                 >
-                  {globalEnvironmentCount} global environment{globalEnvironmentCount !== 1 ? 's' : ''}
+                  {globalEnvironmentCount === 1
+                    ? t('OVERVIEW_INFO.globalEnvironment', { count: globalEnvironmentCount })
+                    : t('OVERVIEW_INFO.globalEnvironments', { count: globalEnvironmentCount })}
                 </button>
               </div>
             </div>
@@ -81,12 +87,14 @@ const Info = ({ collection }) => {
               <IconApi className="w-5 h-5" stroke={1.5} />
             </div>
             <div className="ml-4">
-              <div className="font-medium">Requests</div>
+              <div className="font-medium">{t('OVERVIEW_INFO.requests')}</div>
               <div className="mt-1 text-muted">
                 {
                   isCollectionLoading
-                    ? 'Loading requests...'
-                    : `${totalRequestsInCollection} request${totalRequestsInCollection !== 1 ? 's' : ''} in collection`
+                    ? t('OVERVIEW_INFO.loadingRequests')
+                    : totalRequestsInCollection === 1
+                      ? t('OVERVIEW_INFO.requestInCollection', { count: totalRequestsInCollection })
+                      : t('OVERVIEW_INFO.requestsInCollection', { count: totalRequestsInCollection })
                 }
               </div>
             </div>
@@ -97,9 +105,9 @@ const Info = ({ collection }) => {
               <IconShare className="w-5 h-5" stroke={1.5} />
             </div>
             <div className="ml-4 h-full flex flex-col justify-start">
-              <div className="font-medium h-fit my-auto">Share</div>
+              <div className="font-medium h-fit my-auto">{t('OVERVIEW_INFO.share')}</div>
               <div className="group-hover:underline text-link">
-                Share Collection
+                {t('OVERVIEW_INFO.shareCollection')}
               </div>
             </div>
           </div>
@@ -110,9 +118,9 @@ const Info = ({ collection }) => {
               <IconBook className="w-5 h-5" stroke={1.5} />
             </div>
             <div className="ml-4 h-full flex flex-col justify-start">
-              <div className="font-medium h-fit my-auto">Documentation</div>
+              <div className="font-medium h-fit my-auto">{t('OVERVIEW_INFO.documentation')}</div>
               <div className="group-hover:underline text-link">
-                Generate Docs
+                {t('OVERVIEW_INFO.generateDocs')}
               </div>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // ── SVG Icons ─────────────────────────────────────────────────────────────────
 const BoldIcon = () => (
@@ -82,6 +83,7 @@ const Btn = ({ onClick, active, title, children, disabled }) => (
 );
 
 const ModeSelect = ({ value, onChange, disabled }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -93,8 +95,8 @@ const ModeSelect = ({ value, onChange, disabled }) => {
   }, [open]);
 
   const options = [
-    { value: 'rich', label: 'Rich Editor' },
-    { value: 'markdown', label: 'Markdown Editor' }
+    { value: 'rich', label: t('MARKDOWN_EDITOR.TOOLBAR.RICH_EDITOR') },
+    { value: 'markdown', label: t('MARKDOWN_EDITOR.TOOLBAR.MARKDOWN_EDITOR') }
   ];
   const active = options.find((option) => option.value === value) || options[0];
 
@@ -198,6 +200,8 @@ const PopoverBtn = ({ icon, title, fields, onSubmit, align = 'left', btnAttr = {
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
 
+  const { t } = useTranslation();
+
   const submit = () => {
     onSubmit(vals); setOpen(false);
   };
@@ -244,14 +248,14 @@ const PopoverBtn = ({ icon, title, fields, onSubmit, align = 'left', btnAttr = {
               onMouseDown={(e) => {
                 e.preventDefault(); setOpen(false);
               }}
-            >Cancel
+            >{t('MARKDOWN_EDITOR.TOOLBAR.CANCEL')}
             </button>
             <button
               className="popover-btn popover-submit"
               onMouseDown={(e) => {
                 e.preventDefault(); submit();
               }}
-            >Insert
+            >{t('MARKDOWN_EDITOR.TOOLBAR.INSERT')}
             </button>
           </div>
         </div>
@@ -271,6 +275,7 @@ const PopoverBtn = ({ icon, title, fields, onSubmit, align = 'left', btnAttr = {
  */
 const Toolbar = ({ editor, isSourceMode, mode = 'rich', onModeChange, onApplyMarkdown, isDisabled = false }) => {
   if (!editor && !isSourceMode) return null;
+  const { t } = useTranslation();
   const controlsDisabled = isDisabled;
 
   const isBold = editor?.isActive('bold') ?? false;
@@ -293,10 +298,10 @@ const Toolbar = ({ editor, isSourceMode, mode = 'rich', onModeChange, onApplyMar
   }, [editor, isSourceMode, onApplyMarkdown]);
 
   const headingItems = [
-    { label: 'Heading 1', action: () => cmd((c) => (activeHeading === 1 ? c.setParagraph() : c.setHeading({ level: 1 })).run(), ({ selectedText }) => `# ${selectedText || 'Heading'}`) },
-    { label: 'Heading 2', action: () => cmd((c) => (activeHeading === 2 ? c.setParagraph() : c.setHeading({ level: 2 })).run(), ({ selectedText }) => `## ${selectedText || 'Heading'}`) },
-    { label: 'Heading 3', action: () => cmd((c) => (activeHeading === 3 ? c.setParagraph() : c.setHeading({ level: 3 })).run(), ({ selectedText }) => `### ${selectedText || 'Heading'}`) },
-    { label: 'Normal text', action: () => cmd((c) => c.setParagraph().run(), ({ selectedText }) => selectedText || 'Text') }
+    { label: t('MARKDOWN_EDITOR.TOOLBAR.HEADING_1'), action: () => cmd((c) => (activeHeading === 1 ? c.setParagraph() : c.setHeading({ level: 1 })).run(), ({ selectedText }) => `# ${selectedText || 'Heading'}`) },
+    { label: t('MARKDOWN_EDITOR.TOOLBAR.HEADING_2'), action: () => cmd((c) => (activeHeading === 2 ? c.setParagraph() : c.setHeading({ level: 2 })).run(), ({ selectedText }) => `## ${selectedText || 'Heading'}`) },
+    { label: t('MARKDOWN_EDITOR.TOOLBAR.HEADING_3'), action: () => cmd((c) => (activeHeading === 3 ? c.setParagraph() : c.setHeading({ level: 3 })).run(), ({ selectedText }) => `### ${selectedText || 'Heading'}`) },
+    { label: t('MARKDOWN_EDITOR.TOOLBAR.NORMAL_TEXT'), action: () => cmd((c) => c.setParagraph().run(), ({ selectedText }) => selectedText || 'Text') }
   ];
 
   return (
@@ -312,30 +317,30 @@ const Toolbar = ({ editor, isSourceMode, mode = 'rich', onModeChange, onApplyMar
       <Divider />
 
       {/* Inline formatting */}
-      <Btn onClick={() => cmd((c) => c.toggleBold().run(), ({ selectedText }) => `**${selectedText || 'bold'}**`)} active={isBold} title="Bold (Ctrl+B)" disabled={controlsDisabled}><BoldIcon /></Btn>
-      <Btn onClick={() => cmd((c) => c.toggleItalic().run(), ({ selectedText }) => `*${selectedText || 'italic'}*`)} active={isItalic} title="Italic (Ctrl+I)" disabled={controlsDisabled}><ItalicIcon /></Btn>
-      <Btn onClick={() => cmd((c) => c.toggleStrike().run(), ({ selectedText }) => `~~${selectedText || 'strikethrough'}~~`)} active={isStrike} title="Strikethrough" disabled={controlsDisabled}><StrikeIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleBold().run(), ({ selectedText }) => `**${selectedText || 'bold'}**`)} active={isBold} title={t('MARKDOWN_EDITOR.TOOLBAR.BOLD')} disabled={controlsDisabled}><BoldIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleItalic().run(), ({ selectedText }) => `*${selectedText || 'italic'}*`)} active={isItalic} title={t('MARKDOWN_EDITOR.TOOLBAR.ITALIC')} disabled={controlsDisabled}><ItalicIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleStrike().run(), ({ selectedText }) => `~~${selectedText || 'strikethrough'}~~`)} active={isStrike} title={t('MARKDOWN_EDITOR.TOOLBAR.STRIKETHROUGH')} disabled={controlsDisabled}><StrikeIcon /></Btn>
       <Divider />
 
       {/* Code */}
-      <Btn onClick={() => cmd((c) => c.toggleCode().run(), ({ selectedText }) => `\`${selectedText || 'code'}\``)} active={isCode} title="Inline code" disabled={controlsDisabled}><InlineCodeIcon /></Btn>
-      <Btn onClick={() => cmd((c) => c.toggleCodeBlock().run(), ({ selectedText }) => `\`\`\`\n${selectedText || ''}\n\`\`\``)} active={isCodeBlock} title="Code block" disabled={controlsDisabled}><CodeBlockIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleCode().run(), ({ selectedText }) => `\`${selectedText || 'code'}\``)} active={isCode} title={t('MARKDOWN_EDITOR.TOOLBAR.INLINE_CODE')} disabled={controlsDisabled}><InlineCodeIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleCodeBlock().run(), ({ selectedText }) => `\`\`\`\n${selectedText || ''}\n\`\`\``)} active={isCodeBlock} title={t('MARKDOWN_EDITOR.TOOLBAR.CODE_BLOCK')} disabled={controlsDisabled}><CodeBlockIcon /></Btn>
 
       {/* Blockquote */}
-      <Btn onClick={() => cmd((c) => c.toggleBlockquote().run(), ({ selectedText }) => withLinePrefix(selectedText || 'Quote', '> '))} active={isBlockquote} title="Blockquote" disabled={controlsDisabled}><QuoteIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.toggleBlockquote().run(), ({ selectedText }) => withLinePrefix(selectedText || 'Quote', '> '))} active={isBlockquote} title={t('MARKDOWN_EDITOR.TOOLBAR.BLOCKQUOTE')} disabled={controlsDisabled}><QuoteIcon /></Btn>
       <Divider />
 
       {/* Lists */}
-      <Btn onClick={() => cmd((c) => c.toggleBulletList().run(), ({ selectedText }) => withLinePrefix(selectedText || 'List item', '- '))} active={isUL} title="Bullet list" disabled={controlsDisabled}>
+      <Btn onClick={() => cmd((c) => c.toggleBulletList().run(), ({ selectedText }) => withLinePrefix(selectedText || 'List item', '- '))} active={isUL} title={t('MARKDOWN_EDITOR.TOOLBAR.BULLET_LIST')} disabled={controlsDisabled}>
         <span className="toolbar-label" style={{ fontSize: 14 }}>•≡</span>
       </Btn>
-      <Btn onClick={() => cmd((c) => c.toggleOrderedList().run(), ({ selectedText }) => (selectedText || 'List item').split('\n').map((line, index) => `${index + 1}. ${line}`).join('\n'))} active={isOL} title="Ordered list" disabled={controlsDisabled}>
+      <Btn onClick={() => cmd((c) => c.toggleOrderedList().run(), ({ selectedText }) => (selectedText || 'List item').split('\n').map((line, index) => `${index + 1}. ${line}`).join('\n'))} active={isOL} title={t('MARKDOWN_EDITOR.TOOLBAR.ORDERED_LIST')} disabled={controlsDisabled}>
         <span className="toolbar-label" style={{ fontSize: 11 }}>1≡</span>
       </Btn>
       <Btn
         onClick={() => cmd((c) => c.toggleTaskList().run(), ({ selectedText }) => withLinePrefix(selectedText || 'Task', '- [ ] '))}
         active={editor?.isActive('taskList') ?? false}
-        title="Task list"
+        title={t('MARKDOWN_EDITOR.TOOLBAR.TASK_LIST')}
         disabled={controlsDisabled}
       >
         <CheckSquareIcon />
@@ -345,10 +350,10 @@ const Toolbar = ({ editor, isSourceMode, mode = 'rich', onModeChange, onApplyMar
       {/* Link */}
       <PopoverBtn
         icon={<LinkIcon />}
-        title="Insert Link"
+        title={t('MARKDOWN_EDITOR.TOOLBAR.INSERT_LINK')}
         fields={[
-          { key: 'url', label: 'URL', placeholder: 'https://...' },
-          { key: 'text', label: 'Link text', placeholder: 'leave empty to use selection' }
+          { key: 'url', label: t('MARKDOWN_EDITOR.TOOLBAR.URL'), placeholder: 'https://...' },
+          { key: 'text', label: t('MARKDOWN_EDITOR.TOOLBAR.LINK_TEXT'), placeholder: t('MARKDOWN_EDITOR.TOOLBAR.LINK_TEXT_PLACEHOLDER') }
         ]}
         btnAttr={{ 'data-toolbar': 'link' }}
         disabled={controlsDisabled}
@@ -365,12 +370,12 @@ const Toolbar = ({ editor, isSourceMode, mode = 'rich', onModeChange, onApplyMar
       {/* Table — insert only */}
       <PopoverBtn
         icon={<TableIcon />}
-        title="Insert Table"
+        title={t('MARKDOWN_EDITOR.TOOLBAR.INSERT_TABLE')}
         align="right"
         disabled={controlsDisabled}
         fields={[
-          { key: 'rows', label: 'Rows', placeholder: '3', defaultValue: '3' },
-          { key: 'cols', label: 'Columns', placeholder: '3', defaultValue: '3' }
+          { key: 'rows', label: t('MARKDOWN_EDITOR.TOOLBAR.ROWS'), placeholder: '3', defaultValue: '3' },
+          { key: 'cols', label: t('MARKDOWN_EDITOR.TOOLBAR.COLUMNS'), placeholder: '3', defaultValue: '3' }
         ]}
         onSubmit={({ rows, cols }) => {
           const r = Math.max(1, parseInt(rows) || 3);
@@ -388,7 +393,7 @@ const Toolbar = ({ editor, isSourceMode, mode = 'rich', onModeChange, onApplyMar
       />
 
       {/* Horizontal Rule */}
-      <Btn onClick={() => cmd((c) => c.setHorizontalRule().run(), () => '\n---\n')} title="Horizontal Rule" disabled={controlsDisabled}><HrIcon /></Btn>
+      <Btn onClick={() => cmd((c) => c.setHorizontalRule().run(), () => '\n---\n')} title={t('MARKDOWN_EDITOR.TOOLBAR.HORIZONTAL_RULE')} disabled={controlsDisabled}><HrIcon /></Btn>
 
       {/* Right section: Editor mode */}
       <div className="toolbar-spacer" />

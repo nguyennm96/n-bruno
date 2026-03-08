@@ -29,7 +29,7 @@ const StyledWrapper = styled.div`
   }
 
   .header-title {
-    font-size: 15px;
+    font-size: ${(props) => props.theme.font.size.md};
     font-weight: 600;
     color: ${(props) => props.theme.text};
   }
@@ -129,6 +129,19 @@ const StyledWrapper = styled.div`
     color: ${(props) => props.theme.text};
     font-size: ${(props) => props.theme.font.size.xs};
     cursor: pointer;
+    border-radius: ${(props) => props.theme.border.radius.sm};
+
+    &:hover {
+      background: ${(props) => props.theme.workspace.border};
+    }
+
+    &.members {
+      color: ${(props) => props.theme.brand};
+
+      &:hover {
+        background: ${(props) => props.theme.brand}22;
+      }
+    }
   }
 
   .more-actions-btn {

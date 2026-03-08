@@ -151,9 +151,12 @@ pub struct Item {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub docs: Option<String>,
 
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub updated_at: DateTime<Utc>,
     #[serde(rename = "deletedAt", skip_serializing_if = "Option::is_none")]
+    #[serde(default, with = "crate::serde_helpers::flexible_bson_datetime_optional")]
     pub deleted_at: Option<DateTime<Utc>>,
 }
 
@@ -266,7 +269,9 @@ pub struct ItemResponse {
     pub filename: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub docs: Option<String>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -286,5 +291,101 @@ impl From<Item> for ItemResponse {
             created_at: i.created_at,
             updated_at: i.updated_at,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generate_uid_is_21_chars_alphanumeric() {
+        for _ in 0..20 {
+            let uid = generate_uid();
+            assert_eq!(uid.len(), 21, "uid length should be 21, got: {}", uid);
+            assert!(uid.chars().all(|c| c.is_alphanumeric()), "uid should be alphanumeric: {}", uid);
+        }
+    }
+
+    #[test]
+    fn generate_uid_is_unique() {
+        let uids: std::collections::HashSet<_> = (0..100).map(|_| generate_uid()).collect();
+        assert_eq!(uids.len(), 100, "all 100 UIDs should be unique");
+    }
+
+    #[test]
+    fn new_folder_has_correct_type_and_no_request() {
+        let f = Item::new_folder("Auth".into(), "col_uid".into(), None, 1.0);
+        assert_eq!(f.item_type, ItemType::Folder);
+        assert_eq!(f.name, "Auth");
+        assert_eq!(f.collection_uid, "col_uid");
+        assert!(f.parent_uid.is_none());
+        assert_eq!(f.seq, 1.0);
+        assert!(f.request.is_none());
+        assert!(f.settings.is_none());
+        assert!(f.deleted_at.is_none());
+    }
+
+    #[test]
+    fn new_request_has_correct_defaults() {
+        let r = Item::new_request("Get Users".into(), "col_uid".into(), None, 2.0, "GET".into(), "https://api.example.com/users".into());
+        assert_eq!(r.item_type, ItemType::Request);
+        assert_eq!(r.name, "Get Users");
+        assert_eq!(r.seq, 2.0);
+        assert!(r.request.is_some());
+        assert!(r.settings.is_some());
+        let req = r.request.unwrap();
+        assert_eq!(req.method, "GET");
+        assert_eq!(req.url, "https://api.example.com/users");
+        assert_eq!(req.auth.unwrap().mode, "inherit");
+        assert_eq!(req.body.mode, "none");
+    }
+
+    #[test]
+    fn new_request_filename_is_slugified() {
+        let r = Item::new_request("Get All Users".into(), "c".into(), None, 1.0, "GET".into(), "".into());
+        assert_eq!(r.filename, Some("get-all-users.bru".into()));
+    }
+
+    #[test]
+    fn new_request_filename_strips_special_chars() {
+        let r = Item::new_request("Create User (v2)".into(), "c".into(), None, 1.0, "POST".into(), "".into());
+        // Parentheses and spaces are stripped; only alphanumeric and hyphens remain
+        let filename = r.filename.unwrap();
+        assert!(filename.ends_with(".bru"));
+        assert!(!filename.contains(' '));
+        assert!(!filename.contains('('));
+    }
+
+    #[test]
+    fn is_request_returns_correct_value() {
+        let folder = Item::new_folder("F".into(), "c".into(), None, 1.0);
+        let request = Item::new_request("R".into(), "c".into(), None, 1.0, "GET".into(), "".into());
+        assert!(!folder.is_request());
+        assert!(request.is_request());
+    }
+
+    #[test]
+    fn item_response_from_item_drops_deleted_at() {
+        let mut item = Item::new_request("R".into(), "c".into(), None, 1.0, "GET".into(), "".into());
+        item.deleted_at = Some(chrono::Utc::now());
+        let resp = ItemResponse::from(item);
+        // ItemResponse has no deleted_at field — compilation proves this
+        let _ = resp.uid;
+    }
+
+    #[test]
+    fn settings_defaults() {
+        let s = Settings::default();
+        assert!(s.encode_url.is_none());
+        assert!(s.follow_redirects.is_none());
+        assert!(s.max_redirects.is_none());
+        assert!(s.timeout.is_none());
+    }
+
+    #[test]
+    fn request_body_default_mode_is_empty() {
+        let b = RequestBody::default();
+        assert_eq!(b.mode, "");
     }
 }

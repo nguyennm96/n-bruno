@@ -1,4 +1,5 @@
 import React, { useRef, forwardRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import get from 'lodash/get';
 import { IconCaretDown } from '@tabler/icons';
@@ -12,6 +13,7 @@ import { humanizeRequestAPIKeyPlacement } from 'utils/collections';
 
 const ApiKeyAuth = ({ collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const { storedTheme } = useTheme();
   const dropdownTippyRef = useRef();
   const onDropdownCreate = (ref) => (dropdownTippyRef.current = ref);
@@ -57,7 +59,7 @@ const ApiKeyAuth = ({ collection }) => {
 
   return (
     <StyledWrapper className="mt-2 w-full">
-      <label className="block mb-1">Key</label>
+      <label className="block mb-1">{t('REQUEST.AUTH.KEY')}</label>
       <div className="single-line-editor-wrapper mb-3">
         <SingleLineEditor
           value={apikeyAuth.key || ''}
@@ -69,7 +71,7 @@ const ApiKeyAuth = ({ collection }) => {
         />
       </div>
 
-      <label className="block mb-1">Value</label>
+      <label className="block mb-1">{t('REQUEST.AUTH.VALUE')}</label>
       <div className="single-line-editor-wrapper mb-3">
         <SingleLineEditor
           value={apikeyAuth.value || ''}
@@ -81,7 +83,7 @@ const ApiKeyAuth = ({ collection }) => {
         />
       </div>
 
-      <label className="block mb-1">Add To</label>
+      <label className="block mb-1">{t('REQUEST.AUTH.ADD_TO')}</label>
       <div className="inline-flex items-center cursor-pointer auth-placement-selector w-fit">
         <Dropdown onCreate={onDropdownCreate} icon={<Icon />} placement="bottom-end">
           <div
@@ -91,7 +93,7 @@ const ApiKeyAuth = ({ collection }) => {
               handleAuthChange('placement', 'header');
             }}
           >
-            Header
+            {t('REQUEST.AUTH.HEADER')}
           </div>
           <div
             className="dropdown-item"
@@ -100,7 +102,7 @@ const ApiKeyAuth = ({ collection }) => {
               handleAuthChange('placement', 'queryparams');
             }}
           >
-            Query Params
+            {t('REQUEST.AUTH.QUERY_PARAMS')}
           </div>
         </Dropdown>
       </div>

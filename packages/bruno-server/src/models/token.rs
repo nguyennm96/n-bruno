@@ -8,7 +8,9 @@ pub struct RefreshToken {
     pub id: Option<ObjectId>,
     pub user_id: ObjectId,
     pub token_hash: String,   // bcrypt hash of the actual token
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub expires_at: DateTime<Utc>, // MongoDB TTL index on this field
+    #[serde(with = "crate::serde_helpers::flexible_bson_datetime")]
     pub created_at: DateTime<Utc>,
 }
 

@@ -1,5 +1,7 @@
-const { ipcMain, safeStorage } = require('electron');
+const { ipcMain, safeStorage, shell } = require('electron');
 const Store = require('electron-store');
+const https = require('https');
+const http = require('http');
 const { safeParseJSON, safeStringifyJSON } = require('../utils/common');
 
 // Encrypted store for sensitive data
@@ -170,6 +172,39 @@ const hasTokens = async () => {
 };
 
 /**
+ * Start OAuth flow for a given provider (google | github).
+ * Fetches the authorization URL from the server, then opens it in the system browser.
+ * The result comes back via bruno:// protocol → deeplink.js → 'oauth:callback' IPC event.
+ */
+const startOAuthFlow = async (event, { provider, serverUrl }) => {
+  const baseUrl = serverUrl || process.env.VITE_BRUNO_SERVER_URL || 'http://localhost:8080';
+  const authorizeUrl = `${baseUrl}/api/auth/oauth/${provider}/authorize`;
+
+  return new Promise((resolve, reject) => {
+    const client = authorizeUrl.startsWith('https') ? https : http;
+    const req = client.get(authorizeUrl, { headers: { Accept: 'application/json' } }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          const url = parsed?.data?.url;
+          if (!url) {
+            return reject(new Error('No OAuth URL returned from server'));
+          }
+          shell.openExternal(url);
+          resolve({ success: true });
+        } catch (e) {
+          reject(new Error(`Failed to parse OAuth URL response: ${e.message}`));
+        }
+      });
+    });
+    req.on('error', (e) => reject(new Error(`Failed to fetch OAuth URL: ${e.message}`)));
+    req.end();
+  });
+};
+
+/**
  * Register auth IPC handlers
  */
 const registerAuthIpc = () => {
@@ -189,6 +224,9 @@ const registerAuthIpc = () => {
   ipcMain.handle('auth:save-user', saveUser);
   ipcMain.handle('auth:get-user', getUser);
   ipcMain.handle('auth:clear-user', clearUser);
+
+  // OAuth social login — opens system browser with provider's auth page
+  ipcMain.handle('auth:start-oauth-flow', startOAuthFlow);
 
   console.log('Auth IPC handlers registered');
 };

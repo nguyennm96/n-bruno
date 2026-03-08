@@ -5,7 +5,6 @@ const StyledWrapper = styled.div`
   align-items: center;
   margin-right: 0.5rem;
 
-  /* Sign In Button */
   .sign-in-button {
     display: flex;
     align-items: center;
@@ -15,128 +14,138 @@ const StyledWrapper = styled.div`
     padding: 0;
     background: transparent;
     border: none;
-    border-radius: 6px;
-    color: ${(props) => props.theme.text};
+    border-radius: ${({ theme }) => theme.border.radius.base};
+    color: ${({ theme }) => theme.text};
     cursor: pointer;
+    transition: background-color ${({ theme }) => theme.transition.fast};
 
-    svg {
-      flex-shrink: 0;
+    &:hover {
+      background: ${({ theme }) => theme.sidebar.collection.item.hoverBg};
     }
+
+    svg { flex-shrink: 0; }
   }
 
-  /* User Menu Container */
   .user-menu-container {
     position: relative;
   }
 
-  /* User Button */
   .user-button {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.625rem;
+    gap: 4px;
+    padding: 3px 6px;
     background: transparent;
     border: none;
-    border-radius: 6px;
-    color: ${(props) => props.theme.text};
+    border-radius: ${({ theme }) => theme.border.radius.base};
+    color: ${({ theme }) => theme.text};
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color ${({ theme }) => theme.transition.fast};
 
     &:hover {
-      background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
+      background: ${({ theme }) => theme.sidebar.collection.item.hoverBg};
     }
   }
 
   .user-avatar {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    background: ${(props) => props.theme.brand};
-    color: white;
+    background: ${({ theme }) => theme.brand};
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 0.6875rem;
+    font-size: ${({ theme }) => theme.font.size.xs};
     flex-shrink: 0;
-  }
-
-  .user-info {
-    display: flex;
-    flex-direction: column;
-    text-align: left;
-    min-width: 0;
-  }
-
-  .user-name {
-    font-size: 0.8125rem;
-    font-weight: 500;
-    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 120px;
-  }
 
-  .cloud-badge {
-    display: none; /* Hide cloud badge in titlebar for compact design */
+    .avatar-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .avatar-initials {
+      font-size: ${({ theme }) => theme.font.size.xs};
+      font-weight: 600;
+    }
   }
 
   .chevron {
     flex-shrink: 0;
-    transition: transform 0.2s ease;
-    margin-left: 0.125rem;
+    opacity: 0.6;
+    transition: transform ${({ theme }) => theme.transition.base};
 
-    &.open {
-      transform: rotate(180deg);
-    }
+    &.open { transform: rotate(180deg); }
   }
 
-  /* User Menu Dropdown */
   .user-menu {
     position: absolute;
-    top: calc(100% + 0.5rem);
+    top: calc(100% + 6px);
     right: 0;
-    width: 200px;
-    background: ${(props) => props.theme.dropdown.bg};
-    border: 1px solid ${(props) => props.theme.dropdown.border};
-    border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    min-width: 200px;
+    background: ${({ theme }) => theme.dropdown.bg};
+    border: 1px solid ${({ theme }) => theme.dropdown.border};
+    border-radius: ${({ theme }) => theme.border.radius.md};
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
     z-index: 10000;
-    padding: 0.25rem 0;
+    overflow: hidden;
+  }
+
+  .menu-user-info {
+    padding: 10px 14px 9px;
+  }
+
+  .menu-user-name {
+    font-size: ${({ theme }) => theme.font.size.sm};
+    font-weight: 500;
+    color: ${({ theme }) => theme.text};
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .menu-user-email {
+    font-size: ${({ theme }) => theme.font.size.xs};
+    color: ${({ theme }) => theme.sidebar?.muted || theme.text};
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
   }
 
   .menu-item {
     display: flex;
     align-items: center;
-    gap: 0.625rem;
-    padding: 0.625rem 0.875rem;
-    font-size: 0.875rem;
-    color: ${(props) => props.theme.dropdown.color};
+    gap: 9px;
+    width: 100%;
+    padding: 8px 14px;
+    font-size: ${({ theme }) => theme.font.size.sm};
+    color: ${({ theme }) => theme.dropdown.color};
+    background: none;
+    border: none;
     cursor: pointer;
-    transition: background 0.15s ease;
+    text-align: left;
+    transition: background-color ${({ theme }) => theme.transition.fast};
 
-    &:hover:not(.disabled) {
-      background: ${(props) => props.theme.dropdown.hoverBg};
+    &:hover {
+      background: ${({ theme }) => theme.dropdown.hoverBg};
     }
 
-    &.disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    &.menu-item-danger {
+      color: ${({ theme }) => theme.colors?.text?.danger || '#e53e3e'};
     }
 
-    svg {
-      flex-shrink: 0;
-    }
-
-    span {
-      flex: 1;
-    }
+    svg { flex-shrink: 0; }
+    span { flex: 1; }
   }
 
   .menu-divider {
     height: 1px;
-    background: ${(props) => props.theme.dropdown.border};
-    margin: 0.25rem 0;
+    background: ${({ theme }) => theme.dropdown.border};
+    margin: 0;
   }
 `;
 

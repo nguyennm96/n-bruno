@@ -2,6 +2,7 @@ import styled from 'styled-components';
 import { rgba } from 'polished';
 
 const Wrapper = styled.div`
+  z-index: 9000;
   min-width: 160px;
   font-size: ${(props) => props.theme.font.size.sm};
   color: ${(props) => props.theme.dropdown.color};
@@ -19,6 +20,9 @@ const Wrapper = styled.div`
   overflow-y: auto;
   max-width: unset !important;
   padding: 0.25rem;
+  /* Use opacity-only animation — Floating UI uses transform for positioning,
+     any transform in a keyframe would override it and break placement */
+  animation: fade-in 0.1s ease forwards;
 
   [role="menu"] {
     outline: none;
@@ -54,6 +58,7 @@ const Wrapper = styled.div`
     border-radius: 6px;
     margin: 0.0625rem 0;
     font-size: ${(props) => props.theme.font.size.sm};
+    transition: background-color 0.1s ease, color 0.1s ease;
 
     &.active {
       color: ${(props) => props.theme.colors.text.yellow} !important;
@@ -87,7 +92,7 @@ const Wrapper = styled.div`
 
     .dropdown-tab-count {
       margin-left: auto;
-      font-size: 11px;
+      font-size: ${(props) => props.theme.font.size.xs};
       font-weight: 500;
       padding: 1px 6px;
       border-radius: 10px;

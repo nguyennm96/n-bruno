@@ -1,12 +1,14 @@
 import React from 'react';
-import { IconCheck, IconChevronDown, IconFolder, IconHome, IconPin, IconPinned, IconPlus, IconDownload, IconSettings, IconMinus, IconSquare, IconX, IconCopy } from '@tabler/icons';
+import { useTranslation } from 'react-i18next';
+import { IconChevronDown, IconHome, IconPin, IconPinned, IconPlus, IconDownload, IconSettings, IconMinus, IconSquare, IconX, IconCopy } from '@tabler/icons';
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { savePreferences, showManageWorkspacePage, toggleSidebarCollapse } from 'providers/ReduxStore/slices/app';
+import { selectIsAuthenticated } from 'providers/ReduxStore/slices/auth';
 import { closeConsole, openConsole } from 'providers/ReduxStore/slices/logs';
-import { openWorkspaceDialog, switchWorkspace } from 'providers/ReduxStore/slices/workspaces/actions';
+import { switchWorkspace } from 'providers/ReduxStore/slices/workspaces/actions';
 import { sortWorkspaces, toggleWorkspacePin } from 'utils/workspaces';
 import { focusTab } from 'providers/ReduxStore/slices/tabs';
 
@@ -22,7 +24,6 @@ import AppMenu from './AppMenu';
 import StyledWrapper from './StyledWrapper';
 import ResponseLayoutToggle from 'components/ResponsePane/ResponseLayoutToggle';
 import { CloudAuthButton } from 'components/CloudAuth';
-import NetworkStatusIndicator from 'components/NetworkStatusIndicator';
 import { isMacOS, isWindowsOS, isLinuxOS } from 'utils/common/platform';
 import classNames from 'classnames';
 
@@ -41,6 +42,7 @@ export const getWorkspaceDisplayName = (name) => {
 
 const AppTitleBar = () => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const osClass = getOsClass();
@@ -112,6 +114,7 @@ const AppTitleBar = () => {
   const preferences = useSelector((state) => state.app.preferences);
   const sidebarCollapsed = useSelector((state) => state.app.sidebarCollapsed);
   const isConsoleOpen = useSelector((state) => state.logs.isConsoleOpen);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
 
   // Sort workspaces according to preferences
@@ -140,16 +143,7 @@ const AppTitleBar = () => {
 
   const handleWorkspaceSwitch = (workspaceUid) => {
     dispatch(switchWorkspace(workspaceUid));
-    toast.success(`Switched to ${getWorkspaceDisplayName(workspaces.find((w) => w.uid === workspaceUid)?.name)}`);
-  };
-
-  const handleOpenWorkspace = async () => {
-    try {
-      await dispatch(openWorkspaceDialog());
-      toast.success('Workspace opened successfully');
-    } catch (error) {
-      toast.error(error.message || 'Failed to open workspace');
-    }
+    toast.success(t('APP.SWITCHED_WORKSPACE', { name: getWorkspaceDisplayName(workspaces.find((w) => w.uid === workspaceUid)?.name) }));
   };
 
   const handleCreateWorkspace = () => {
@@ -206,7 +200,6 @@ const AppTitleBar = () => {
                 {isPinned ? <IconPinned size={14} stroke={1.5} /> : <IconPin size={14} stroke={1.5} />}
               </ActionIcon>
             )}
-            {isActive && <IconCheck size={16} stroke={1.5} className="check-icon" />}
           </div>
         )
       };
@@ -220,12 +213,6 @@ const AppTitleBar = () => {
         leftSection: IconPlus,
         label: 'Create workspace',
         onClick: handleCreateWorkspace
-      },
-      {
-        id: 'open-workspace',
-        leftSection: IconFolder,
-        label: 'Open workspace',
-        onClick: handleOpenWorkspace
       },
       {
         id: 'import-workspace',
@@ -275,7 +262,7 @@ const AppTitleBar = () => {
         {/* Center section: Bruno logo + text */}
         <div className="titlebar-center">
           <Bruno width={18} />
-          <span className="bruno-text">AhaMan</span>
+          <span className="bruno-text">{t('APP.PRODUCT_NAME')}</span>
         </div>
 
         {/* Right section: Action buttons */}
@@ -284,13 +271,10 @@ const AppTitleBar = () => {
             {/* Cloud Auth */}
             <CloudAuthButton />
 
-            {/* Network Status */}
-            <NetworkStatusIndicator />
-
             {/* Toggle sidebar */}
             <ActionIcon
               onClick={handleToggleSidebar}
-              label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+              label={sidebarCollapsed ? t('APP.SHOW_SIDEBAR') : t('APP.HIDE_SIDEBAR')}
               size="lg"
               data-testid="toggle-sidebar-button"
             >
@@ -300,7 +284,7 @@ const AppTitleBar = () => {
             {/* Toggle devtools */}
             <ActionIcon
               onClick={handleToggleDevtools}
-              label={isConsoleOpen ? 'Hide devtools' : 'Show devtools'}
+              label={isConsoleOpen ? t('APP.HIDE_DEVTOOLS') : t('APP.SHOW_DEVTOOLS')}
               size="lg"
               data-testid="toggle-devtools-button"
             >
@@ -315,21 +299,21 @@ const AppTitleBar = () => {
               <button
                 className="window-control-btn minimize"
                 onClick={handleMinimize}
-                aria-label="Minimize"
+                aria-label={t('APP.MINIMIZE')}
               >
                 <IconMinus size={16} stroke={1} />
               </button>
               <button
                 className="window-control-btn maximize"
                 onClick={handleMaximize}
-                aria-label={isMaximized ? 'Restore' : 'Maximize'}
+                aria-label={isMaximized ? t('APP.RESTORE') : t('APP.MAXIMIZE')}
               >
                 {isMaximized ? <IconCopy size={14} stroke={1} /> : <IconSquare size={14} stroke={1} />}
               </button>
               <button
                 className="window-control-btn close"
                 onClick={handleClose}
-                aria-label="Close"
+                aria-label={t('COMMON.CLOSE')}
               >
                 <IconX size={16} stroke={1} />
               </button>

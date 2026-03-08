@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import MenuDropdown from 'ui/MenuDropdown';
 import { newHttpRequest, newGrpcRequest, newWsRequest } from 'providers/ReduxStore/slices/collections/actions';
@@ -10,6 +11,7 @@ import ActionIcon from 'ui/ActionIcon';
 
 const CreateUntitledRequest = ({ collectionUid, itemUid = null, onRequestCreated, placement = 'bottom' }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const collections = useSelector((state) => state.collections.collections);
   const collection = collections?.find((c) => c.uid === collectionUid);
 
@@ -29,10 +31,10 @@ const CreateUntitledRequest = ({ collectionUid, itemUid = null, onRequestCreated
       })
     )
       .then(() => {
-        toast.success('New request created!');
+        toast.success(t('REQUEST.NEW_REQUEST_CREATED'));
         onRequestCreated?.();
       })
-      .catch((err) => toast.error(err ? err.message : 'An error occurred while adding the request'));
+      .catch((err) => toast.error(err ? err.message : t('REQUEST.ERROR_ADDING_REQUEST')));
   }, [dispatch, collection, itemUid, onRequestCreated]);
 
   const handleCreateGraphQLRequest = useCallback(async () => {
@@ -58,10 +60,10 @@ const CreateUntitledRequest = ({ collectionUid, itemUid = null, onRequestCreated
       })
     )
       .then(() => {
-        toast.success('New request created!');
+        toast.success(t('REQUEST.NEW_REQUEST_CREATED'));
         onRequestCreated?.();
       })
-      .catch((err) => toast.error(err ? err.message : 'An error occurred while adding the request'));
+      .catch((err) => toast.error(err ? err.message : t('REQUEST.ERROR_ADDING_REQUEST')));
   }, [dispatch, collection, itemUid, onRequestCreated]);
 
   const handleCreateWebSocketRequest = useCallback(async () => {
@@ -79,10 +81,10 @@ const CreateUntitledRequest = ({ collectionUid, itemUid = null, onRequestCreated
       })
     )
       .then(() => {
-        toast.success('New request created!');
+        toast.success(t('REQUEST.NEW_REQUEST_CREATED'));
         onRequestCreated?.();
       })
-      .catch((err) => toast.error(err ? err.message : 'An error occurred while adding the request'));
+      .catch((err) => toast.error(err ? err.message : t('REQUEST.ERROR_ADDING_REQUEST')));
   }, [dispatch, collection, itemUid, onRequestCreated]);
 
   const handleCreateGrpcRequest = useCallback(async () => {
@@ -99,38 +101,38 @@ const CreateUntitledRequest = ({ collectionUid, itemUid = null, onRequestCreated
       })
     )
       .then(() => {
-        toast.success('New request created!');
+        toast.success(t('REQUEST.NEW_REQUEST_CREATED'));
         onRequestCreated?.();
       })
-      .catch((err) => toast.error(err ? err.message : 'An error occurred while adding the request'));
+      .catch((err) => toast.error(err ? err.message : t('REQUEST.ERROR_ADDING_REQUEST')));
   }, [dispatch, collection, itemUid, onRequestCreated]);
 
   const menuItems = useMemo(() => [
     {
       id: 'http',
-      label: 'HTTP',
+      label: t('REQUEST.TYPE_HTTP'),
       leftSection: <IconApi size={16} strokeWidth={2} />,
       onClick: handleCreateHttpRequest
     },
     {
       id: 'graphql',
-      label: 'GraphQL',
+      label: t('REQUEST.TYPE_GRAPHQL'),
       leftSection: <IconBrandGraphql size={16} strokeWidth={2} />,
       onClick: handleCreateGraphQLRequest
     },
     {
       id: 'websocket',
-      label: 'WebSocket',
+      label: t('REQUEST.TYPE_WEBSOCKET'),
       leftSection: <IconPlugConnected size={16} strokeWidth={2} />,
       onClick: handleCreateWebSocketRequest
     },
     {
       id: 'grpc',
-      label: 'gRPC',
+      label: t('REQUEST.TYPE_GRPC'),
       leftSection: <IconCode size={16} strokeWidth={2} />,
       onClick: handleCreateGrpcRequest
     }
-  ], [handleCreateHttpRequest, handleCreateGraphQLRequest, handleCreateWebSocketRequest, handleCreateGrpcRequest]);
+  ], [t, handleCreateHttpRequest, handleCreateGraphQLRequest, handleCreateWebSocketRequest, handleCreateGrpcRequest]);
 
   if (!collection) {
     return null;
@@ -142,7 +144,7 @@ const CreateUntitledRequest = ({ collectionUid, itemUid = null, onRequestCreated
       placement={placement}
       autoFocusFirstOption={true}
     >
-      <ActionIcon size="sm">
+      <ActionIcon size="sm" label="New request">
         <IconPlus size={16} strokeWidth={2} />
       </ActionIcon>
     </MenuDropdown>

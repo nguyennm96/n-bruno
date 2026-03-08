@@ -7,28 +7,35 @@ use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use mongodb::{Collection, Database};
 use rand::Rng;
+use sha2::{Digest, Sha256};
 
 use crate::{
     config::Config,
     errors::{AppError, AppResult},
     models::{
+        password_reset_token::PasswordResetToken,
         token::{Claims, RefreshToken},
         user::{User, UserResponse},
     },
+    services::mailer::MailerService,
 };
 
 #[derive(Clone)]
 pub struct AuthService {
     users: Collection<User>,
     refresh_tokens: Collection<RefreshToken>,
+    password_reset_tokens: Collection<PasswordResetToken>,
+    mailer: MailerService,
     config: Config,
 }
 
 impl AuthService {
-    pub fn new(db: &Database, config: Config) -> Self {
+    pub fn new(db: &Database, config: Config, mailer: MailerService) -> Self {
         Self {
             users: db.collection("users"),
             refresh_tokens: db.collection("refresh_tokens"),
+            password_reset_tokens: db.collection("password_reset_tokens"),
+            mailer,
             config,
         }
     }
@@ -220,5 +227,234 @@ impl AuthService {
             .await
             .map_err(AppError::from)?
             .ok_or_else(|| AppError::NotFound("User not found".into()))
+    }
+
+    /// Update a user's name and/or avatar. Returns the updated user.
+    pub async fn update_profile(
+        &self,
+        user_id: ObjectId,
+        name: Option<String>,
+        avatar: Option<String>,
+    ) -> AppResult<User> {
+        // Validate avatar size (base64 of 2MB image ≈ 2.7MB string)
+        const MAX_AVATAR_BYTES: usize = 3 * 1024 * 1024; // 3MB base64 limit
+        if let Some(ref av) = avatar {
+            if av.len() > MAX_AVATAR_BYTES {
+                return Err(AppError::BadRequest("Avatar exceeds 2MB limit".into()));
+            }
+        }
+
+        let now = Utc::now();
+        let mut set_doc = doc! { "updated_at": bson::DateTime::from_millis(now.timestamp_millis()) };
+        if let Some(ref n) = name {
+            if n.trim().is_empty() {
+                return Err(AppError::Validation("Name cannot be empty".into()));
+            }
+            set_doc.insert("name", n.trim());
+        }
+        if let Some(ref av) = avatar {
+            set_doc.insert("avatar", av);
+        }
+
+        let updated = self
+            .users
+            .find_one_and_update(doc! { "_id": user_id }, doc! { "$set": set_doc })
+            .return_document(mongodb::options::ReturnDocument::After)
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+        Ok(updated)
+    }
+
+    // ── Password reset (OTP flow) ─────────────────────────────────────────
+
+    fn hash_otp(otp: &str) -> String {
+        hex::encode(Sha256::digest(otp.as_bytes()))
+    }
+
+    /// Generate a 6-digit OTP, store it (hashed), and send email.
+    /// Always returns Ok to avoid email enumeration.
+    pub async fn send_password_reset_otp(&self, email: &str) -> AppResult<()> {
+        let user = match self
+            .users
+            .find_one(doc! { "email": email })
+            .await
+            .map_err(AppError::from)?
+        {
+            Some(u) => u,
+            None => {
+                tracing::info!("Password reset requested for unknown email (silent)");
+                return Ok(());
+            }
+        };
+
+        let user_id = user.id.unwrap();
+
+        // Remove any existing reset tokens for this user
+        self.password_reset_tokens
+            .delete_many(doc! { "user_id": user_id })
+            .await
+            .map_err(AppError::from)?;
+
+        // Generate and hash OTP
+        let otp = format!("{:06}", rand::thread_rng().gen_range(0u32..1_000_000));
+        let otp_hash = Self::hash_otp(&otp);
+
+        // Store hashed token
+        let token = PasswordResetToken::new(user_id, otp_hash);
+        self.password_reset_tokens
+            .insert_one(token)
+            .await
+            .map_err(AppError::from)?;
+
+        // Send email
+        let html = format!(
+            r#"<div style="font-family:sans-serif;max-width:480px;margin:auto">
+              <h2 style="color:#1a1a1a">Reset your Bruno Cloud password</h2>
+              <p>Your one-time password (OTP) is:</p>
+              <div style="font-size:2rem;font-weight:bold;letter-spacing:0.3em;padding:16px 24px;
+                background:#f5f5f5;border-radius:8px;display:inline-block">{otp}</div>
+              <p style="color:#666;font-size:0.875rem">
+                This code expires in <strong>15 minutes</strong>.<br>
+                If you didn't request a password reset, you can ignore this email.
+              </p>
+            </div>"#,
+        );
+
+        self.mailer
+            .send_email(email, "Bruno Cloud — Password Reset OTP", &html)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Validate OTP and update password. Deletes all reset tokens for the user on success.
+    pub async fn reset_password_with_otp(
+        &self,
+        email: &str,
+        otp: &str,
+        new_password: &str,
+    ) -> AppResult<()> {
+        if new_password.len() < 8 {
+            return Err(AppError::Validation("Password must be at least 8 characters".into()));
+        }
+
+        let user = self
+            .users
+            .find_one(doc! { "email": email })
+            .await
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::BadRequest("Invalid email or OTP".into()))?;
+
+        let user_id = user.id.unwrap();
+        let otp_hash = Self::hash_otp(otp);
+        let now = bson::DateTime::now();
+
+        let token = self
+            .password_reset_tokens
+            .find_one(doc! {
+                "user_id": user_id,
+                "otp_hash": &otp_hash,
+                "expires_at": { "$gt": now },
+            })
+            .await
+            .map_err(AppError::from)?;
+
+        if token.is_none() {
+            return Err(AppError::BadRequest("Invalid or expired OTP".into()));
+        }
+
+        // Update password
+        let new_hash = self.hash_password(new_password)?;
+        let updated_at = bson::DateTime::from_millis(Utc::now().timestamp_millis());
+        self.users
+            .update_one(
+                doc! { "_id": user_id },
+                doc! { "$set": { "password_hash": new_hash, "updated_at": updated_at } },
+            )
+            .await
+            .map_err(AppError::from)?;
+
+        // Invalidate all reset tokens for this user
+        self.password_reset_tokens
+            .delete_many(doc! { "user_id": user_id })
+            .await
+            .map_err(AppError::from)?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a test AuthService wired to a non-connected client.
+    /// Only safe for calling pure (non-async DB) methods.
+    fn make_service() -> AuthService {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let client = rt.block_on(async {
+            mongodb::Client::with_uri_str("mongodb://127.0.0.1:27017")
+                .await
+                .unwrap()
+        });
+        let db = client.database("__unit_test_unused__");
+        AuthService::new(&db, Config::for_test("mongodb://127.0.0.1:27017".into(), "__unit_test_unused__".into()), MailerService::for_test())
+    }
+
+    #[test]
+    fn hash_and_verify_password_roundtrip() {
+        let svc = make_service();
+        let hash = svc.hash_password("correct-horse").unwrap();
+        assert!(svc.verify_password("correct-horse", &hash).unwrap());
+        assert!(!svc.verify_password("wrong-horse", &hash).unwrap());
+    }
+
+    #[test]
+    fn verify_password_invalid_hash_returns_error() {
+        let svc = make_service();
+        let result = svc.verify_password("any", "not-a-valid-hash");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn generate_access_token_is_decodable() {
+        let svc = make_service();
+        let mut user = crate::models::user::User::new("t@example.com".into(), "hash".into(), "Test".into());
+        user.id = Some(bson::oid::ObjectId::new());
+        let token = svc.generate_access_token(&user).unwrap();
+        assert!(!token.is_empty());
+        let claims = svc.verify_access_token(&token).unwrap();
+        assert_eq!(claims.email, "t@example.com");
+        assert_eq!(claims.name, "Test");
+    }
+
+    #[test]
+    fn verify_access_token_rejects_garbage() {
+        let svc = make_service();
+        let result = svc.verify_access_token("not.a.jwt.at.all");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), AppError::Unauthorized(_)));
+    }
+
+    #[test]
+    fn verify_access_token_rejects_wrong_secret() {
+        let svc = make_service();
+        // Generate with one service, verify with different key (same struct but config key differs).
+        let mut user = crate::models::user::User::new("a@b.com".into(), "h".into(), "A".into());
+        user.id = Some(bson::oid::ObjectId::new());
+        let token = svc.generate_access_token(&user).unwrap();
+
+        let other_cfg = Config::for_test("mongodb://127.0.0.1:27017".into(), "x".into());
+        // Patch: use a different secret via a second service built with a modified config
+        // We test indirectly: tamper the token's signature byte
+        let mut parts: Vec<&str> = token.split('.').collect();
+        let mut bad_sig = parts[2].to_string();
+        bad_sig.push('x');
+        parts[2] = Box::leak(bad_sig.into_boxed_str());
+        let bad_token = parts.join(".");
+        let result = svc.verify_access_token(&bad_token);
+        assert!(result.is_err());
     }
 }

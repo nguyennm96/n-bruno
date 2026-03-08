@@ -1,15 +1,17 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import GradientCloseButton from './GradientCloseButton';
 import { IconVariable, IconSettings, IconRun, IconFolder, IconShieldLock, IconDatabase, IconWorld, IconHome } from '@tabler/icons';
 
 const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDraft }) => {
+  const { t } = useTranslation();
   const getTabInfo = (type, tabName) => {
     switch (type) {
       case 'collection-settings': {
         return (
           <>
             <IconSettings size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">Collection</span>
+            <span className="ml-1 tab-name">{t('REQUEST.SPECIAL_TAB.COLLECTION')}</span>
           </>
         );
       }
@@ -17,7 +19,7 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDra
         return (
           <>
             <IconSettings size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">Overview</span>
+            <span className="ml-1 tab-name">{t('REQUEST.SPECIAL_TAB.OVERVIEW')}</span>
           </>
         );
       }
@@ -25,7 +27,7 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDra
         return (
           <>
             <IconFolder size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">{tabName || 'Folder'}</span>
+            <span className="ml-1 tab-name">{tabName || t('REQUEST.SPECIAL_TAB.FOLDER')}</span>
           </>
         );
       }
@@ -33,7 +35,7 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDra
         return (
           <>
             <IconVariable size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">Variables</span>
+            <span className="ml-1 tab-name">{t('REQUEST.SPECIAL_TAB.VARIABLES')}</span>
           </>
         );
       }
@@ -41,7 +43,7 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDra
         return (
           <>
             <IconRun size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">Runner</span>
+            <span className="ml-1 tab-name">{t('REQUEST.SPECIAL_TAB.RUNNER')}</span>
           </>
         );
       }
@@ -49,7 +51,7 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDra
         return (
           <>
             <IconDatabase size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">Environments</span>
+            <span className="ml-1 tab-name">{t('REQUEST.SPECIAL_TAB.ENVIRONMENTS')}</span>
           </>
         );
       }
@@ -57,7 +59,7 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDra
         return (
           <>
             <IconWorld size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">Global Environments</span>
+            <span className="ml-1 tab-name">{t('REQUEST.SPECIAL_TAB.GLOBAL_ENVIRONMENTS')}</span>
           </>
         );
       }
@@ -65,7 +67,7 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDra
         return (
           <>
             <IconSettings size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">Preferences</span>
+            <span className="ml-1 tab-name">{t('REQUEST.SPECIAL_TAB.PREFERENCES')}</span>
           </>
         );
       }
@@ -73,7 +75,7 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDra
         return (
           <>
             <IconHome size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">Overview</span>
+            <span className="ml-1 tab-name">{t('REQUEST.SPECIAL_TAB.OVERVIEW')}</span>
           </>
         );
       }
@@ -81,7 +83,7 @@ const SpecialTab = ({ handleCloseClick, type, tabName, handleDoubleClick, hasDra
         return (
           <>
             <IconWorld size={14} strokeWidth={1.5} className="special-tab-icon flex-shrink-0" />
-            <span className="ml-1 tab-name">Environments</span>
+            <span className="ml-1 tab-name">{t('REQUEST.SPECIAL_TAB.ENVIRONMENTS')}</span>
           </>
         );
       }

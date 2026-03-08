@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { useTheme } from 'providers/Theme';
 import { useSelector } from 'react-redux';
 import get from 'lodash/get';
 import { updateResponseExampleResponse } from 'providers/ReduxStore/slices/collections';
+import { loadExampleBody } from 'providers/ReduxStore/slices/collections/actions';
 import CodeEditor from 'components/CodeEditor';
 import { getCodeMirrorModeBasedOnContentType } from 'utils/common/codemirror';
 import StyledWrapper from './StyledWrapper';
@@ -12,21 +13,37 @@ const ResponseExampleResponseContent = ({ editMode, item, collection, exampleUid
   const dispatch = useDispatch();
   const { displayedTheme } = useTheme();
   const preferences = useSelector((state) => state.app.preferences);
+  const bodyFetchedRef = useRef(false);
 
   const response = useMemo(() => {
     return item.draft ? get(item, 'draft.examples', []).find((e) => e.uid === exampleUid)?.response || {} : get(item, 'examples', []).find((e) => e.uid === exampleUid)?.response || {};
   }, [item, exampleUid]);
 
+  // Lazily fetch body from cloud when it hasn't been loaded yet
+  useEffect(() => {
+    if (bodyFetchedRef.current) return;
+    const bodyNotLoaded = response?.body?.content === undefined || response?.body?.content === null;
+    if (bodyNotLoaded) {
+      bodyFetchedRef.current = true;
+      dispatch(loadExampleBody(exampleUid, item.uid, collection.uid));
+    }
+  }, [exampleUid, item.uid, collection.uid, response?.body?.content, dispatch]);
+
   const getResponseContent = () => {
-    if (!response) {
+    if (!response?.body) {
       return '';
     }
 
-    if (!response.body) {
+    const content = response.body.content;
+    if (content === null || content === undefined) {
       return '';
     }
-
-    return response.body.content;
+    // Guard: CodeMirror requires a string value; if content is still an object
+    // (e.g. from an older Redux snapshot), stringify it rather than crashing.
+    if (typeof content !== 'string') {
+      return JSON.stringify(content, null, 2);
+    }
+    return content;
   };
 
   const getCodeMirrorMode = () => {

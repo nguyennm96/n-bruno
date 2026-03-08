@@ -45,9 +45,7 @@ const registerSystemMonitorIpc = require('./ipc/system-monitor');
 const registerWorkspaceIpc = require('./ipc/workspace');
 const registerCloudWorkspaceIpc = require('./ipc/cloudWorkspace');
 const registerApiSpecIpc = require('./ipc/apiSpec');
-const registerGitIpc = require('./ipc/git');
 const collectionWatcher = require('./app/collection-watcher');
-const WorkspaceWatcher = require('./app/workspace-watcher');
 const ApiSpecWatcher = require('./app/apiSpecsWatcher');
 const { loadWindowState, saveBounds, saveMaximized } = require('./utils/window');
 
@@ -61,13 +59,11 @@ const { cookiesStore } = require('./store/cookies');
 const onboardUser = require('./app/onboarding');
 const SystemMonitor = require('./app/system-monitor');
 const { getIsRunningInRosetta } = require('./utils/arch');
-const { handleAppProtocolUrl, getAppProtocolUrlFromArgv } = require('./utils/deeplink');
+const { handleAppProtocolUrl, getAppProtocolUrlFromArgv, setMainWindow } = require('./utils/deeplink');
 
 const lastOpenedCollections = new LastOpenedCollections();
 const systemMonitor = new SystemMonitor();
 const terminalManager = new TerminalManager();
-
-const workspaceWatcher = new WorkspaceWatcher();
 const apiSpecWatcher = new ApiSpecWatcher();
 
 // Reference: https://content-security-policy.com/
@@ -223,6 +219,9 @@ app.on('ready', async () => {
   if (maximized) {
     mainWindow.maximize();
   }
+
+  // Register mainWindow for OAuth callback routing
+  setMainWindow(mainWindow);
 
   ipcMain.on('renderer:window-minimize', () => {
     if (!isWindows && !isLinux) return;
@@ -450,12 +449,11 @@ app.on('ready', async () => {
   registerGlobalEnvironmentsIpc(mainWindow, globalEnvironmentsManager);
   registerCollectionsIpc(mainWindow, collectionWatcher);
   registerPreferencesIpc(mainWindow, collectionWatcher);
-  registerWorkspaceIpc(mainWindow, workspaceWatcher);
+  registerWorkspaceIpc(mainWindow);
   registerApiSpecIpc(mainWindow, apiSpecWatcher);
   registerNotificationsIpc(mainWindow, collectionWatcher);
   registerFilesystemIpc(mainWindow);
   registerSystemMonitorIpc(mainWindow, systemMonitor);
-  registerGitIpc(mainWindow);
 });
 
 // Quit the app once all windows are closed

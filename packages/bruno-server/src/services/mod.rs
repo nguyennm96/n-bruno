@@ -7,3 +7,7 @@ pub mod example;
 pub mod sync;
 pub mod import_export;
 pub mod public_docs;
+pub mod mailer;
+pub mod invite;
+pub mod ai;
+pub mod oauth;

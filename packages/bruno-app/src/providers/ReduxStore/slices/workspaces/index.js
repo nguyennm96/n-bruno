@@ -5,7 +5,8 @@ const DEFAULT_WORKSPACE_UID = 'default';
 
 const initialState = {
   workspaces: [],
-  activeWorkspaceUid: DEFAULT_WORKSPACE_UID
+  activeWorkspaceUid: DEFAULT_WORKSPACE_UID,
+  membersState: {} // { [workspaceUid]: { members, pendingInvites, loading } }
 };
 
 export const workspacesSlice = createSlice({
@@ -130,6 +131,27 @@ export const workspacesSlice = createSlice({
         workspace.scratchTempDirectory = scratchTempDirectory;
       }
     },
+    setWorkspaceMembers: (state, action) => {
+      const { workspaceUid, members } = action.payload;
+      if (!state.membersState[workspaceUid]) {
+        state.membersState[workspaceUid] = { members: [], pendingInvites: [], loading: false };
+      }
+      state.membersState[workspaceUid].members = members;
+    },
+    setWorkspacePendingInvites: (state, action) => {
+      const { workspaceUid, invites } = action.payload;
+      if (!state.membersState[workspaceUid]) {
+        state.membersState[workspaceUid] = { members: [], pendingInvites: [], loading: false };
+      }
+      state.membersState[workspaceUid].pendingInvites = invites;
+    },
+    setMembersLoading: (state, action) => {
+      const { workspaceUid, loading } = action.payload;
+      if (!state.membersState[workspaceUid]) {
+        state.membersState[workspaceUid] = { members: [], pendingInvites: [], loading: false };
+      }
+      state.membersState[workspaceUid].loading = loading;
+    },
     resetWorkspaces: () => initialState
   }
 });
@@ -145,7 +167,17 @@ export const {
   workspaceDotEnvUpdateEvent,
   setWorkspaceDotEnvVariables,
   setWorkspaceScratchCollection,
+  setWorkspaceMembers,
+  setWorkspacePendingInvites,
+  setMembersLoading,
   resetWorkspaces
 } = workspacesSlice.actions;
+
+export const selectWorkspaceMembers = (workspaceUid) => (state) =>
+  state.workspaces.membersState[workspaceUid]?.members || [];
+export const selectWorkspacePendingInvites = (workspaceUid) => (state) =>
+  state.workspaces.membersState[workspaceUid]?.pendingInvites || [];
+export const selectMembersLoading = (workspaceUid) => (state) =>
+  state.workspaces.membersState[workspaceUid]?.loading || false;
 
 export default workspacesSlice.reducer;

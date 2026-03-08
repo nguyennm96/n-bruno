@@ -12,12 +12,12 @@
     "build-storybook": "storybook build --config-dir storybook"
   },
   "dependencies": {
+    "@floating-ui/react": "^0.27.19",
     "@fontsource/inter": "^5.0.15",
     "@prantlf/jsonlint": "^16.0.0",
     "@reduxjs/toolkit": "^1.8.0",
     "@tabler/icons": "^1.46.0",
     "@testing-library/user-event": "^14.6.1",
-    "@tippyjs/react": "^4.2.6",
     "@tiptap/extension-bubble-menu": "^3.20.0",
     "@tiptap/extension-code-block-lowlight": "^3.20.0",
     "@tiptap/extension-image": "^3.20.0",
@@ -49,7 +49,6 @@
     "file-dialog": "^0.0.8",
     "file-saver": "^2.0.5",
     "formik": "^2.2.9",
-    "git-url-parse": "^16.1.0",
     "github-markdown-css": "^5.2.0",
     "graphiql": "3.7.1",
     "graphql": "^16.6.0",

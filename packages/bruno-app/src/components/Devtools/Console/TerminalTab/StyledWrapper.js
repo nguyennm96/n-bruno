@@ -22,7 +22,7 @@ const StyledWrapper = styled.div`
   .terminal-sessions-sidebar {
     width: 200px;
     min-width: 200px;
-    border-right: 1px solid ${(props) => props.theme.border || 'rgba(255, 255, 255, 0.08)'};
+    border-right: 1px solid ${(props) => props.theme.border?.border1 || 'rgba(255, 255, 255, 0.08)'};
     background: ${(props) => props.theme.sidebarBackground || props.theme.background};
     display: flex;
     flex-direction: column;
@@ -32,9 +32,9 @@ const StyledWrapper = styled.div`
   .terminal-sessions-header {
     padding: 6px 8px;
     font-weight: 600;
-    font-size: 13px;
+    font-size: ${(props) => props.theme.font.size.base};
     color: ${(props) => props.theme.text};
-    border-bottom: 1px solid ${(props) => props.theme.border || 'rgba(255, 255, 255, 0.08)'};
+    border-bottom: 1px solid ${(props) => props.theme.border?.border1 || 'rgba(255, 255, 255, 0.08)'};
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -66,7 +66,7 @@ const StyledWrapper = styled.div`
   .terminal-session-item {
     padding: 10px 12px;
     cursor: pointer;
-    border-bottom: 1px solid ${(props) => props.theme.border};
+    border-bottom: 1px solid ${(props) => props.theme.border?.border1};
     transition: background 0.2s;
     display: flex;
     flex-direction: column;
@@ -83,7 +83,7 @@ const StyledWrapper = styled.div`
   }
 
   .terminal-session-name {
-    font-size: 13px;
+    font-size: ${(props) => props.theme.font.size.base};
     font-weight: 500;
     color: ${(props) => props.theme.text};
     overflow: hidden;
@@ -92,7 +92,7 @@ const StyledWrapper = styled.div`
   }
 
   .terminal-session-path {
-    font-size: 11px;
+    font-size: ${(props) => props.theme.font.size.xs};
     color: ${(props) => props.theme.textSecondary || '#888'};
     overflow: hidden;
     text-overflow: ellipsis;
@@ -116,7 +116,7 @@ const StyledWrapper = styled.div`
     align-items: center;
     gap: 12px;
     color: #888;
-    font-size: 14px;
+    font-size: ${(props) => props.theme.font.size.md};
     z-index: 10;
 
     svg {

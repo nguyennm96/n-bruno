@@ -15,8 +15,10 @@ import Portal from 'components/Portal';
 import Dropdown from 'components/Dropdown';
 import StyledWrapper from './StyledWrapper';
 import Button from 'ui/Button';
+import { useTranslation } from 'react-i18next';
 
 const CloneCollectionItem = ({ collectionUid, item, onClose }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const workspaces = useSelector((state) => state.workspaces?.workspaces || []);
   const workspaceUid = useSelector((state) => state.workspaces?.activeWorkspaceUid);
@@ -40,27 +42,27 @@ const CloneCollectionItem = ({ collectionUid, item, onClose }) => {
     },
     validationSchema: Yup.object({
       name: Yup.string()
-        .min(1, 'must be at least 1 character')
-        .max(255, 'must be 255 characters or less')
-        .required('name is required'),
+        .min(1, t('SIDEBAR.VALIDATION.MIN_1_CHAR'))
+        .max(255, t('SIDEBAR.VALIDATION.MAX_255_CHARS'))
+        .required(t('SIDEBAR.VALIDATION.NAME_REQUIRED')),
       filename: Yup.string()
-        .min(1, 'must be at least 1 character')
-        .max(255, 'must be 255 characters or less')
-        .required('name is required')
+        .min(1, t('SIDEBAR.VALIDATION.MIN_1_CHAR'))
+        .max(255, t('SIDEBAR.VALIDATION.MAX_255_CHARS'))
+        .required(t('SIDEBAR.VALIDATION.NAME_REQUIRED'))
         .test('is-valid-name', function (value) {
           const isValid = validateName(value);
           return isValid ? true : this.createError({ message: validateNameError(value) });
         })
-        .test('not-reserved', `The file names "collection" and "folder" are reserved in bruno`, (value) => !['collection', 'folder'].includes(value))
+        .test('not-reserved', t('SIDEBAR.VALIDATION.RESERVED_FILE_NAMES'), (value) => !['collection', 'folder'].includes(value))
     }),
     onSubmit: (values) => {
       dispatch(cloneItem(values.name, values.filename, item.uid, collectionUid))
         .then(() => {
-          toast.success('Request cloned!');
+          isFolder ? toast.success(t('SIDEBAR.CLONE_FOLDER_SUCCESS')) : toast.success(t('SIDEBAR.CLONE_REQUEST_SUCCESS'));
           onClose();
         })
         .catch((err) => {
-          toast.error(err ? err.message : 'An error occurred while cloning the request');
+          toast.error(err ? err.message : t('SIDEBAR.CLONE_ITEM_ERROR'));
         });
     }
   });
@@ -90,20 +92,20 @@ const CloneCollectionItem = ({ collectionUid, item, onClose }) => {
       <StyledWrapper>
         <Modal
           size="md"
-          title={`Clone ${isFolder ? 'Folder' : 'Request'}`}
+          title={isFolder ? t('SIDEBAR.CLONE_FOLDER_TITLE') : t('SIDEBAR.CLONE_REQUEST_TITLE')}
           handleCancel={onClose}
           hideFooter
         >
           <form className="bruno-form" onSubmit={formik.handleSubmit}>
             <div>
               <label htmlFor="name" className="block font-medium">
-                {isFolder ? 'Folder' : 'Request'} Name
+                {isFolder ? t('SIDEBAR.FOLDER_NAME_LABEL') : t('SIDEBAR.REQUEST_NAME')}
               </label>
               <input
                 id="collection-item-name"
                 type="text"
                 name="name"
-                placeholder="Enter Item name"
+                placeholder={t('SIDEBAR.ITEM_NAME_PLACEHOLDER')}
                 ref={inputRef}
                 className="block textbox mt-2 w-full"
                 autoComplete="off"
@@ -123,20 +125,18 @@ const CloneCollectionItem = ({ collectionUid, item, onClose }) => {
               <div className="mt-4">
                 <div className="flex items-center justify-between">
                   <label htmlFor="filename" className="flex items-center font-medium">
-                    {isFolder ? 'Folder' : 'File'} Name <small className="font-normal text-muted ml-1">(on filesystem)</small>
+                    {isFolder ? t('SIDEBAR.FOLDER_NAME_LABEL') : t('SIDEBAR.FILE_NAME_LABEL')} <small className="font-normal text-muted ml-1">(on filesystem)</small>
                     { isFolder ? (
                       <Help width="300">
                         <p>
-                          You can choose to save the folder as a different name on your file system versus what is displayed in the app.
+                          {t('SIDEBAR.FOLDER_FILESYSTEM_HELP')}
                         </p>
                       </Help>
                     ) : (
                       <Help width="300">
-                        <p>
-                          Bruno saves each request as a file in your collection's folder.
-                        </p>
+                        <p>{t('SIDEBAR.FILE_SAVE_HINT')}</p>
                         <p className="mt-2">
-                          You can choose a file name different from your request's name or one compatible with filesystem rules.
+                          {t('SIDEBAR.FILENAME_HINT')}
                         </p>
                       </Help>
                     )}
@@ -163,7 +163,7 @@ const CloneCollectionItem = ({ collectionUid, item, onClose }) => {
                       id="file-name"
                       type="text"
                       name="filename"
-                      placeholder={isFolder ? 'Folder Name' : 'File Name'}
+                      placeholder={isFolder ? t('SIDEBAR.FOLDER_NAME_LABEL') : t('SIDEBAR.FILE_NAME_LABEL')}
                       className="!pr-10 block textbox mt-2 w-full"
                       autoComplete="off"
                       autoCorrect="off"
@@ -199,17 +199,17 @@ const CloneCollectionItem = ({ collectionUid, item, onClose }) => {
                         toggleShowFilesystemName(!showFilesystemName);
                       }}
                     >
-                      {showFilesystemName ? 'Hide Filesystem Name' : 'Show Filesystem Name'}
+                      {showFilesystemName ? t('SIDEBAR.HIDE_FILESYSTEM_NAME') : t('SIDEBAR.SHOW_FILESYSTEM_NAME')}
                     </div>
                   </Dropdown>
                 )}
               </div>
               <div className="flex justify-end">
                 <Button type="button" color="secondary" variant="ghost" onClick={onClose} className="mr-2">
-                  Cancel
+                  {t('COMMON.CANCEL')}
                 </Button>
                 <Button type="submit">
-                  Clone
+                  {t('COMMON.CLONE')}
                 </Button>
               </div>
             </div>

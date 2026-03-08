@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { get, cloneDeep, isArray } from 'lodash';
 import { IconTrash } from '@tabler/icons';
 import { useDispatch } from 'react-redux';
@@ -11,6 +12,7 @@ import SingleLineEditor from 'components/SingleLineEditor/index';
 
 const FileBody = ({ item, collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const { storedTheme } = useTheme();
   const params = item.draft ? get(item, 'draft.request.body.file') : get(item, 'request.body.file');
 
@@ -71,13 +73,13 @@ const FileBody = ({ item, collection }) => {
         <thead>
           <tr>
             <td>
-              <div className="flex items-center justify-center">File</div>
+              <div className="flex items-center justify-center">{t('REQUEST.FILE')}</div>
             </td>
             <td>
-              <div className="flex items-center justify-center">Content-Type</div>
+              <div className="flex items-center justify-center">{t('REQUEST.CONTENT_TYPE')}</div>
             </td>
             <td>
-              <div className="flex items-center justify-center">Selected</div>
+              <div className="flex items-center justify-center">{t('REQUEST.SELECTED')}</div>
             </td>
             <td></td>
           </tr>
@@ -154,7 +156,7 @@ const FileBody = ({ item, collection }) => {
       </table>
       <div>
         <button className="btn-add-param text-link pr-2 pt-3 select-none" onClick={addFile}>
-          + Add File
+          + {t('REQUEST.ADD_FILE')}
         </button>
       </div>
     </StyledWrapper>

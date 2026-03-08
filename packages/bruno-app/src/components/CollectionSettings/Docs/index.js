@@ -1,4 +1,5 @@
 import get from 'lodash/get';
+import { useTranslation } from 'react-i18next';
 import { updateCollectionDocs } from 'providers/ReduxStore/slices/collections';
 import { useDispatch } from 'react-redux';
 import { saveCollectionSettings } from 'providers/ReduxStore/slices/collections/actions';
@@ -19,6 +20,7 @@ Add usage instructions here...`;
 
 const Docs = ({ collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const docs = collection.draft?.root ? get(collection, 'draft.root.docs', '') : get(collection, 'root.docs', '');
 
   const onEdit = (value) => {
@@ -39,10 +41,10 @@ const Docs = ({ collection }) => {
       <div className="flex flex-row w-full justify-between items-center mb-4">
         <div className="text-lg font-medium flex items-center gap-2">
           <IconFileText size={20} strokeWidth={1.5} />
-          Documentation
+          {t('COLLECTION.DOCS_SETTINGS.TITLE')}
         </div>
         <Button type="button" onClick={onSave}>
-          Save
+          {t('COMMON.SAVE')}
         </Button>
       </div>
       <div className="flex-1 min-h-0">

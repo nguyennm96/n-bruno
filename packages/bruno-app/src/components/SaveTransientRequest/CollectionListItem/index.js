@@ -5,7 +5,7 @@ import { areItemsLoading } from 'utils/collections';
 
 const CollectionListItem = memo(({ collectionUid, collectionPath, collectionName, isSelected, onSelect }) => {
   const collection = useSelector((state) =>
-    state.collections.collections.find((c) => c.uid === collectionUid || c.pathname === collectionPath)
+    state.collections.collections.find((c) => c.uid === collectionUid)
   );
 
   const { isFullyLoaded, isLoading } = useMemo(() => {

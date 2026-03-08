@@ -1,0 +1,261 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                ║
+║                    WORKSPACE.YML ANALYSIS - START HERE                         ║
+║                                                                                ║
+║  Complete documentation of ALL places that read, write, validate, or depend   ║
+║  on workspace.yml in the Bruno codebase. Ready for IndexedDB migration.       ║
+║                                                                                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+
+📚 CHOOSE YOUR READING PATH
+────────────────────────────────────────────────────────────────────────────────
+
+If you have 5 MINUTES:
+  Read: QUICK_REFERENCE.md
+  Gives: One-page cheat sheet with all critical info
+  Outcome: Basic understanding of workspace.yml and key files
+
+If you have 30 MINUTES:
+  1. README_WORKSPACE_YML.md (10 min) - Navigation guide
+  2. WORKSPACE_YML_SUMMARY.txt (5 min) - 10 key points
+  3. QUICK_REFERENCE.md (5 min) - Cheat sheet
+  4. WORKSPACE_YML_DATAFLOW.md (10 min) - Key flowcharts
+  Outcome: Complete understanding, ready to plan migration
+
+If you have 2 HOURS (Full deep dive):
+  1. README_WORKSPACE_YML.md - Complete index and guide
+  2. WORKSPACE_YML_SUMMARY.txt - Executive summary
+  3. WORKSPACE_YML_ANALYSIS.md - Technical analysis (all 12 sections)
+  4. WORKSPACE_YML_DATAFLOW.md - All 6 flowcharts with sequences
+  5. WORKSPACE_YML_CODE_REFERENCE.md - Code reference (5 files)
+  6. QUICK_REFERENCE.md - For bookmarking
+  Outcome: Expert-level understanding, ready to implement migration
+
+
+📁 ALL DOCUMENTS (in this directory)
+────────────────────────────────────────────────────────────────────────────────
+
+✓ START_HERE.txt (this file)
+  └─ 2 min read, navigation guide
+
+✓ QUICK_REFERENCE.md (8 KB)
+  └─ One-page cheat sheet - BOOKMARK THIS!
+
+✓ README_WORKSPACE_YML.md (12 KB)
+  └─ Complete navigation guide with index and checklist
+
+✓ WORKSPACE_YML_SUMMARY.txt (8 KB)
+  └─ 10-point executive summary
+
+✓ WORKSPACE_YML_ANALYSIS.md (20 KB)
+  └─ 12-section deep technical analysis with all details
+
+✓ WORKSPACE_YML_DATAFLOW.md (28 KB)
+  └─ 6 ASCII flowcharts showing complete data flows
+
+✓ WORKSPACE_YML_CODE_REFERENCE.md (20 KB)
+  └─ Actual code with line numbers for all key files
+
+
+🎯 YOUR 8 QUESTIONS - ANSWERED IN DOCUMENTS
+────────────────────────────────────────────────────────────────────────────────
+
+Q1: What does workspace-config.js export? What reads/writes workspace.yml?
+A:  See WORKSPACE_YML_CODE_REFERENCE.md - Section 1
+    ✓ 20+ functions exported
+    ✓ Complete code for each with line numbers
+    ✓ All read operations: readWorkspaceConfig, getWorkspaceCollections, etc.
+    ✓ All write operations: writeWorkspaceConfig, addCollectionToWorkspace, etc.
+
+Q2: workspace.js - Which handlers read/write workspace.yml? Startup?
+A:  See WORKSPACE_YML_CODE_REFERENCE.md - Section 2 + WORKSPACE_YML_DATAFLOW.md
+    ✓ Table of ALL 12 operations with read/write indicators
+    ✓ Complete startup sequence at main:renderer-ready (line 650)
+    ✓ Step-by-step flow from line 663-711
+    ✓ Add collection handler at line 531
+    ✓ Remove collection handler at line 571
+
+Q3: workspace-watcher.js - How does it use workspace.yml?
+A:  See WORKSPACE_YML_CODE_REFERENCE.md - Section 3
+    ✓ Monitors workspace.yml with chokidar
+    ✓ Code at line 150-158
+    ✓ Re-reads on change and broadcasts to renderer
+    ✓ Detects external changes automatically
+
+Q4: default-workspace.js - Does it create workspace.yml?
+A:  See WORKSPACE_YML_CODE_REFERENCE.md - Section 4
+    ✓ YES - creates at line 291
+    ✓ YES - validates at line 164
+    ✓ Handles recovery and migration
+    ✓ Code examples included
+
+Q5: Exact startup sequence - does main read workspace.yml BEFORE renderer?
+A:  See WORKSPACE_YML_DATAFLOW.md - Section 1 (complete flowchart) + ANALYSIS
+    ✓ YES - main reads BEFORE rendering
+    ✓ Sequence: app launch → ipc handlers → renderer ready → main reads
+    ✓ Step-by-step at line 650-711 workspace.js
+    ✓ Line 663 = FIRST read (default workspace)
+    ✓ Line 685 = SECOND read (last opened workspaces)
+
+Q6: What data is in workspace.yml NOT already in IDB?
+A:  See WORKSPACE_YML_ANALYSIS.md - Section 6
+    ✓ collections: [{name, path, remote?}] - COLLECTION PATHS
+    ✓ activeEnvironmentUid: "uid" - SELECTED ENVIRONMENT
+    ✓ info: {name, type} - WORKSPACE METADATA
+    ✓ docs: "..." - WORKSPACE DOCUMENTATION
+    ✓ Currently: NO IDB sync, workspace.yml is PRIMARY
+
+Q7: How does adding a collection work? workspace.yml AND IDB?
+A:  See WORKSPACE_YML_DATAFLOW.md - Section 2 (complete flowchart)
+    ✓ User clicks → IPC invoke → main reads workspace.yml
+    ✓ Modifies collections array → writes workspace.yml
+    ✓ Sends update to renderer via IPC
+    ✓ Answer: ONLY writes workspace.yml, NOT IDB
+    ✓ workspace.yml is PRIMARY source of truth
+
+Q8: Primary source of truth - workspace.yml or IDB?
+A:  See WORKSPACE_YML_ANALYSIS.md - Executive Summary (top)
+    ✓ workspace.yml is PRIMARY source of truth
+    ✓ Main process reads on startup
+    ✓ All modifications written back
+    ✓ File watchers monitor it
+    ✓ No IDB fallback or sync
+
+
+🗺️  NAVIGATION BY TASK
+────────────────────────────────────────────────────────────────────────────────
+
+"I need quick overview"
+  → Read QUICK_REFERENCE.md (5 min)
+
+"I need to understand the big picture"
+  → Read README_WORKSPACE_YML.md (10 min)
+  → Read WORKSPACE_YML_SUMMARY.txt (5 min)
+
+"I need to understand how startup works"
+  → Read WORKSPACE_YML_DATAFLOW.md - Section 1
+  → Read WORKSPACE_YML_ANALYSIS.md - Section 5
+
+"I need to find specific code"
+  → Use WORKSPACE_YML_CODE_REFERENCE.md - has all line numbers
+  → Or search in QUICK_REFERENCE.md for function names
+
+"I need to migrate to IndexedDB"
+  → Read README_WORKSPACE_YML.md - migration checklist
+  → Read WORKSPACE_YML_ANALYSIS.md - Section 10 (what breaks)
+  → Reference WORKSPACE_YML_CODE_REFERENCE.md - for each file to change
+
+"I need to understand data flow"
+  → Read WORKSPACE_YML_DATAFLOW.md - 6 flowcharts
+  → See WORKSPACE_YML_ANALYSIS.md - data models
+
+"I need actual code examples"
+  → Read WORKSPACE_YML_CODE_REFERENCE.md - all with line numbers
+
+
+📊 WHAT YOU'LL LEARN
+────────────────────────────────────────────────────────────────────────────────
+
+✓ What workspace.yml contains (exact YAML structure)
+✓ Why it's the source of truth
+✓ How main process reads it on startup
+✓ How every operation modifies it
+✓ How file watchers detect changes
+✓ How concurrency is controlled (file locks)
+✓ How IPC communication works
+✓ Why renderer never reads it directly
+✓ What would break if removed
+✓ What all 12 operations do
+✓ Complete startup sequence
+✓ All critical line numbers
+✓ All code snippets for reference
+✓ Complete migration roadmap
+
+
+🔑 KEY FACTS YOU'LL DISCOVER
+────────────────────────────────────────────────────────────────────────────────
+
+1. workspace.yml is on-disk, main process reads it on startup
+2. All modifications written back to workspace.yml immediately
+3. Renderer never reads workspace.yml directly
+4. File watchers detect external changes and notify renderer
+5. activeEnvironmentUid is persisted in workspace.yml
+6. Collections are stored as REFERENCES (paths) in workspace.yml
+7. Default workspace created automatically if missing
+8. Validation REQUIRES workspace.yml to exist (line 174+)
+9. All writes use file locks to prevent race conditions
+10. IPC is sole communication path between renderer and main
+
+
+✅ HOW TO USE THESE DOCUMENTS
+────────────────────────────────────────────────────────────────────────────────
+
+AS REFERENCE:
+  → Use QUICK_REFERENCE.md as bookmark for quick lookup
+  → Use README_WORKSPACE_YML.md for navigation
+  → Use WORKSPACE_YML_CODE_REFERENCE.md for code locations
+
+AS LEARNING MATERIAL:
+  → Read WORKSPACE_YML_SUMMARY.txt first (5 min overview)
+  → Read WORKSPACE_YML_ANALYSIS.md for depth (30 min)
+  → Review WORKSPACE_YML_DATAFLOW.md for sequences (15 min)
+
+AS IMPLEMENTATION GUIDE:
+  → Use README_WORKSPACE_YML.md - migration checklist
+  → Reference WORKSPACE_YML_CODE_REFERENCE.md - code to change
+  → Check WORKSPACE_YML_DATAFLOW.md - for operation sequences
+  → Read WORKSPACE_YML_ANALYSIS.md - for impact analysis
+
+FOR DEBUGGING:
+  → Use QUICK_REFERENCE.md - common errors section
+  → Check WORKSPACE_YML_CODE_REFERENCE.md - find function location
+  → Review WORKSPACE_YML_DATAFLOW.md - understand flow
+
+
+📋 COMPLETION CHECKLIST
+────────────────────────────────────────────────────────────────────────────────
+
+After reading relevant documents, you should be able to:
+
+[  ] Explain what workspace.yml contains
+[  ] Describe the startup sequence
+[  ] List all operations that read workspace.yml
+[  ] List all operations that write workspace.yml
+[  ] Explain why removing workspace.yml breaks everything
+[  ] Describe how activeEnvironmentUid is managed
+[  ] Explain how collections are referenced
+[  ] List all critical line numbers
+[  ] Plan the IndexedDB migration
+[  ] Identify all files that need changes
+[  ] Understand the data flow from UI to disk
+[  ] Explain concurrency control mechanism
+
+
+🚀 START READING
+────────────────────────────────────────────────────────────────────────────────
+
+For 5-minute overview:
+  → Open: QUICK_REFERENCE.md
+
+For 30-minute understanding:
+  → Open: README_WORKSPACE_YML.md
+
+For complete deep dive:
+  → Start: README_WORKSPACE_YML.md (navigation)
+  → Then: WORKSPACE_YML_SUMMARY.txt
+  → Then: WORKSPACE_YML_ANALYSIS.md
+  → Then: WORKSPACE_YML_DATAFLOW.md
+  → Then: WORKSPACE_YML_CODE_REFERENCE.md
+
+For migration implementation:
+  → Check: README_WORKSPACE_YML.md migration checklist
+  → Reference: WORKSPACE_YML_CODE_REFERENCE.md
+  → Verify: WORKSPACE_YML_DATAFLOW.md
+
+
+════════════════════════════════════════════════════════════════════════════════
+
+          Choose your path above and start reading. All answers are ready!
+
+════════════════════════════════════════════════════════════════════════════════

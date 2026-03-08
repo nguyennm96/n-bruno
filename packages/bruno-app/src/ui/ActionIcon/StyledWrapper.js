@@ -26,7 +26,7 @@ const StyledWrapper = styled.button`
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.1s ease, color 0.1s ease, border-color 0.15s ease, transform 0.1s ease;
   padding: 0;
 
   width: ${(props) => sizeMap[props.$size] || props.$size}px;
@@ -40,6 +40,10 @@ const StyledWrapper = styled.button`
 
   svg {
     stroke: currentColor;
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.9);
   }
 
   &:disabled {

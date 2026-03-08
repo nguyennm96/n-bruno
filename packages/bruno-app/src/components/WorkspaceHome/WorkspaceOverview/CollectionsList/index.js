@@ -12,8 +12,10 @@ import DeleteCollection from 'components/Sidebar/Collections/Collection/DeleteCo
 import ShareCollection from 'components/ShareCollection';
 import Dropdown from 'components/Dropdown';
 import StyledWrapper from './StyledWrapper';
+import { useTranslation } from 'react-i18next';
 
 const CollectionsList = ({ workspace }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { collections } = useSelector((state) => state.collections);
   const dropdownRefs = useRef({});
@@ -37,9 +39,7 @@ const CollectionsList = ({ workspace }) => {
     });
 
     return filteredCollections.map((wc) => {
-      const loadedCollection = collections.find(
-        (c) => normalizePath(c.pathname) === normalizePath(wc.path)
-      );
+      const loadedCollection = collections.find((c) => c.uid === wc.uid);
 
       if (loadedCollection) {
         return {
@@ -50,9 +50,8 @@ const CollectionsList = ({ workspace }) => {
       }
 
       return {
-        uid: `unloaded-${wc.path}`,
+        uid: wc.uid,
         name: wc.name,
-        pathname: wc.path,
         items: [],
         environments: [],
         isGitBacked: !!wc.remote,
@@ -81,9 +80,9 @@ const CollectionsList = ({ workspace }) => {
 
     if (collection.isLoaded === false) {
       if (collection.isGitBacked) {
-        toast.error(`Collection "${collection.name}" needs to be cloned first`);
+        toast.error(t('WORKSPACE.COLLECTION_NEEDS_CLONE', { name: collection.name }));
       } else {
-        toast.error(`Collection "${collection.name}" does not exist on disk`);
+        toast.error(t('WORKSPACE.COLLECTION_NOT_ON_DISK', { name: collection.name }));
       }
       return;
     }
@@ -108,7 +107,7 @@ const CollectionsList = ({ workspace }) => {
   const handleRenameCollection = (collection) => {
     dropdownRefs.current[collection.uid]?.hide();
     if (collection.isLoaded === false) {
-      toast.error('Cannot rename collections that are not cloned yet');
+      toast.error(t('WORKSPACE.CANNOT_RENAME_UNCLONED'));
       return;
     }
     setSelectedCollectionUid(collection.uid);
@@ -118,7 +117,7 @@ const CollectionsList = ({ workspace }) => {
   const handleShareCollection = (collection) => {
     dropdownRefs.current[collection.uid]?.hide();
     if (collection.isLoaded === false) {
-      toast.error('Please clone this collection first before sharing it');
+      toast.error(t('WORKSPACE.CLONE_BEFORE_SHARE'));
       return;
     }
 
@@ -137,7 +136,7 @@ const CollectionsList = ({ workspace }) => {
   const handleRemoveCollection = (collection) => {
     dropdownRefs.current[collection.uid]?.hide();
     if (collection.isLoaded === false) {
-      toast.error('Cannot remove collections that are not loaded');
+      toast.error(t('WORKSPACE.CANNOT_REMOVE_UNLOADED'));
       return;
     }
     setSelectedCollectionUid(collection.uid);
@@ -147,7 +146,7 @@ const CollectionsList = ({ workspace }) => {
   const handleDeleteCollection = (collection) => {
     dropdownRefs.current[collection.uid]?.hide();
     if (collection.isLoaded === false) {
-      toast.error('Cannot delete collections that are not loaded');
+      toast.error(t('WORKSPACE.CANNOT_DELETE_UNLOADED'));
       return;
     }
     setSelectedCollectionUid(collection.uid);
@@ -158,7 +157,7 @@ const CollectionsList = ({ workspace }) => {
     dropdownRefs.current[collection.uid]?.hide();
     dispatch(showInFolder(collection.pathname)).catch((error) => {
       console.error('Error opening the folder', error);
-      toast.error('Error opening the folder');
+      toast.error(t('WORKSPACE.ERROR_OPENING_FOLDER'));
     });
   };
 
@@ -209,8 +208,8 @@ const CollectionsList = ({ workspace }) => {
         {workspaceCollections.length === 0 ? (
           <div className="empty-state">
             <IconBox size={32} strokeWidth={1.5} className="empty-icon" />
-            <h3 className="empty-title">No collections yet</h3>
-            <p className="empty-description">Create your first collection or open an existing one to get started.</p>
+            <h3 className="empty-title">{t('WORKSPACE.NO_COLLECTIONS')}</h3>
+            <p className="empty-description">{t('WORKSPACE.NO_COLLECTIONS_DESC')}</p>
           </div>
         ) : (
           workspaceCollections.map((collection, index) => (
@@ -244,7 +243,7 @@ const CollectionsList = ({ workspace }) => {
                       }}
                     >
                       <IconEdit size={16} strokeWidth={1.5} />
-                      <span>Rename</span>
+                      <span>{t('COMMON.RENAME')}</span>
                     </div>
                     <div
                       className="dropdown-item"
@@ -254,7 +253,7 @@ const CollectionsList = ({ workspace }) => {
                       }}
                     >
                       <IconShare size={16} strokeWidth={1.5} />
-                      <span>Share</span>
+                      <span>{t('WORKSPACE.SHARE')}</span>
                     </div>
                     <div
                       className="dropdown-item"
@@ -274,7 +273,7 @@ const CollectionsList = ({ workspace }) => {
                       }}
                     >
                       <IconX size={16} strokeWidth={1.5} />
-                      <span>Remove</span>
+                      <span>{t('WORKSPACE.REMOVE')}</span>
                     </div>
                     <div
                       className="dropdown-item delete-item"
@@ -284,7 +283,7 @@ const CollectionsList = ({ workspace }) => {
                       }}
                     >
                       <IconTrash size={16} strokeWidth={1.5} />
-                      <span>Delete</span>
+                      <span>{t('COMMON.DELETE')}</span>
                     </div>
                   </div>
                 </Dropdown>

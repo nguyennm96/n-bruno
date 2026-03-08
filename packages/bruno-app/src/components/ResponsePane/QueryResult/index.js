@@ -1,4 +1,5 @@
 import { debounce } from 'lodash';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from 'providers/Theme/index';
 import React, { useMemo, useState } from 'react';
 import { formatResponse, getContentType } from 'utils/common';
@@ -100,6 +101,7 @@ const QueryResult = ({
   selectedFormat, // one of the options in PREVIEW_FORMAT_OPTIONS
   selectedTab // 'editor' or 'preview'
 }) => {
+  const { t } = useTranslation();
   const contentType = getContentType(headers);
   const [filter, setFilter] = useState(null);
   const [showLargeResponse, setShowLargeResponse] = useState(false);
@@ -183,8 +185,8 @@ const QueryResult = ({
 
           {error && typeof error === 'string' && error.toLowerCase().includes('self signed certificate') ? (
             <div className="mt-6 muted text-xs">
-              You can disable SSL verification in the Preferences. <br />
-              To open the Preferences, click on the gear icon in the bottom left corner.
+              {t('RESPONSE_PANE.SSL_HINT')} <br />
+              {t('RESPONSE_PANE.PREFERENCES_HINT')}
             </div>
           ) : null}
         </div>

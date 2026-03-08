@@ -9,6 +9,10 @@ class ExampleService {
         const res = await this.client.getClient().post(`/api/items/${itemUid}/examples`, data);
         return res.data.data;
     }
+    async get(exampleUid) {
+        const res = await this.client.getClient().get(`/api/examples/${exampleUid}`);
+        return res.data.data;
+    }
     async list(itemUid) {
         const res = await this.client.getClient().get(`/api/items/${itemUid}/examples`);
         return res.data.data;

@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef, forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import find from 'lodash/find';
 import Dropdown from 'components/Dropdown';
 import { IconWorld, IconDatabase, IconCaretDown } from '@tabler/icons';
@@ -14,16 +15,6 @@ import CreateGlobalEnvironment from 'components/WorkspaceHome/WorkspaceEnvironme
 import ToolHint from 'components/ToolHint';
 import StyledWrapper from './StyledWrapper';
 import { transparentize, toColorString, parseToRgb } from 'polished';
-
-const TABS = [
-  { id: 'collection', label: 'Collection', icon: <IconDatabase size={16} strokeWidth={1.5} /> },
-  { id: 'global', label: 'Global', icon: <IconWorld size={16} strokeWidth={1.5} /> }
-];
-
-const EMPTY_STATE_DESCRIPTIONS = {
-  collection: 'Create your first environment to begin working with your collection.',
-  global: 'Create your first global environment to begin working across collections.'
-};
 
 /**
  * Generates background color with transparency for environment badges
@@ -98,7 +89,7 @@ const EnvironmentBadge = ({ environment, icon: Icon }) => {
 /**
  * Dropdown trigger component showing active environments
  */
-const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv }, ref) => {
+const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv, noEnvironmentLabel }, ref) => {
   const hasAnyEnv = collectionEnv || globalEnv;
 
   // Empty state - no environments selected
@@ -109,7 +100,7 @@ const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv }, ref) => {
         className="current-environment flex align-center justify-center cursor-pointer bg-transparent no-environments"
         data-testid="environment-selector-trigger"
       >
-        <span className="env-text-inactive max-w-36 truncate no-wrap">No Environment</span>
+        <span className="env-text-inactive max-w-36 truncate no-wrap">{noEnvironmentLabel}</span>
         <IconCaretDown className="caret flex items-center justify-center" size={12} strokeWidth={2} />
       </div>
     );
@@ -176,12 +167,29 @@ const DropdownTrigger = forwardRef(({ collectionEnv, globalEnv }, ref) => {
 
 const EnvironmentSelector = ({ collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const dropdownTippyRef = useRef();
   const [activeTab, setActiveTab] = useState('collection');
   const [showCreateGlobalModal, setShowCreateGlobalModal] = useState(false);
   const [showImportGlobalModal, setShowImportGlobalModal] = useState(false);
   const [showCreateCollectionModal, setShowCreateCollectionModal] = useState(false);
   const [showImportCollectionModal, setShowImportCollectionModal] = useState(false);
+
+  const TABS = useMemo(
+    () => [
+      { id: 'collection', label: t('ENVIRONMENTS.TABS.COLLECTION'), icon: <IconDatabase size={16} strokeWidth={1.5} /> },
+      { id: 'global', label: t('ENVIRONMENTS.TABS.GLOBAL'), icon: <IconWorld size={16} strokeWidth={1.5} /> }
+    ],
+    [t]
+  );
+
+  const EMPTY_STATE_DESCRIPTIONS = useMemo(
+    () => ({
+      collection: t('ENVIRONMENTS.EMPTY_STATE.COLLECTION'),
+      global: t('ENVIRONMENTS.EMPTY_STATE.GLOBAL')
+    }),
+    [t]
+  );
 
   const globalEnvironments = useSelector((state) => state.globalEnvironments.globalEnvironments);
   const activeGlobalEnvironmentUid = useSelector((state) => state.globalEnvironments.activeGlobalEnvironmentUid);
@@ -212,11 +220,11 @@ const EnvironmentSelector = ({ collection }) => {
 
     dispatch(action)
       .then(() => {
-        toast.success(environment ? `Environment changed to ${environment.name}` : 'No Environments are active now');
+        toast.success(environment ? t('ENVIRONMENTS.CHANGED', { name: environment.name }) : t('ENVIRONMENTS.EMPTY_STATE.COLLECTION'));
         hideDropdown();
       })
       .catch(() => {
-        toast.error('An error occurred while selecting the environment');
+        toast.error(t('ENVIRONMENTS.SELECT_ERROR'));
       });
   };
 
@@ -265,7 +273,7 @@ const EnvironmentSelector = ({ collection }) => {
       <div className="environment-selector flex align-center cursor-pointer">
         <Dropdown
           onCreate={(ref) => (dropdownTippyRef.current = ref)}
-          icon={<DropdownTrigger collectionEnv={activeCollectionEnvironment} globalEnv={activeGlobalEnvironment} />}
+          icon={<DropdownTrigger collectionEnv={activeCollectionEnvironment} globalEnv={activeGlobalEnvironment} noEnvironmentLabel={t('ENVIRONMENTS.NO_ENVIRONMENT')} />}
           placement="bottom-end"
         >
           {/* Tab Headers */}

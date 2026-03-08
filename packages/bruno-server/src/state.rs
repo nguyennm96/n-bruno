@@ -1,7 +1,10 @@
+use mongodb::Database;
+
 use crate::{
     config::Config,
     services::{
         auth::AuthService,
+        ai::AiService,
         collection::CollectionService,
         environment::EnvironmentService,
         example::ExampleService,
@@ -10,7 +13,9 @@ use crate::{
             openapi::OpenApiService,
             postman::PostmanService,
         },
+        invite::InviteService,
         item::ItemService,
+        oauth::OauthService,
         public_docs::PublicDocsService,
         sync::SyncService,
         workspace::WorkspaceService,
@@ -21,8 +26,11 @@ use crate::{
 #[derive(Clone)]
 pub struct AppState {
     pub config: Config,
+    pub db: Database,
     pub auth_service: AuthService,
+    pub oauth_service: OauthService,
     pub workspace_service: WorkspaceService,
+    pub invite_service: InviteService,
     pub collection_service: CollectionService,
     pub item_service: ItemService,
     pub environment_service: EnvironmentService,
@@ -35,4 +43,6 @@ pub struct AppState {
     pub insomnia_service: InsomniaService,
     // Public Documentation
     pub public_docs_service: PublicDocsService,
+    // AI
+    pub ai_service: AiService,
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Portal from 'components/Portal/index';
 import Modal from 'components/Modal/index';
 import toast from 'react-hot-toast';
@@ -9,6 +10,7 @@ import { renameWorkspaceAction } from 'providers/ReduxStore/slices/workspaces/ac
 
 const RenameWorkspace = ({ onClose, workspace }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const { workspaces } = useSelector((state) => state.workspaces);
   const inputRef = useRef();
 
@@ -19,10 +21,10 @@ const RenameWorkspace = ({ onClose, workspace }) => {
     },
     validationSchema: Yup.object({
       name: Yup.string()
-        .min(1, 'must be at least 1 character')
-        .max(255, 'must be 255 characters or less')
-        .required('name is required')
-        .test('unique-name', 'A workspace with this name already exists', function (value) {
+        .min(1, t('WORKSPACE.RENAME_MIN_CHARS'))
+        .max(255, t('WORKSPACE.RENAME_MAX_CHARS'))
+        .required(t('WORKSPACE.RENAME_NAME_REQUIRED'))
+        .test('unique-name', t('WORKSPACE.RENAME_DUPLICATE_NAME'), function (value) {
           if (!value) return true;
           return !workspaces.some((w) =>
             w.uid !== workspace.uid && w.name.toLowerCase() === value.toLowerCase()
@@ -39,7 +41,7 @@ const RenameWorkspace = ({ onClose, workspace }) => {
           onClose();
         })
         .catch((error) => {
-          toast.error(error?.message || 'An error occurred while renaming the workspace');
+          toast.error(error?.message || t('WORKSPACE.RENAME_ERROR'));
         });
     }
   });
@@ -59,16 +61,14 @@ const RenameWorkspace = ({ onClose, workspace }) => {
     <Portal>
       <Modal
         size="md"
-        title="Rename Workspace"
-        confirmText="Rename"
+        title={t('WORKSPACE.RENAME_TITLE')}
+        confirmText={t('WORKSPACE.RENAME_TITLE')}
         handleConfirm={onSubmit}
         handleCancel={onClose}
       >
         <form className="bruno-form" onSubmit={(e) => e.preventDefault()}>
           <div>
-            <label htmlFor="workspace-name" className="block font-semibold">
-              Workspace Name
-            </label>
+            <label htmlFor="workspace-name" className="block font-semibold">{t('WORKSPACE.RENAME_LABEL')}</label>
             <input
               id="workspace-name"
               type="text"

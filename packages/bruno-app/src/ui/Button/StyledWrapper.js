@@ -215,7 +215,9 @@ const StyledWrapper = styled.div`
     font-weight: ${(props) => fontWeightStyles[props.$fontWeight] || 400};
     line-height: 1;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background-color 0.1s ease, color 0.1s ease,
+                border-color 0.15s ease, box-shadow 0.15s ease,
+                transform 0.1s ease, opacity 0.15s ease;
     outline: none;
     white-space: nowrap;
     user-select: none;
@@ -223,6 +225,10 @@ const StyledWrapper = styled.div`
     ${(props) => sizeStyles[props.$size]}
     ${(props) => roundedStyles[props.$rounded]}
     ${(props) => getVariantStyles(props.$variant, props.$color)}
+
+    &:active:not(:disabled) {
+      transform: scale(0.97);
+    }
 
     &:focus-visible {
       ${(props) => {

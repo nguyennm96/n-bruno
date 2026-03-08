@@ -7,6 +7,9 @@ export { WsService } from './ws';
 export { SyncService } from './sync';
 export { ImportService } from './import';
 export { ExampleService } from './examples';
+export { InviteService } from './invites';
+export { UserService } from './users';
+export { AiService } from './ai';
 export * from './types';
 import { BrunoApiClient } from './client';
 import { AuthService } from './auth';
@@ -17,6 +20,9 @@ import { WsService } from './ws';
 import { SyncService } from './sync';
 import { ImportService } from './import';
 import { ExampleService } from './examples';
+import { InviteService } from './invites';
+import { UserService } from './users';
+import { AiService } from './ai';
 import type { BrunoApiConfig } from './types';
 /**
  * Create a configured Bruno API instance
@@ -31,4 +37,7 @@ export declare function createBrunoApi(config: BrunoApiConfig): {
     sync: SyncService;
     import: ImportService;
     examples: ExampleService;
+    invites: InviteService;
+    users: UserService;
+    ai: AiService;
 };

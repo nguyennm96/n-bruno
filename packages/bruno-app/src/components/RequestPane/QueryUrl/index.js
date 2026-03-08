@@ -23,8 +23,10 @@ import { hasRequestChanges } from 'utils/collections';
 import StyledWrapper from './StyledWrapper';
 import GenerateCodeItem from 'components/Sidebar/Collections/Collection/CollectionItem/GenerateCodeItem/index';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 const QueryUrl = ({ item, collection, handleRun }) => {
+  const { t } = useTranslation();
   const { theme, storedTheme } = useTheme();
   const dispatch = useDispatch();
   const method = item.draft ? get(item, 'draft.request.method') : get(item, 'request.method');
@@ -81,7 +83,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
     if (item?.request?.url !== '' || (item.draft?.request?.url !== undefined && item.draft?.request?.url !== '')) {
       setGenerateCodeItemModalOpen(true);
     } else {
-      toast.error('URL is required');
+      toast.error(t('REQUEST.QUERY_URL.URL_REQUIRED'));
     }
   };
 
@@ -102,7 +104,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
     try {
       const request = getRequestFromCurlCommand(pastedData, 'graphql-request');
       if (!request || !request.url) {
-        toast.error('Invalid cURL command');
+        toast.error(t('REQUEST.QUERY_URL.INVALID_CURL'));
         return;
       }
       // Update URL
@@ -150,11 +152,11 @@ const QueryUrl = ({ item, collection, handleRun }) => {
           }));
         }
 
-        toast.success('GraphQL query imported successfully');
+        toast.success(t('REQUEST.QUERY_URL.GRAPHQL_IMPORTED'));
       }
     } catch (error) {
       console.error('Error parsing cURL command:', error);
-      toast.error('Failed to parse GraphQL query');
+      toast.error(t('REQUEST.QUERY_URL.FAILED_PARSE_GRAPHQL'));
     }
   }, [dispatch, item.uid, collection.uid]);
 
@@ -181,7 +183,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
       // Parse the curl command
       const request = getRequestFromCurlCommand(pastedData);
       if (!request || !request.url) {
-        toast.error('Invalid cURL command');
+        toast.error(t('REQUEST.QUERY_URL.INVALID_CURL'));
         return;
       }
 
@@ -355,10 +357,10 @@ const QueryUrl = ({ item, collection, handleRun }) => {
         }
       }
 
-      toast.success('cURL command imported successfully');
+      toast.success(t('REQUEST.QUERY_URL.CURL_IMPORTED'));
     } catch (error) {
       console.error('Error parsing cURL command:', error);
-      toast.error('Failed to parse cURL command');
+      toast.error(t('REQUEST.QUERY_URL.FAILED_PARSE_CURL'));
     }
   },
   [dispatch, item.uid, item.type, collection.uid]
@@ -380,7 +382,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
         <SingleLineEditor
           ref={editorRef}
           value={url}
-          placeholder="Enter URL or paste a cURL request"
+          placeholder={t('REQUEST.QUERY_URL.PLACEHOLDER')}
           onSave={(finalValue) => onSave(finalValue)}
           theme={storedTheme}
           onChange={(newValue) => onUrlChange(newValue)}
@@ -395,17 +397,17 @@ const QueryUrl = ({ item, collection, handleRun }) => {
       </div>
       <div className="flex items-center h-full mx-2 gap-3 cursor-pointer" id="send-request" onClick={handleRun}>
         <div
-          title="Code Snippet"
+          title={t('REQUEST.QUERY_URL.CODE_SNIPPET')}
           className="infotip"
           onClick={(e) => {
             handleGenerateCode(e);
           }}
         >
           <IconCode color={theme.requestTabs.icon.color} strokeWidth={1.5} size={20} className="cursor-pointer" />
-          <span className="infotiptext text-xs">Code Snippet</span>
+          <span className="infotiptext text-xs">{t('REQUEST.QUERY_URL.CODE_SNIPPET')}</span>
         </div>
         <div
-          title="Save Request"
+          title={t('REQUEST.QUERY_URL.SAVE_REQUEST')}
           className="infotip"
           onClick={(e) => {
             e.stopPropagation();
@@ -420,7 +422,7 @@ const QueryUrl = ({ item, collection, handleRun }) => {
             className={`${hasChanges ? 'cursor-pointer' : 'cursor-default'}`}
           />
           <span className="infotiptext text-xs">
-            Save <span className="shortcut">({saveShortcut})</span>
+            {t('COMMON.SAVE')} <span className="shortcut">({saveShortcut})</span>
           </span>
         </div>
         {isLoading || item.response?.stream?.running ? (

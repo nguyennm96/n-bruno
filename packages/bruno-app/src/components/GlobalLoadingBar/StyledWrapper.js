@@ -28,7 +28,7 @@ const StyledWrapper = styled.div`
       bottom: 20px;
       right: 20px;
       background: ${(props) => props.theme.bg};
-      border: 1px solid ${(props) => props.theme.border};
+      border: 1px solid ${(props) => props.theme.border?.border1};
       border-radius: 6px;
       padding: 8px 12px;
       display: flex;
@@ -36,13 +36,13 @@ const StyledWrapper = styled.div`
       gap: 8px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       pointer-events: auto;
-      font-size: 13px;
+      font-size: ${(props) => props.theme.font.size.base};
       color: ${(props) => props.theme.text};
 
       .spinner {
         width: 14px;
         height: 14px;
-        border: 2px solid ${(props) => props.theme.border};
+        border: 2px solid ${(props) => props.theme.border?.border1};
         border-top-color: #3b82f6;
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
@@ -54,7 +54,7 @@ const StyledWrapper = styled.div`
 
       .operations-count {
         opacity: 0.6;
-        font-size: 12px;
+        font-size: ${(props) => props.theme.font.size.sm};
         margin-left: 4px;
       }
     }

@@ -1,4 +1,5 @@
 import React, { useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { IconBookmark, IconCopy, IconRefresh, IconPlus, IconExternalLink } from '@tabler/icons';
 import MenuDropdown from 'ui/MenuDropdown';
@@ -11,6 +12,7 @@ import { getExampleOptionLabel } from 'utils/examples';
 import ResponseBookmark from '../ResponseBookmark';
 
 const ResponseExamplesSelect = ({ item, collection, responseSize }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const bookmarkRef = useRef(null);
   const examples = item.draft?.examples || item.examples || [];
@@ -133,7 +135,7 @@ const ResponseExamplesSelect = ({ item, collection, responseSize }) => {
         data-testid="response-examples-menu"
       >
         <button className="response-examples-trigger" type="button">
-          <span>Examples</span>
+          <span>{t('RESPONSE_PANE.EXAMPLES')}</span>
           <span className="response-examples-count">{examples.length}</span>
         </button>
       </MenuDropdown>

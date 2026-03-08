@@ -123,6 +123,13 @@ const GlobalStyle = createGlobalStyle`
     opacity:  ${(props) => props.theme.input.placeholder.opacity};
   }
 
+  input,
+  textarea,
+  select {
+    transition: border-color ${(props) => props.theme.transition.base},
+                box-shadow ${(props) => props.theme.transition.base};
+  }
+
   @keyframes fade-in {
     from {
       opacity: 0;
@@ -144,8 +151,8 @@ const GlobalStyle = createGlobalStyle`
   @keyframes fade-and-slide-in-from-top {
     from {
       opacity: 0;
-      -webkit-transform: translateY(-30px);
-              transform: translateY(-30px);
+      -webkit-transform: translateY(-12px);
+              transform: translateY(-12px);
     }
     to {
       opacity: 1;
@@ -161,9 +168,9 @@ const GlobalStyle = createGlobalStyle`
               transform: none;
     }
     to {
-      opacity: 2;
-      -webkit-transform: translateY(-30px);
-              transform: translateY(-30px);
+      opacity: 0;
+      -webkit-transform: translateY(-12px);
+              transform: translateY(-12px);
     }
   }
 
@@ -185,6 +192,47 @@ const GlobalStyle = createGlobalStyle`
     }
   }
 
+  @keyframes slide-down {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-up {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes skeleton-shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
 
   // scrollbar styling
   // the below media query target non-macos devices

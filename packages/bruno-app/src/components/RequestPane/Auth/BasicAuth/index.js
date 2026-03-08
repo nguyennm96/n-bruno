@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import SensitiveFieldWarning from 'components/SensitiveFieldWarning';
 import { useDetectSensitiveField } from 'hooks/useDetectSensitiveField';
 import get from 'lodash/get';
@@ -10,6 +11,7 @@ import { sendRequest, saveRequest } from 'providers/ReduxStore/slices/collection
 import StyledWrapper from './StyledWrapper';
 
 const BasicAuth = ({ item, collection, updateAuth, request, save }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { storedTheme } = useTheme();
 
@@ -53,7 +55,7 @@ const BasicAuth = ({ item, collection, updateAuth, request, save }) => {
 
   return (
     <StyledWrapper className="w-full">
-      <label className="block mb-1">Username</label>
+      <label className="block mb-1">{t('REQUEST.AUTH.USERNAME')}</label>
       <div className="single-line-editor-wrapper mb-3">
         <SingleLineEditor
           value={basicAuth.username || ''}
@@ -67,7 +69,7 @@ const BasicAuth = ({ item, collection, updateAuth, request, save }) => {
         />
       </div>
 
-      <label className="block mb-1">Password</label>
+      <label className="block mb-1">{t('REQUEST.AUTH.PASSWORD')}</label>
       <div className="single-line-editor-wrapper flex items-center">
         <SingleLineEditor
           value={basicAuth.password || ''}

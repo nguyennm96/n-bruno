@@ -4,9 +4,11 @@ import toast from 'react-hot-toast';
 import get from 'lodash/get';
 import { IconDownload } from '@tabler/icons';
 import classnames from 'classnames';
+import { useTranslation } from 'react-i18next';
 import ActionIcon from 'ui/ActionIcon/index';
 
 const ResponseDownload = forwardRef(({ item, children }, ref) => {
+  const { t } = useTranslation();
   const { ipcRenderer } = window;
   const response = item.response || {};
   const isDisabled = !response.dataBuffer || response.stream?.running;
@@ -26,12 +28,12 @@ const ResponseDownload = forwardRef(({ item, children }, ref) => {
         .invoke('renderer:save-response-to-file', response, item?.requestSent?.url, item.pathname)
         .then((result) => {
           if (result && result.success) {
-            toast.success('Response downloaded to file');
+            toast.success(t('RESPONSE_PANE.MESSAGES.DOWNLOAD_SUCCESS'));
           }
           resolve();
         })
         .catch((err) => {
-          toast.error(get(err, 'error.message') || 'Something went wrong!');
+          toast.error(get(err, 'error.message') || t('ERRORS.GENERIC'));
           reject(err);
         });
     });
@@ -42,7 +44,7 @@ const ResponseDownload = forwardRef(({ item, children }, ref) => {
       ref={elementRef}
       aria-disabled={isDisabled}
       onClick={saveResponseToFile}
-      title={!children ? 'Save response to file' : null}
+      title={!children ? t('RESPONSE_PANE.ACTIONS.SAVE_RESPONSE_TO_FILE') : null}
       className={classnames({
         'opacity-50 cursor-not-allowed': isDisabled && !children
       })}
@@ -50,7 +52,7 @@ const ResponseDownload = forwardRef(({ item, children }, ref) => {
     >
       {children ? children : (
         <StyledWrapper className="flex items-center">
-          <ActionIcon className="p-1" disabled={isDisabled}>
+          <ActionIcon className="p-1" disabled={isDisabled} label={t('RESPONSE_PANE.ACTIONS.SAVE_RESPONSE_TO_FILE')}>
             <IconDownload size={16} strokeWidth={2} />
           </ActionIcon>
         </StyledWrapper>

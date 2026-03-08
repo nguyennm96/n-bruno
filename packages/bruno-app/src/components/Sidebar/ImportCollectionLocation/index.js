@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconCaretDown } from '@tabler/icons';
 import { postmanToBruno } from 'utils/importers/postman-collection';
 import { convertInsomniaToBruno } from 'utils/importers/insomnia-collection';
@@ -90,12 +91,18 @@ const groupingOptions = [
 ];
 
 const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format }) => {
+  const { t } = useTranslation();
   const inputRef = useRef();
   const [groupingType, setGroupingType] = useState('tags');
   const [collectionFormat, setCollectionFormat] = useState(DEFAULT_COLLECTION_FORMAT);
   const dropdownTippyRef = useRef();
   const isOpenApi = format === 'openapi';
   const isZipImport = format === 'bruno-zip';
+
+  const groupingOptions = [
+    { value: 'tags', label: t('SIDEBAR.BULK_IMPORT.GROUP_BY_TAGS'), testId: 'grouping-option-tags' },
+    { value: 'path', label: t('SIDEBAR.BULK_IMPORT.GROUP_BY_PATHS'), testId: 'grouping-option-path' }
+  ];
 
   const collectionName = getCollectionName(format, rawData);
 
@@ -130,7 +137,7 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format }) =>
         handleSubmit(convertedCollection, null, { format: collectionFormat });
       }
     } catch (err) {
-      toastError(err, 'Import failed');
+      toastError(err, t('SIDEBAR.IMPORT_FAILED'));
     }
   };
 
@@ -138,8 +145,8 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format }) =>
     <StyledWrapper>
       <Modal
         size="md"
-        title="Import Collection"
-        confirmText="Import"
+        title={t('SIDEBAR.IMPORT_COLLECTION')}
+        confirmText={t('SIDEBAR.BULK_IMPORT.IMPORT')}
         handleConfirm={onSubmit}
         handleCancel={onClose}
         dataTestId="import-collection-location-modal"
@@ -147,14 +154,14 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format }) =>
         <form className="bruno-form" onSubmit={(e) => e.preventDefault()}>
           <div>
             <label htmlFor="collectionName" className="block font-medium">
-              Name
+              {t('COMMON.NAME')}
             </label>
             <div className="mt-2">{collectionName}</div>
 
             {!isZipImport && (
               <div className="mt-4">
                 <label htmlFor="format" className="block font-medium">
-                  File Format
+                  {t('SIDEBAR.FILE_FORMAT')}
                 </label>
                 <select
                   id="format"
@@ -163,8 +170,8 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format }) =>
                   value={collectionFormat}
                   onChange={(e) => setCollectionFormat(e.target.value)}
                 >
-                  <option value="yml">OpenCollection (YAML)</option>
-                  <option value="bru">BRU Format (.bru)</option>
+                  <option value="yml">{t('SIDEBAR.FILE_FORMAT_YAML')}</option>
+                  <option value="bru">{t('SIDEBAR.FILE_FORMAT_BRU')}</option>
                 </select>
               </div>
             )}
@@ -174,10 +181,10 @@ const ImportCollectionLocation = ({ onClose, handleSubmit, rawData, format }) =>
             <div className="mt-4 flex gap-4 items-center">
               <div>
                 <label htmlFor="groupingType" className="block font-medium mt-4">
-                  Folder arrangement
+                  {t('SIDEBAR.BULK_IMPORT.FOLDER_ARRANGEMENT')}
                 </label>
                 <p className="text-gray-600 dark:text-gray-400 mt-1 mb-2">
-                  Select whether to create folders according to the spec's paths or tags.
+                  {t('SIDEBAR.BULK_IMPORT.FOLDER_ARRANGEMENT_HELP')}
                 </p>
               </div>
               <div className="relative">

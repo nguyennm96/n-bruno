@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import i18next from 'i18next';
 import isEqual from 'lodash/isEqual';
 import MD from 'markdown-it';
 import { format } from 'prettier/standalone';
@@ -218,9 +219,9 @@ export default class QueryEditor extends React.Component {
       });
 
       this.editor.setValue(prettyQuery);
-      toast.success('Query prettified');
+      toast.success(i18next.t('REQUEST.QUERY_PRETTIFIED'));
     } catch (e) {
-      toast.error('Error occurred while prettifying GraphQL query');
+      toast.error(i18next.t('REQUEST.QUERY_PRETTIFY_ERROR'));
     }
   };
 
@@ -238,7 +239,7 @@ export default class QueryEditor extends React.Component {
       <>
         <StyledWrapper
           className="h-full w-full  flex flex-col relative graphiql-container"
-          aria-label="Query Editor"
+          aria-label={i18next.t('REQUEST.QUERY_EDITOR')}
           font={this.props.font}
           fontSize={this.props.fontSize}
           ref={(node) => {

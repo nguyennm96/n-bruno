@@ -34,7 +34,7 @@ const StyledWrapper = styled.div`
 
     h3 {
       margin: 0 0 4px 0;
-      font-size: 16px;
+      font-size: ${(props) => props.theme.font.size.lg};
       font-weight: 500;
       color: ${(props) => props.theme.console.titleColor};
     }
@@ -85,7 +85,7 @@ const StyledWrapper = styled.div`
   }
 
   .resource-value {
-    font-size: 18px;
+    font-size: ${(props) => props.theme.font.size.xl};
     font-weight: 500;
     color: ${(props) => props.theme.console.titleColor};
     margin-bottom: 2px;
@@ -131,7 +131,7 @@ const StyledWrapper = styled.div`
   }
 
   .performance-selector-label {
-    font-size: 13px;
+    font-size: ${(props) => props.theme.font.size.base};
     font-weight: 500;
     color: ${(props) => props.theme.console.titleColor};
     user-select: none;
@@ -149,7 +149,7 @@ const StyledWrapper = styled.div`
     border: 1px solid ${(props) => props.theme.console.border};
     border-radius: 4px;
     padding: 6px 32px 6px 12px;
-    font-size: 13px;
+    font-size: ${(props) => props.theme.font.size.base};
     font-weight: 500;
     color: ${(props) => props.theme.console.titleColor};
     cursor: pointer;
@@ -189,7 +189,7 @@ const StyledWrapper = styled.div`
 
     h2 {
       margin: 0 0 16px 0;
-      font-size: 14px;
+      font-size: ${(props) => props.theme.font.size.md};
       font-weight: 600;
       color: ${(props) => props.theme.console.titleColor};
       flex-shrink: 0;
@@ -200,7 +200,7 @@ const StyledWrapper = styled.div`
     padding: 32px;
     text-align: center;
     color: ${(props) => props.theme.console.buttonColor};
-    font-size: 13px;
+    font-size: ${(props) => props.theme.font.size.base};
   }
 
   .processes-table-wrapper {
@@ -224,7 +224,7 @@ const StyledWrapper = styled.div`
       th {
         padding: 10px 12px;
         text-align: left;
-        font-size: 12px;
+        font-size: ${(props) => props.theme.font.size.sm};
         font-weight: 600;
         color: ${(props) => props.theme.console.titleColor};
         text-transform: uppercase;
@@ -256,7 +256,7 @@ const StyledWrapper = styled.div`
 
       td {
         padding: 10px 12px;
-        font-size: 13px;
+        font-size: ${(props) => props.theme.font.size.base};
         color: ${(props) => props.theme.console.textColor};
 
         &:first-child {
@@ -271,7 +271,7 @@ const StyledWrapper = styled.div`
 
     .pid-cell {
       font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-      font-size: 12px;
+      font-size: ${(props) => props.theme.font.size.sm};
       color: ${(props) => props.theme.console.buttonColor};
     }
 
@@ -280,7 +280,7 @@ const StyledWrapper = styled.div`
         display: inline-block;
         padding: 2px 8px;
         border-radius: 3px;
-        font-size: 11px;
+        font-size: ${(props) => props.theme.font.size.xs};
         font-weight: 500;
         text-transform: lowercase;
         background: ${(props) => props.theme.console.border};
@@ -338,11 +338,11 @@ const StyledWrapper = styled.div`
 
     .memory-cell {
       font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-      font-size: 12px;
+      font-size: ${(props) => props.theme.font.size.sm};
     }
 
     .created-cell {
-      font-size: 12px;
+      font-size: ${(props) => props.theme.font.size.sm};
       color: ${(props) => props.theme.console.buttonColor};
     }
   }

@@ -1,15 +1,17 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconSearch, IconX } from '@tabler/icons';
 import StyledWrapper from './StyledWrapper';
 
 const SearchInput = ({
   searchText,
   setSearchText,
-  placeholder = 'Search',
+  placeholder = null,
   className = '',
   onChange,
   ...props
 }) => {
+  const { t } = useTranslation();
   const handleChange = (e) => {
     setSearchText(e.target.value);
     if (onChange) {
@@ -27,7 +29,7 @@ const SearchInput = ({
       <input
         type="text"
         name="search"
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('COMMON.SEARCH')}
         id="search-input"
         autoComplete="off"
         autoCorrect="off"

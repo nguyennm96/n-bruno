@@ -1,10 +1,12 @@
 import MarkdownIt from 'markdown-it';
+import { useTranslation } from 'react-i18next';
 import * as MarkdownItReplaceLink from 'markdown-it-replace-link';
 import StyledWrapper from './StyledWrapper';
 import React, { useEffect, useRef } from 'react';
 import { isValidUrl } from 'utils/url/index';
 
 const Markdown = ({ collectionPath, onDoubleClick, content }) => {
+  const { t } = useTranslation();
   const containerRef = useRef(null);
 
   const markdownItOptions = {
@@ -54,7 +56,7 @@ const Markdown = ({ collectionPath, onDoubleClick, content }) => {
         mermaid.render(id, graphDefinition).then(({ svg }) => {
           container.innerHTML = svg;
         }).catch(() => {
-          container.innerHTML = `<pre style="color:red">Mermaid render error</pre>`;
+          container.innerHTML = `<pre style="color:red">{t('COMMON.MERMAID_RENDER_ERROR')}</pre>`;
         });
       });
     });

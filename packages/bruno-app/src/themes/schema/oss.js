@@ -135,6 +135,19 @@ export const ossSchema = {
       additionalProperties: false
     },
 
+    transition: {
+      type: 'object',
+      description: 'Standard transition timing tokens for consistent animation across all components.',
+      properties: {
+        fast: { type: 'string', description: 'Micro-interactions: hover bg, icon color. e.g. "0.1s ease"' },
+        base: { type: 'string', description: 'Default: color, border, opacity changes. e.g. "0.15s ease"' },
+        slow: { type: 'string', description: 'Size changes, sliding panels. e.g. "0.25s cubic-bezier(0.4,0,0.2,1)"' },
+        spring: { type: 'string', description: 'Menu/modal open with overshoot. e.g. "0.2s cubic-bezier(0.34,1.56,0.64,1)"' }
+      },
+      required: ['fast', 'base', 'slow', 'spring'],
+      additionalProperties: false
+    },
+
     border: {
       type: 'object',
       properties: {
@@ -1186,7 +1199,7 @@ export const ossSchema = {
     }
   },
   required: [
-    'mode', 'brand', 'text', 'textLink', 'draftColor', 'bg', 'primary', 'accents', 'background', 'status', 'overlay', 'font', 'shadow', 'border', 'colors', 'input',
+    'mode', 'brand', 'text', 'textLink', 'draftColor', 'bg', 'primary', 'accents', 'background', 'status', 'overlay', 'font', 'shadow', 'transition', 'border', 'colors', 'input',
     'sidebar', 'dropdown', 'workspace', 'request',
     'requestTabPanel', 'notifications', 'modal', 'button', 'button2', 'tabs',
     'requestTabs', 'codemirror', 'table', 'plainGrid', 'scrollbar', 'dragAndDrop',

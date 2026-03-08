@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import get from 'lodash/get';
 import { useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from 'providers/Theme';
 import { moveRequestHeader, setRequestHeaders } from 'providers/ReduxStore/slices/collections';
 import { sendRequest, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
@@ -17,6 +18,7 @@ const headerAutoCompleteList = StandardHTTPHeaders.map((e) => e.header);
 const RequestHeaders = ({ item, collection, addHeaderText }) => {
   const dispatch = useDispatch();
   const { storedTheme } = useTheme();
+  const { t } = useTranslation();
   const headers = item.draft ? get(item, 'draft.request.headers') : get(item, 'request.headers');
   const [isBulkEditMode, setIsBulkEditMode] = useState(false);
 
@@ -43,13 +45,13 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
     if (key === 'name') {
       if (!row.name || row.name.trim() === '') return null;
       if (!headerNameRegex.test(row.name)) {
-        return 'Header name cannot contain spaces or newlines';
+        return t('REQUEST.HEADERS.NAME_ERROR');
       }
     }
     if (key === 'value') {
       if (!row.value) return null;
       if (!headerValueRegex.test(row.value)) {
-        return 'Header value cannot contain newlines';
+        return t('REQUEST.HEADERS.VALUE_ERROR');
       }
     }
     return null;
@@ -62,9 +64,9 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
   const columns = [
     {
       key: 'name',
-      name: 'Name',
+      name: t('COMMON.NAME'),
       isKeyField: true,
-      placeholder: 'Name',
+      placeholder: t('COMMON.NAME'),
       width: '30%',
       render: ({ value, onChange }) => (
         <SingleLineEditor
@@ -76,14 +78,14 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
           onRun={handleRun}
           collection={collection}
           item={item}
-          placeholder={!value ? 'Name' : ''}
+          placeholder={!value ? t('COMMON.NAME') : ''}
         />
       )
     },
     {
       key: 'value',
-      name: 'Value',
-      placeholder: 'Value',
+      name: t('COMMON.VALUE'),
+      placeholder: t('COMMON.VALUE'),
       render: ({ value, onChange }) => (
         <SingleLineEditor
           value={value || ''}
@@ -94,7 +96,7 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
           autocomplete={MimeTypes}
           collection={collection}
           item={item}
-          placeholder={!value ? 'Value' : ''}
+          placeholder={!value ? t('COMMON.VALUE') : ''}
         />
       )
     }
@@ -133,7 +135,7 @@ const RequestHeaders = ({ item, collection, addHeaderText }) => {
       />
       <div className="flex justify-end mt-2">
         <button className="btn-action text-link select-none" onClick={toggleBulkEditMode}>
-          Bulk Edit
+          {t('REQUEST.HEADERS.BULK_EDIT')}
         </button>
       </div>
     </StyledWrapper>

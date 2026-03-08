@@ -1,5 +1,6 @@
 import React from 'react';
 import { useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import StyledWrapper from './StyledWrapper';
 import { updateCollectionPresets } from 'providers/ReduxStore/slices/collections';
 import { saveCollectionSettings } from 'providers/ReduxStore/slices/collections/actions';
@@ -7,6 +8,7 @@ import { get } from 'lodash';
 import Button from 'ui/Button';
 
 const PresetsSettings = ({ collection }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const initialPresets = { requestType: 'http', requestUrl: '' };
 
@@ -37,12 +39,12 @@ const PresetsSettings = ({ collection }) => {
   return (
     <StyledWrapper className="h-full w-full">
       <div className="text-xs mb-4 text-muted">
-        These presets will be used as the default values for new requests in this collection.
+        {t('PRESETS.description')}
       </div>
       <div className="bruno-form">
         <div className="mb-3 flex items-center">
           <label className="settings-label flex items-center" htmlFor="http">
-            Request Type
+            {t('PRESETS.requestType')}
           </label>
           <div className="flex items-center">
             <input
@@ -100,7 +102,7 @@ const PresetsSettings = ({ collection }) => {
         </div>
         <div className="mb-3 flex items-center">
           <label className="settings-label" htmlFor="request-url">
-            Base URL
+            {t('PRESETS.baseUrl')}
           </label>
           <div className="flex items-center w-full">
             <div className="flex items-center flex-grow input-container h-full">
@@ -108,7 +110,7 @@ const PresetsSettings = ({ collection }) => {
                 id="request-url"
                 type="text"
                 name="requestUrl"
-                placeholder="Request URL"
+                placeholder={t('PRESETS.requestUrl')}
                 className="block textbox"
                 autoComplete="off"
                 autoCorrect="off"
@@ -124,7 +126,7 @@ const PresetsSettings = ({ collection }) => {
 
         <div className="mt-6">
           <Button type="button" size="sm" onClick={handleSave}>
-            Save
+            {t('COMMON.SAVE')}
           </Button>
         </div>
       </div>

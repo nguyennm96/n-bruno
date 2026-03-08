@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconTrash } from '@tabler/icons';
 import DeleteDotEnvFile from 'components/Environments/EnvironmentSettings/DeleteDotEnvFile';
 import StyledWrapper from './StyledWrapper';
@@ -11,6 +12,7 @@ const DotEnvFileDetails = ({
   viewMode,
   onViewModeChange
 }) => {
+  const { t } = useTranslation();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleDeleteClick = () => {
@@ -30,14 +32,14 @@ const DotEnvFileDetails = ({
         <div className="actions">
           {dotEnvExists && (
             <>
-              <div className="view-toggle" role="group" aria-label="View mode">
+              <div className="view-toggle" role="group" aria-label={t('COMMON.VIEW_MODE')}>
                 <button
                   type="button"
                   className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
                   onClick={() => onViewModeChange?.('table')}
                   aria-pressed={viewMode === 'table'}
                 >
-                  Table
+                  {t('COMMON.TABLE')}
                 </button>
                 <button
                   type="button"
@@ -45,10 +47,10 @@ const DotEnvFileDetails = ({
                   onClick={() => onViewModeChange?.('raw')}
                   aria-pressed={viewMode === 'raw'}
                 >
-                  Raw
+                  {t('COMMON.RAW')}
                 </button>
               </div>
-              <button type="button" onClick={handleDeleteClick} title="Delete .env file" className="action-btn delete-btn">
+              <button type="button" onClick={handleDeleteClick} title={t('ENVIRONMENTS.DELETE_DOTENV')} className="action-btn delete-btn">
                 <IconTrash size={15} strokeWidth={1.5} />
               </button>
             </>

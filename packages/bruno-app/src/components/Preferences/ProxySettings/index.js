@@ -3,6 +3,7 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import debounce from 'lodash/debounce';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { savePreferences } from 'providers/ReduxStore/slices/app';
 
 import StyledWrapper from './StyledWrapper';
@@ -14,6 +15,7 @@ import SystemProxy from './SystemProxy';
 const ProxySettings = ({ close }) => {
   const preferences = useSelector((state) => state.app.preferences);
   const dispatch = useDispatch();
+  const { t } = useTranslation();
 
   const proxySchema = Yup.object({
     disabled: Yup.boolean().optional(),
@@ -68,7 +70,7 @@ const ProxySettings = ({ close }) => {
             proxy: validatedProxy
           })
         ).catch(() => {
-          toast.error('Failed to save preferences');
+          toast.error(t('PREFERENCES.SAVE_ERROR'));
         });
       })
       .catch((error) => {
@@ -113,11 +115,11 @@ const ProxySettings = ({ close }) => {
 
   return (
     <StyledWrapper>
-      <div className="section-header">Proxy Settings</div>
+      <div className="section-header">{t('PREFERENCES.PROXY.TITLE')}</div>
       <form className="bruno-form" onSubmit={formik.handleSubmit}>
         <div className="mb-3 flex items-center mt-2">
           <label className="settings-label" htmlFor="protocol">
-            Mode
+            {t('PREFERENCES.PROXY.MODE')}
           </label>
           <div className="flex items-center">
             <label className="flex items-center cursor-pointer">
@@ -132,7 +134,7 @@ const ProxySettings = ({ close }) => {
                 }}
                 className="mr-1 cursor-pointer"
               />
-              Off
+              {t('PREFERENCES.PROXY.OFF')}
             </label>
             <label className="flex items-center ml-4 cursor-pointer">
               <input
@@ -146,7 +148,7 @@ const ProxySettings = ({ close }) => {
                 }}
                 className="mr-1 cursor-pointer"
               />
-              On
+              {t('PREFERENCES.PROXY.ON')}
             </label>
             <label className="flex items-center ml-4 cursor-pointer">
               <input
@@ -160,7 +162,7 @@ const ProxySettings = ({ close }) => {
                 }}
                 className="mr-1 cursor-pointer"
               />
-              System Proxy
+              {t('PREFERENCES.PROXY.SYSTEM_PROXY')}
             </label>
           </div>
         </div>
@@ -173,7 +175,7 @@ const ProxySettings = ({ close }) => {
           <>
             <div className="mb-3 flex items-center">
               <label className="settings-label" htmlFor="protocol">
-                Protocol
+                {t('PREFERENCES.PROXY.PROTOCOL')}
               </label>
               <div className="flex items-center">
                 <label className="flex items-center">
@@ -196,7 +198,7 @@ const ProxySettings = ({ close }) => {
                     onChange={formik.handleChange}
                     className="mr-1"
                   />
-                  HTTPS
+                  {t('PREFERENCES.PROXY.HTTPS')}
                 </label>
                 <label className="flex items-center ml-4">
                   <input
@@ -207,7 +209,7 @@ const ProxySettings = ({ close }) => {
                     onChange={formik.handleChange}
                     className="mr-1"
                   />
-                  SOCKS4
+                  {t('PREFERENCES.PROXY.SOCKS4')}
                 </label>
                 <label className="flex items-center ml-4">
                   <input
@@ -218,13 +220,13 @@ const ProxySettings = ({ close }) => {
                     onChange={formik.handleChange}
                     className="mr-1"
                   />
-                  SOCKS5
+                  {t('PREFERENCES.PROXY.SOCKS5')}
                 </label>
               </div>
             </div>
             <div className="mb-3 flex items-center">
               <label className="settings-label" htmlFor="config.hostname">
-                Hostname
+                {t('PREFERENCES.PROXY.HOSTNAME')}
               </label>
               <input
                 id="config.hostname"
@@ -244,7 +246,7 @@ const ProxySettings = ({ close }) => {
             </div>
             <div className="mb-3 flex items-center">
               <label className="settings-label" htmlFor="config.port">
-                Port
+                {t('PREFERENCES.PROXY.PORT')}
               </label>
               <input
                 id="config.port"
@@ -264,7 +266,7 @@ const ProxySettings = ({ close }) => {
             </div>
             <div className="mb-3 flex items-center">
               <label className="settings-label" htmlFor="config.auth.disabled">
-                Auth
+                {t('PREFERENCES.PROXY.AUTH_LABEL')}
               </label>
               <input
                 id="config.auth.disabled"
@@ -280,7 +282,7 @@ const ProxySettings = ({ close }) => {
             <div>
               <div className="mb-3 flex items-center">
                 <label className="settings-label" htmlFor="config.auth.username">
-                  Username
+                  {t('PREFERENCES.PROXY.USERNAME')}
                 </label>
                 <input
                   id="config.auth.username"
@@ -300,7 +302,7 @@ const ProxySettings = ({ close }) => {
               </div>
               <div className="mb-3 flex items-center">
                 <label className="settings-label" htmlFor="config.auth.password">
-                  Password
+                  {t('PREFERENCES.PROXY.PASSWORD')}
                 </label>
                 <div className="textbox flex flex-row items-center w-[13.2rem] h-[2.25rem] relative">
                   <input
@@ -330,7 +332,7 @@ const ProxySettings = ({ close }) => {
             </div>
             <div className="mb-3 flex items-center">
               <label className="settings-label" htmlFor="config.bypassProxy">
-                Proxy Bypass
+                {t('PREFERENCES.PROXY.PROXY_BYPASS')}
               </label>
               <input
                 id="config.bypassProxy"

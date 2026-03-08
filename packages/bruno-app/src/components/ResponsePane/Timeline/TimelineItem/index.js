@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from 'providers/Theme';
 import Network from './Network/index';
 import Request from './Request/index';
@@ -9,6 +10,7 @@ import { RelativeTime } from './Common/Time/index';
 import StyledWrapper from './StyledWrapper';
 
 const TimelineItem = ({ timestamp, request, response, item, collection, isOauth2, hideTimestamp = false }) => {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [isCollapsed, _toggleCollapse] = useState(false);
   const [activeTab, setActiveTab] = useState('request');
@@ -41,20 +43,20 @@ const TimelineItem = ({ timestamp, request, response, item, collection, isOauth2
                 className={`timeline-item-tab ${activeTab === 'request' ? 'timeline-item-tab--active' : ''}`}
                 onClick={() => setActiveTab('request')}
               >
-                Request
+                {t('RESPONSE_PANE.TIMELINE.REQUEST_TAB')}
               </button>
               <button
                 className={`timeline-item-tab ${activeTab === 'response' ? 'timeline-item-tab--active' : ''}`}
                 onClick={() => setActiveTab('response')}
               >
-                Response
+                {t('RESPONSE_PANE.TIMELINE.RESPONSE_TAB')}
               </button>
               {showNetworkLogs && (
                 <button
                   className={`timeline-item-tab ${activeTab === 'networkLogs' ? 'timeline-item-tab--active' : ''}`}
                   onClick={() => setActiveTab('networkLogs')}
                 >
-                  Network Logs
+                  {t('RESPONSE_PANE.TIMELINE.NETWORK_LOGS')}
                 </button>
               )}
             </div>

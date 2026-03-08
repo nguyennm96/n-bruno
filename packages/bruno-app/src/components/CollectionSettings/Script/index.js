@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import { useDispatch, useSelector } from 'react-redux';
 import CodeEditor from 'components/CodeEditor';
@@ -12,6 +13,7 @@ import StyledWrapper from './StyledWrapper';
 import Button from 'ui/Button';
 
 const Script = ({ collection }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const preRequestEditorRef = useRef(null);
   const postResponseEditorRef = useRef(null);

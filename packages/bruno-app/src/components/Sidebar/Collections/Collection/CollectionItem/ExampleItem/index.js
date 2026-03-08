@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { addTab, makeTabPermanent } from 'providers/ReduxStore/slices/tabs';
 import {
   updateResponseExample,
@@ -24,6 +25,7 @@ import { useSidebarAccordion } from 'components/Sidebar/SidebarAccordionContext'
 const ExampleItem = ({ example, item, collection }) => {
   const { dropdownContainerRef } = useSidebarAccordion();
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   // Check if this example is the active tab
   const activeTabUid = useSelector((state) => state.tabs?.activeTabUid);
   const isExampleActive = activeTabUid === example.uid;
@@ -111,7 +113,7 @@ const ExampleItem = ({ example, item, collection }) => {
     ) {
       setGenerateCodeItemModalOpen(true);
     } else {
-      toast.error('URL is required');
+      toast.error(t('REQUEST.QUERY_URL.URL_REQUIRED'));
     }
   };
 
@@ -127,7 +129,7 @@ const ExampleItem = ({ example, item, collection }) => {
     }));
     dispatch(saveRequest(item.uid, collection.uid, true))
       .then(() => {
-        toast.success(`Example renamed to "${newName}"`);
+        toast.success(t('SIDEBAR.EXAMPLE_RENAMED', { name: newName }));
         setShowRenameModal(false);
       });
   };
@@ -138,21 +140,21 @@ const ExampleItem = ({ example, item, collection }) => {
       {
         id: 'rename',
         leftSection: IconEdit,
-        label: 'Rename',
+        label: t('COMMON.RENAME'),
         onClick: handleRename,
         testId: 'response-example-rename-option'
       },
       {
         id: 'clone',
         leftSection: IconCopy,
-        label: 'Clone',
+        label: t('COMMON.CLONE'),
         onClick: handleClone,
         testId: 'response-example-clone-option'
       },
       {
         id: 'generate-code',
         leftSection: IconCode,
-        label: 'Code Snippet',
+        label: t('REQUEST.QUERY_URL.CODE_SNIPPET'),
         onClick: handleGenerateCode,
         testId: 'response-example-generate-code-option'
       },
@@ -160,7 +162,7 @@ const ExampleItem = ({ example, item, collection }) => {
       {
         id: 'delete',
         leftSection: IconTrash,
-        label: 'Delete',
+        label: t('COMMON.DELETE'),
         className: 'delete-item',
         onClick: handleDelete,
         testId: 'response-example-delete-option'
@@ -222,19 +224,19 @@ const ExampleItem = ({ example, item, collection }) => {
       {showRenameModal && (
         <Modal
           size="sm"
-          title="Rename Example"
+          title={t('SIDEBAR.RENAME_EXAMPLE_TITLE')}
           handleCancel={() => {
             setShowRenameModal(false);
             setEditName(example.name); // Reset to original name on cancel
           }}
           handleConfirm={() => handleRenameConfirm(editName)}
-          confirmText="Rename"
-          cancelText="Cancel"
+          confirmText={t('COMMON.RENAME')}
+          cancelText={t('COMMON.CANCEL')}
           confirmDisabled={!editName || !editName.trim()}
         >
           <div>
             <label htmlFor="renameExampleName" className="block font-medium">
-              Example Name
+              {t('SIDEBAR.EXAMPLE_NAME')}
             </label>
             <input
               data-testid="rename-example-name-input"
@@ -243,7 +245,7 @@ const ExampleItem = ({ example, item, collection }) => {
               className="textbox mt-2"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              placeholder="Enter example name..."
+              placeholder={t('SIDEBAR.ENTER_EXAMPLE_NAME_PLACEHOLDER')}
               autoFocus
               required
             />

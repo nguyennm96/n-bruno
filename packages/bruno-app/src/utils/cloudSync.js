@@ -30,10 +30,10 @@ async function syncCollections(userId, dispatch, getState) {
 
   try {
     const workspaceId = activeWorkspace.uid;
-    const serverCollections = await brunoApi.collections.getAll(workspaceId);
+    const serverCollections = await brunoApi.collections.listCollections(workspaceId);
 
     for (const serverCol of serverCollections) {
-      const colId = serverCol.id;
+      const colId = serverCol.uid;
       const meta = getSyncMetaForCollection(userId, colId);
 
       const serverUpdatedAt = serverCol.updated_at;
@@ -49,9 +49,9 @@ async function syncCollections(userId, dispatch, getState) {
             'utils/storage/cloud'
           );
 
-          const fullCollection = await brunoApi.collections.getById(colId);
+          const fullCollection = await brunoApi.collections.getCollection(colId);
           const items = await brunoApi.collections.getItems(colId);
-          const environments = await brunoApi.environments.getAll(colId);
+          const environments = await brunoApi.environments.listCollectionEnvironments(colId);
 
           const localItems = (items || []).map((item) =>
             transformCloudItemToLocal(item, colId)

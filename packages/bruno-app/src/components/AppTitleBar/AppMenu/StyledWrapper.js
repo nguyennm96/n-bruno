@@ -7,7 +7,7 @@ const StyledWrapper = styled.div`
   -webkit-app-region: no-drag;
 
   .shortcut {
-    font-size: 11px;
+    font-size: ${(props) => props.theme.font.size.xs};
     color: ${(props) => props.theme.dropdown.mutedText};
   }
 `;

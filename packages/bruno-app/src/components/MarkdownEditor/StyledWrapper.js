@@ -45,7 +45,7 @@ export const TableControlsGlobalStyle = createGlobalStyle`
     padding: 0;
     cursor: pointer;
     color: ${({ theme }) => theme.text};
-    font-size: 16px;
+    font-size: ${({ theme }) => theme.font.size.lg};
     font-weight: 700;
     line-height: 1;
     letter-spacing: 0;
@@ -124,7 +124,7 @@ export const TableControlsGlobalStyle = createGlobalStyle`
     border-radius: 5px;
     cursor: pointer;
     color: ${({ theme }) => theme.text};
-    font-size: 14px;
+    font-size: ${({ theme }) => theme.font.size.md};
     display: flex;
     align-items: center;
     justify-content: center;
@@ -137,7 +137,7 @@ export const TableControlsGlobalStyle = createGlobalStyle`
   }
 
   .tc-add-row-btn {
-    font-size: 12px;
+    font-size: ${({ theme }) => theme.font.size.sm};
     gap: 4px;
     border-radius: 4px;
     opacity: 0.65;
@@ -151,7 +151,7 @@ export const MethodBadgeGlobalStyle = createGlobalStyle`
     align-items: center;
     justify-content: center;
     font-family: var(--font-code, 'JetBrains Mono', monospace);
-    font-size: 11px;
+    font-size: ${({ theme }) => theme.font.size.xs};
     font-weight: 700;
     letter-spacing: 0.5px;
     min-width: 40px;
@@ -251,7 +251,7 @@ const StyledWrapper = styled.div`
   }
 
   .toolbar-label {
-    font-size: 11px;
+    font-size: ${({ theme }) => theme.font.size.xs};
     font-weight: 700;
     font-family: serif;
     line-height: 1;
@@ -282,7 +282,7 @@ const StyledWrapper = styled.div`
     background: ${({ theme }) => theme.requestTabPanel.url.bg};
     color: ${({ theme }) => theme.requestTabs.color};
     cursor: pointer;
-    font-size: 11px;
+    font-size: ${({ theme }) => theme.font.size.xs};
     font-weight: 600;
     transition: border-color 0.1s, background 0.1s, color 0.1s;
 
@@ -377,7 +377,7 @@ const StyledWrapper = styled.div`
   }
 
   .popover-title {
-    font-size: 12px;
+    font-size: ${({ theme }) => theme.font.size.sm};
     font-weight: 600;
     color: ${({ theme }) => theme.text};
     padding-bottom: 8px;
@@ -388,7 +388,7 @@ const StyledWrapper = styled.div`
   .popover-row { display: flex; flex-direction: column; gap: 4px; }
 
   .popover-label {
-    font-size: 11px;
+    font-size: ${({ theme }) => theme.font.size.xs};
     color: ${({ theme }) => theme.text};
     opacity: 0.55;
     font-weight: 500;
@@ -478,7 +478,7 @@ const StyledWrapper = styled.div`
     padding: 0 6px;
     border-radius: 4px;
     color: ${({ theme }) => theme.requestTabs.color};
-    font-size: 12px;
+    font-size: ${({ theme }) => theme.font.size.sm};
     font-weight: 600;
     opacity: 0.75;
     transition: opacity 0.1s, background 0.1s;
@@ -489,7 +489,7 @@ const StyledWrapper = styled.div`
 
   .bubble-btn-italic { font-style: italic; }
   .bubble-btn-strike { text-decoration: line-through; }
-  .bubble-btn-code { font-family: var(--font-code, monospace); font-size: 11px; }
+  .bubble-btn-code { font-family: var(--font-code, monospace); font-size: ${({ theme }) => theme.font.size.xs}; }
 
   .bubble-divider {
     width: 1px;
@@ -520,7 +520,7 @@ const StyledWrapper = styled.div`
     box-sizing: border-box;
     padding: 0;
     font-family: var(--font-code, 'JetBrains Mono', monospace);
-    font-size: 13px;
+    font-size: ${({ theme }) => theme.font.size.base};
     line-height: 1.7;
     border: none;
     outline: none;
@@ -543,7 +543,7 @@ const StyledWrapper = styled.div`
     left: 4px;
     color: ${({ theme }) => theme.text};
     opacity: 0.38;
-    font-size: 14px;
+    font-size: ${({ theme }) => theme.font.size.md};
     pointer-events: none;
     user-select: none;
     line-height: 1.7;
@@ -555,7 +555,7 @@ const StyledWrapper = styled.div`
     outline: none;
     min-height: 40px;
     min-width: 0;
-    font-size: 14px;
+    font-size: ${({ theme }) => theme.font.size.md};
     line-height: 1.7;
     color: ${({ theme }) => theme.text};
     caret-color: ${({ theme }) => theme.tabs.active.border};
@@ -783,7 +783,7 @@ const StyledWrapper = styled.div`
       background: ${({ theme }) => theme.requestTabPanel.url.bg};
       border: 1px solid ${({ theme }) => theme.border.border1};
       border-radius: 4px;
-      font-size: 12px;
+      font-size: ${({ theme }) => theme.font.size.sm};
       color: ${({ theme }) => theme.text};
       outline: none;
       &:focus { border-color: ${({ theme }) => theme.tabs.active.border}; }
@@ -802,7 +802,7 @@ const StyledWrapper = styled.div`
       background: transparent;
       border: none;
       cursor: pointer;
-      font-size: 12px;
+      font-size: ${({ theme }) => theme.font.size.sm};
       padding: 4px 8px;
       border-radius: 4px;
       color: ${({ theme }) => theme.requestTabs.color};

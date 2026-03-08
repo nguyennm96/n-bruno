@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 import StyledWrapper from './StyledWrapper';
 import {
@@ -21,6 +22,7 @@ const getProcessOptions = (processes) => {
 };
 
 const Performance = () => {
+  const { t } = useTranslation();
   const { systemResources } = useSelector((state) => state.performance);
   const [selectedPid, setSelectedPid] = useState('cumulative');
 
@@ -95,7 +97,11 @@ const Performance = () => {
   );
 
   // Get process options for dropdown
-  const processOptions = useMemo(() => getProcessOptions(systemResources.processes), [systemResources.processes]);
+  const processOptions = useMemo(() => {
+    const options = getProcessOptions(systemResources.processes);
+    options[0] = { ...options[0], label: t('DEVTOOLS.CUMULATIVE_ALL_PROCESSES') };
+    return options;
+  }, [systemResources.processes, t]);
 
   // Get selected process data
   const selectedProcess = useMemo(() => {
@@ -115,37 +121,37 @@ const Performance = () => {
 
   const renderCumulativeView = () => (
     <div className="system-resources">
-      <h2>System Resources</h2>
+      <h2>{t('DEVTOOLS.SYSTEM_RESOURCES')}</h2>
       <div className="resource-cards">
         <SystemResourceCard
           icon={IconCpu}
-          title="CPU Usage"
+          title={t('DEVTOOLS.CPU_USAGE')}
           value={`${systemResources.cpu.toFixed(1)}%`}
-          subtitle="Total CPU usage"
+          subtitle={t('DEVTOOLS.CPU_USAGE_TOTAL')}
           color={systemResources.cpu > 80 ? 'danger' : systemResources.cpu > 60 ? 'warning' : 'success'}
         />
 
         <SystemResourceCard
           icon={IconDatabase}
-          title="Memory Usage"
+          title={t('DEVTOOLS.MEMORY_USAGE')}
           value={formatBytes(systemResources.memory)}
-          subtitle="Total memory usage"
+          subtitle={t('DEVTOOLS.MEMORY_USAGE_TOTAL')}
           color={systemResources.memory > (500 * 1024 * 1024) ? 'danger' : 'default'}
         />
 
         <SystemResourceCard
           icon={IconClock}
-          title="Uptime"
+          title={t('DEVTOOLS.UPTIME')}
           value={formatUptime(systemResources.uptime)}
-          subtitle="Process runtime"
+          subtitle={t('DEVTOOLS.PROCESS_RUNTIME')}
           color="info"
         />
 
         <SystemResourceCard
           icon={IconServer}
-          title="Process ID"
+          title={t('DEVTOOLS.PROCESS_ID')}
           value={systemResources.pid || 'N/A'}
-          subtitle="Main process PID"
+          subtitle={t('DEVTOOLS.MAIN_PROCESS_PID')}
           color="default"
         />
       </div>
@@ -162,37 +168,37 @@ const Performance = () => {
 
     return (
       <div className="system-resources">
-        <h2>System Resources</h2>
+        <h2>{t('DEVTOOLS.SYSTEM_RESOURCES')}</h2>
         <div className="resource-cards">
           <SystemResourceCard
             icon={IconCpu}
-            title="CPU Usage"
+            title={t('DEVTOOLS.CPU_USAGE')}
             value={`${process.cpu.toFixed(1)}%`}
-            subtitle="Current CPU usage"
+            subtitle={t('DEVTOOLS.CPU_USAGE_CURRENT')}
             color={process.cpu > 80 ? 'danger' : process.cpu > 60 ? 'warning' : 'success'}
           />
 
           <SystemResourceCard
             icon={IconDatabase}
-            title="Memory Usage"
+            title={t('DEVTOOLS.MEMORY_USAGE')}
             value={formatBytes(process.memory)}
-            subtitle="Current memory usage"
+            subtitle={t('DEVTOOLS.MEMORY_USAGE_CURRENT')}
             color={process.memory > (500 * 1024 * 1024) ? 'danger' : 'default'}
           />
 
           <SystemResourceCard
             icon={IconClock}
-            title="Uptime"
+            title={t('DEVTOOLS.UPTIME')}
             value={formatUptime(processUptime)}
-            subtitle="Process runtime"
+            subtitle={t('DEVTOOLS.PROCESS_RUNTIME')}
             color="info"
           />
 
           <SystemResourceCard
             icon={IconServer}
-            title="Process ID"
+            title={t('DEVTOOLS.PROCESS_ID')}
             value={process.pid}
-            subtitle="Process PID"
+            subtitle={t('DEVTOOLS.PROCESS_PID')}
             color="default"
           />
         </div>
@@ -206,7 +212,7 @@ const Performance = () => {
         <div className="performance-header">
           <div className="performance-selector-wrapper">
             <label htmlFor="process-selector" className="performance-selector-label">
-              View:
+              {t('DEVTOOLS.VIEW_LABEL')}
             </label>
             <div className="performance-selector">
               <select

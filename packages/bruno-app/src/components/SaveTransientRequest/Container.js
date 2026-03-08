@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { pluralizeWord } from 'utils/common';
 import { IconAlertTriangle, IconDeviceFloppy } from '@tabler/icons';
 import { clearAllSaveTransientRequestModals } from 'providers/ReduxStore/slices/collections';
@@ -11,6 +12,7 @@ import SaveTransientRequest from './index';
 
 const SaveTransientRequestContainer = () => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const modals = useSelector((state) => state.collections.saveTransientRequestModals);
   const [openItemUid, setOpenItemUid] = useState(null);
 
@@ -30,7 +32,7 @@ const SaveTransientRequestContainer = () => {
     dispatch(clearAllSaveTransientRequestModals());
 
     // Show success message
-    toast.success(`Discarded ${modals.length} ${pluralizeWord('request', modals.length)}`);
+    toast.success(t('SAVE_REQUEST.DISCARDED_SUCCESS', { count: modals.length, requestWord: pluralizeWord('request', modals.length) }));
   };
 
   const handleCancel = () => {
@@ -60,7 +62,7 @@ const SaveTransientRequestContainer = () => {
   return (
     <Modal
       size="md"
-      title="Unsaved Transient Requests"
+      title={t('SAVE_REQUEST.UNSAVED_TRANSIENT_TITLE')}
       hideFooter={true}
       disableEscapeKey={true}
       disableCloseOnOutsideClick={true}
@@ -68,19 +70,18 @@ const SaveTransientRequestContainer = () => {
     >
       <div className="flex items-center">
         <IconAlertTriangle size={32} strokeWidth={1.5} className="text-yellow-600" />
-        <h1 className="ml-2 text-lg font-medium">You have unsaved transient requests</h1>
+        <h1 className="ml-2 text-lg font-medium">{t('SAVE_REQUEST.UNSAVED_TRANSIENT_HEADING')}</h1>
       </div>
       <p className="mt-4">
-        You have <span className="font-medium">{modals.length}</span>{' '}
-        {pluralizeWord('request', modals.length)} that need to be saved.
+        {t('SAVE_REQUEST.REQUESTS_NEED_SAVING', { count: modals.length, requestWord: pluralizeWord('request', modals.length) })}
       </p>
 
       <div className="mt-4">
         <p className="text-sm font-medium mb-2">
-          Transient {pluralizeWord('Request', modals.length)} ({modals.length})
+          {t('SAVE_REQUEST.TRANSIENT_REQUESTS_LABEL', { count: modals.length, requestWord: pluralizeWord('Request', modals.length) })}
         </p>
         <p className="text-xs text-orange-600 mb-3">
-          These requests need to be saved before you can proceed.
+          {t('SAVE_REQUEST.REQUESTS_NEED_SAVING_WARNING')}
         </p>
         <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
           {modals.map((modal) => {
@@ -103,7 +104,7 @@ const SaveTransientRequestContainer = () => {
                   onClick={() => handleOpenSpecificModal(item.uid)}
                   icon={<IconDeviceFloppy size={14} strokeWidth={1.5} />}
                 >
-                  Save
+                  {t('COMMON.SAVE')}
                 </Button>
               </div>
             );
@@ -113,7 +114,7 @@ const SaveTransientRequestContainer = () => {
 
       <div className="flex justify-end mt-6 pt-4 border-t">
         <Button color="danger" onClick={handleDiscardAll}>
-          Discard All
+          {t('SAVE_REQUEST.DISCARD_ALL')}
         </Button>
       </div>
     </Modal>

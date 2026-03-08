@@ -61,6 +61,16 @@ pub async fn create_example(
     Ok((StatusCode::CREATED, Json(json!({ "data": example }))))
 }
 
+pub async fn get_example(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(example_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let user_id = extract_user_id(&claims)?;
+    let example = state.example_service.get_by_uid(&example_id, user_id).await?;
+    Ok(Json(json!({ "data": example })))
+}
+
 pub async fn list_examples(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

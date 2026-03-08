@@ -1,5 +1,6 @@
 import React, { useState, forwardRef, useImperativeHandle, useRef } from 'react';
 import { useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { IconBookmark } from '@tabler/icons';
 import {
   addResponseExample,
@@ -20,19 +21,20 @@ import {
   getSuggestedExampleName
 } from 'utils/examples';
 
-const getTitleText = ({ isResponseTooLarge, isStreamingResponse }) => {
+const getTitleText = ({ isResponseTooLarge, isStreamingResponse, t }) => {
   if (isStreamingResponse) {
-    return 'Response Examples aren\'t supported in streaming responses yet.';
+    return t('RESPONSE.BOOKMARK.STREAMING_NOT_SUPPORTED');
   }
 
   if (isResponseTooLarge) {
-    return 'Response size exceeds 5MB limit. Cannot save as example.';
+    return t('RESPONSE.BOOKMARK.SIZE_EXCEEDS_LIMIT');
   }
 
-  return 'Save current response as example';
+  return t('RESPONSE.BOOKMARK.SAVE_CURRENT_RESPONSE');
 };
 
 const ResponseBookmark = forwardRef(({ item, collection, responseSize, children }, ref) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const [showSaveResponseExampleModal, setShowSaveResponseExampleModal] = useState(false);
   const response = item.response || {};
@@ -44,14 +46,14 @@ const ResponseBookmark = forwardRef(({ item, collection, responseSize, children 
 
   const ensureResponseCanBeSaved = (event) => {
     if (!response || response.error) {
-      toast.error('No valid response to save as example');
+      toast.error(t('RESPONSE_EXAMPLE.CREATE_MODAL.NO_VALID_RESPONSE'));
       event?.preventDefault?.();
       event?.stopPropagation?.();
       return false;
     }
 
     if (isResponseTooLarge) {
-      toast.error('Response size exceeds 5MB limit. Cannot save as example.');
+      toast.error(t('RESPONSE_EXAMPLE.CREATE_MODAL.SIZE_EXCEEDS_LIMIT'));
       event?.preventDefault?.();
       event?.stopPropagation?.();
       return false;
@@ -90,7 +92,7 @@ const ResponseBookmark = forwardRef(({ item, collection, responseSize, children 
       }));
 
       await dispatch(saveRequest(item.uid, collection.uid, true));
-      toast.success('Example updated from latest response');
+      toast.success(t('RESPONSE_EXAMPLE.CREATE_MODAL.UPDATED_FROM_RESPONSE'));
       return true;
     },
     syncRequestSnapshot: async (exampleUid) => {
@@ -104,7 +106,7 @@ const ResponseBookmark = forwardRef(({ item, collection, responseSize, children 
       }));
 
       await dispatch(saveRequest(item.uid, collection.uid, true));
-      toast.success('Example request snapshot synced');
+      toast.success(t('RESPONSE_EXAMPLE.CREATE_MODAL.REQUEST_SNAPSHOT_SYNCED'));
       return true;
     },
     isDisabled
@@ -144,12 +146,13 @@ const ResponseBookmark = forwardRef(({ item, collection, responseSize, children 
     }));
 
     setShowSaveResponseExampleModal(false);
-    toast.success(`Example "${name}" created successfully`);
+    toast.success(t('RESPONSE_EXAMPLE.CREATE_MODAL.CREATED_SUCCESSFULLY', { name }));
   };
 
   const disabledMessage = getTitleText({
     isResponseTooLarge,
-    isStreamingResponse
+    isStreamingResponse,
+    t
   });
 
   return (
@@ -167,7 +170,7 @@ const ResponseBookmark = forwardRef(({ item, collection, responseSize, children 
       >
         {children ?? (
           <StyledWrapper className="flex items-center">
-            <ActionIcon className="p-1" disabled={isDisabled}>
+            <ActionIcon className="p-1" disabled={isDisabled} label={disabledMessage}>
               <IconBookmark size={16} strokeWidth={2} />
             </ActionIcon>
           </StyledWrapper>
@@ -178,7 +181,7 @@ const ResponseBookmark = forwardRef(({ item, collection, responseSize, children 
         isOpen={showSaveResponseExampleModal}
         onClose={() => setShowSaveResponseExampleModal(false)}
         onSave={saveAsExample}
-        title="Save Response as Example"
+        title={t('RESPONSE_EXAMPLE.CREATE_MODAL.TITLE')}
         initialName={getSuggestedExampleName(item, response)}
       />
     </>

@@ -7,6 +7,9 @@ export { WsService } from './ws';
 export { SyncService } from './sync';
 export { ImportService } from './import';
 export { ExampleService } from './examples';
+export { InviteService } from './invites';
+export { UserService } from './users';
+export { AiService } from './ai';
 export * from './types';
 
 // Re-export for convenience
@@ -19,6 +22,9 @@ import { WsService } from './ws';
 import { SyncService } from './sync';
 import { ImportService } from './import';
 import { ExampleService } from './examples';
+import { InviteService } from './invites';
+import { UserService } from './users';
+import { AiService } from './ai';
 import type { BrunoApiConfig } from './types';
 
 /**
@@ -34,6 +40,9 @@ export function createBrunoApi(config: BrunoApiConfig) {
   const sync = new SyncService(client);
   const importService = new ImportService(client);
   const examples = new ExampleService(client);
+  const invites = new InviteService(client);
+  const users = new UserService(client);
+  const ai = new AiService(client);
 
   return {
     client,
@@ -45,5 +54,8 @@ export function createBrunoApi(config: BrunoApiConfig) {
     sync,
     import: importService,
     examples,
+    invites,
+    users,
+    ai,
   };
 }

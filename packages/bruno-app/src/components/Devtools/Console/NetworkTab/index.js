@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   IconNetwork
@@ -115,6 +116,7 @@ const RequestRow = ({ request, isSelected, onClick }) => {
 };
 
 const NetworkTab = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { networkFilters, selectedRequest } = useSelector((state) => state.logs);
   const collections = useSelector((state) => state.collections.collections);
@@ -156,19 +158,19 @@ const NetworkTab = () => {
         {filteredRequests.length === 0 ? (
           <div className="network-empty">
             <IconNetwork size={48} strokeWidth={1} />
-            <p>No network requests</p>
-            <span>Requests will appear here as you make API calls</span>
+            <p>{t('NETWORK_TAB.noRequests')}</p>
+            <span>{t('NETWORK_TAB.requestsWillAppear')}</span>
           </div>
         ) : (
           <div className="requests-container">
             <div className="requests-header">
-              <div>Method</div>
-              <div>Status</div>
-              <div>Domain</div>
-              <div>Path</div>
-              <div>Time</div>
-              <div className="text-right">Duration</div>
-              <div className="text-right">Size</div>
+              <div>{t('NETWORK_TAB.method')}</div>
+              <div>{t('NETWORK_TAB.status')}</div>
+              <div>{t('NETWORK_TAB.domain')}</div>
+              <div>{t('NETWORK_TAB.path')}</div>
+              <div>{t('NETWORK_TAB.time')}</div>
+              <div className="text-right">{t('NETWORK_TAB.duration')}</div>
+              <div className="text-right">{t('NETWORK_TAB.size')}</div>
             </div>
 
             <div className="requests-list">

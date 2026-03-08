@@ -413,7 +413,7 @@ const StyledWrapper = styled.div`
   }
 
   .log-level {
-    font-size: 9px;
+    font-size: ${(props) => props.theme.font.size.xs};
     font-weight: 500;
     padding: 2px 4px;
     border-radius: 2px;

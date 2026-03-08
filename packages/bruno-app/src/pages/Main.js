@@ -6,7 +6,7 @@ import { HotkeysProvider } from 'providers/Hotkeys';
 import { PromptVariablesProvider } from 'providers/PromptVariables';
 
 import ReduxStore from 'providers/ReduxStore';
-import ThemeProvider from 'providers/Theme/index';
+import ThemeProvider from 'providers/Theme';
 import ErrorBoundary from './ErrorBoundary';
 
 import '../styles/globals.css';

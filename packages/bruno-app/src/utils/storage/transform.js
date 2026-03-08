@@ -20,7 +20,7 @@
  *    Local:  actual filesystem path (always contains '/')
  */
 
-import { nanoid } from 'nanoid';
+import { uuid as nanoid } from 'utils/common';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // EXAMPLE TRANSFORMATION
@@ -92,15 +92,9 @@ export function transformCloudExampleToLocal(cloudExample) {
   const contentType = (cloudExample.headers || {})['Content-Type'] || (cloudExample.headers || {})['content-type'] || '';
   const bodyType = detectBodyType(contentType);
 
-  // Deserialize body
-  let bodyContent = cloudExample.body || null;
-  if (bodyType === 'json' && typeof bodyContent === 'string') {
-    try {
-      bodyContent = JSON.parse(bodyContent);
-    } catch {
-      // keep as string
-    }
-  }
+  // Keep body as string — CodeEditor expects a string value.
+  // transformLocalExampleToCloud already handles stringify when saving back.
+  const bodyContent = cloudExample.body || null;
 
   // Infer example type from request snapshot
   const requestSnapshot = cloudExample.requestSnapshot || null;
@@ -251,7 +245,7 @@ export function transformCloudCollectionToLocal(cloudCollection) {
     version: '1',
     name: cloudCollection.name,
     type: 'collection',
-    pathname: `cloud://${cloudCollection.uid}`,
+    pathname: cloudCollection.uid,
     isCloud: true,
 
     // Transform items recursively
@@ -325,39 +319,21 @@ export function transformLocalEnvironmentToCloud(localEnv) {
  * Generate UID for new items (matches local format)
  */
 export function generateUid() {
-  return nanoid(21); // Same as local UIDs
+  return nanoid(); // Same as local UIDs (21-char alphanumeric)
 }
 
 /**
  * Check if an item is a cloud item
  */
 export function isCloudItem(item) {
-  return item?.isCloud === true || item?.pathname?.startsWith('cloud://');
+  return item?.isCloud === true;
 }
 
 /**
  * Check if a collection is a cloud collection
  */
 export function isCloudCollection(collection) {
-  return collection?.isCloud === true || collection?.pathname?.startsWith('cloud://');
-}
-
-/**
- * Extract workspace ID from cloud pathname
- */
-export function extractWorkspaceIdFromPathname(pathname) {
-  if (!pathname?.startsWith('cloud://')) return null;
-  const parts = pathname.replace('cloud://', '').split('/');
-  return parts[0] || null;
-}
-
-/**
- * Extract item ID from cloud pathname
- */
-export function extractItemIdFromPathname(pathname) {
-  if (!pathname?.startsWith('cloud://')) return null;
-  const parts = pathname.replace('cloud://', '').split('/');
-  return parts[1] || null;
+  return collection?.isCloud === true;
 }
 
 /**

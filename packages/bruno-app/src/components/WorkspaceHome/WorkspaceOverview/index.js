@@ -7,14 +7,15 @@ import CreateCollection from 'components/Sidebar/CreateCollection';
 import ImportCollection from 'components/Sidebar/ImportCollection';
 import ImportCollectionLocation from 'components/Sidebar/ImportCollectionLocation';
 import BulkImportCollectionLocation from 'components/Sidebar/BulkImportCollectionLocation';
-import CloneGitRepository from 'components/Sidebar/CloneGitRespository';
 import { storage } from 'utils/storage';
 import Button from 'ui/Button';
 import CollectionsList from './CollectionsList';
 import WorkspaceDocs from '../WorkspaceDocs';
 import StyledWrapper from './StyledWrapper';
+import { useTranslation } from 'react-i18next';
 
 const WorkspaceOverview = ({ workspace }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { globalEnvironments } = useSelector((state) => state.globalEnvironments);
 
@@ -22,8 +23,6 @@ const WorkspaceOverview = ({ workspace }) => {
   const [importCollectionModalOpen, setImportCollectionModalOpen] = useState(false);
   const [importCollectionLocationModalOpen, setImportCollectionLocationModalOpen] = useState(false);
   const [importData, setImportData] = useState(null);
-  const [showCloneGitModal, setShowCloneGitModal] = useState(false);
-  const [gitRepositoryUrl, setGitRepositoryUrl] = useState(null);
 
   const workspaceCollectionsCount = workspace?.collections?.length || 0;
 
@@ -31,7 +30,7 @@ const WorkspaceOverview = ({ workspace }) => {
 
   const handleCreateCollection = async () => {
     if (!workspace?.pathname) {
-      toast.error('Workspace path not found');
+      toast.error(t('WORKSPACE.PATH_NOT_FOUND'));
       return;
     }
 
@@ -40,14 +39,14 @@ const WorkspaceOverview = ({ workspace }) => {
       setCreateCollectionModalOpen(true);
     } catch (error) {
       console.error('Error ensuring collections folder exists:', error);
-      toast.error('Error preparing workspace for collection creation');
+      toast.error(t('WORKSPACE.PREPARE_ERROR'));
     }
   };
 
   const handleOpenCollection = () => {
     dispatch(openCollection()).catch((err) => {
       console.error(err);
-      toast.error('An error occurred while opening the collection');
+      toast.error(t('WORKSPACE.OPEN_COLLECTION_ERROR'));
     });
   };
 
@@ -55,14 +54,8 @@ const WorkspaceOverview = ({ workspace }) => {
     setImportCollectionModalOpen(true);
   };
 
-  const handleImportCollectionSubmit = ({ rawData, type, repositoryUrl, ...rest }) => {
+  const handleImportCollectionSubmit = ({ rawData, type, ...rest }) => {
     setImportCollectionModalOpen(false);
-
-    if (type === 'git-repository') {
-      setGitRepositoryUrl(repositoryUrl);
-      setShowCloneGitModal(true);
-      return;
-    }
 
     setImportData({ rawData, type, ...rest });
     setImportCollectionLocationModalOpen(true);
@@ -78,11 +71,6 @@ const WorkspaceOverview = ({ workspace }) => {
         setImportCollectionLocationModalOpen(false);
         setImportData(null);
       });
-  };
-
-  const handleCloseGitModal = () => {
-    setShowCloneGitModal(false);
-    setGitRepositoryUrl(null);
   };
 
   return (
@@ -113,29 +101,21 @@ const WorkspaceOverview = ({ workspace }) => {
           handleSubmit={handleImportCollectionLocation}
         />
       )}
-      {showCloneGitModal && (
-        <CloneGitRepository
-          onClose={handleCloseGitModal}
-          onFinish={handleCloseGitModal}
-          collectionRepositoryUrl={gitRepositoryUrl}
-        />
-      )}
-
       <div className="overview-layout">
         <div className="overview-main">
           <div className="stats-row">
             <div className="stat-item">
               <span className="stat-value">{workspaceCollectionsCount}</span>
-              <span className="stat-label">Collections</span>
+              <span className="stat-label">{t('COMMON.COLLECTIONS')}</span>
             </div>
             <div className="stat-item">
               <span className="stat-value">{workspaceEnvironmentsCount}</span>
-              <span className="stat-label">Environments</span>
+              <span className="stat-label">{t('ENVIRONMENTS.TITLE')}</span>
             </div>
           </div>
 
           <div className="quick-actions-section">
-            <div className="section-title">Quick Actions</div>
+            <div className="section-title">{t('WORKSPACE.QUICK_ACTIONS')}</div>
             <div className="quick-actions-buttons">
               <Button
                 color="light"
@@ -143,7 +123,7 @@ const WorkspaceOverview = ({ workspace }) => {
                 icon={<IconPlus size={14} strokeWidth={1.5} />}
                 onClick={handleCreateCollection}
               >
-                Create Collection
+                {t('WELCOME.CREATE_COLLECTION')}
               </Button>
               <Button
                 color="light"
@@ -151,7 +131,7 @@ const WorkspaceOverview = ({ workspace }) => {
                 icon={<IconFolder size={14} strokeWidth={1.5} />}
                 onClick={handleOpenCollection}
               >
-                Open Collection
+                {t('WELCOME.OPEN_COLLECTION')}
               </Button>
               <Button
                 color="light"
@@ -159,13 +139,13 @@ const WorkspaceOverview = ({ workspace }) => {
                 icon={<IconDownload size={14} strokeWidth={1.5} />}
                 onClick={handleImportCollection}
               >
-                Import Collection
+                {t('WELCOME.IMPORT_COLLECTION')}
               </Button>
             </div>
           </div>
 
           <div className="collections-section">
-            <div className="section-title">Collections</div>
+            <div className="section-title">{t('COMMON.COLLECTIONS')}</div>
             <CollectionsList workspace={workspace} />
           </div>
         </div>

@@ -42,26 +42,9 @@ export const initLocalDB = () => {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
-      const tx = event.target.transaction;
-      const oldVersion = event.oldVersion;
 
-      if (oldVersion < 3) {
-        // Migrate: rename data→request, remove draft in REQUESTS store
-        const store = tx.objectStore(STORES.REQUESTS);
-        const cursorReq = store.openCursor();
-        cursorReq.onsuccess = (e) => {
-          const cursor = e.target.result;
-          if (!cursor) return;
-          const rec = cursor.value;
-          if ('data' in rec || 'draft' in rec) {
-            const updated = { ...rec, request: rec.data ?? rec.request ?? {} };
-            delete updated.data;
-            delete updated.draft;
-            cursor.update(updated);
-          }
-          cursor.continue();
-        };
-      }
+      // Drop all existing stores and recreate from scratch
+      Array.from(db.objectStoreNames).forEach((name) => db.deleteObjectStore(name));
 
       // workspaces: { uid, name, createdAt, updatedAt }
       if (!db.objectStoreNames.contains(STORES.WORKSPACES)) {

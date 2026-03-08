@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import { useDispatch } from 'react-redux';
 import AuthMode from './AuthMode';
@@ -15,6 +16,7 @@ import NTLMAuth from './NTLMAuth';
 import Button from 'ui/Button';
 
 const Auth = ({ collection }) => {
+  const { t } = useTranslation();
   const authMode = collection.draft?.root ? get(collection, 'draft.root.request.auth.mode') : get(collection, 'root.request.auth.mode');
   const dispatch = useDispatch();
 
@@ -52,8 +54,8 @@ const Auth = ({ collection }) => {
   return (
     <StyledWrapper className="w-full h-full">
       <div className="text-xs mb-4 text-muted">
-        Configures authentication for the entire collection. This applies to all requests using the{' '}
-        <span className="font-medium">Inherit</span> option in the <span className="font-medium">Auth</span> tab.
+        {t('COLLECTION_SETTINGS.AUTH.DESCRIPTION_PART1')}{' '}
+        <span className="font-medium">{t('COLLECTION_SETTINGS.AUTH.INHERIT')}</span> {t('COLLECTION_SETTINGS.AUTH.DESCRIPTION_PART2')} <span className="font-medium">{t('COLLECTION_SETTINGS.AUTH.AUTH_TAB_LABEL')}</span> {t('COLLECTION_SETTINGS.AUTH.DESCRIPTION_PART3')}
       </div>
       <div className="flex flex-grow justify-start items-center">
         <AuthMode collection={collection} />
@@ -61,7 +63,7 @@ const Auth = ({ collection }) => {
       {getAuthView()}
       <div className="mt-6">
         <Button type="submit" size="sm" onClick={handleSave}>
-          Save
+          {t('COLLECTION_SETTINGS.AUTH.SAVE')}
         </Button>
       </div>
     </StyledWrapper>

@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import StyledWrapper from './StyledWrapper';
 import yamlPlugin from './Plugins/Yaml/index';
 
@@ -58,6 +59,7 @@ export default class CodeEditor extends React.Component {
       theme: this.props.theme === 'dark' ? 'monokai' : 'default',
       extraKeys: {
         'Cmd-S': () => {
+          const { t } = useTranslation();
           if (this.props.onSave) {
             this.props.onSave();
           }

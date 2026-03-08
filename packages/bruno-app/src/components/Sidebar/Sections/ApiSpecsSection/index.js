@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
 import { IconFileCode, IconPlus } from '@tabler/icons';
@@ -11,13 +12,14 @@ import ApiSpecs from 'components/Sidebar/ApiSpecs';
 import SidebarSection from 'components/Sidebar/SidebarSection';
 
 const ApiSpecsSection = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const [createApiSpecModalOpen, setCreateApiSpecModalOpen] = useState(false);
 
   const handleOpenApiSpec = () => {
     dispatch(openApiSpec()).catch((err) => {
       console.error(err);
-      toast.error('An error occurred while opening the API spec');
+      toast.error(t('SIDEBAR.API_SPEC_OPEN_ERROR'));
     });
   };
 
@@ -48,7 +50,7 @@ const ApiSpecsSection = () => {
         placement="bottom-end"
       >
         <ActionIcon
-          label="Add new API Spec"
+          label={t('SIDEBAR.ADD_API_SPEC')}
         >
           <IconPlus size={14} stroke={1.5} aria-hidden="true" />
         </ActionIcon>
@@ -65,7 +67,7 @@ const ApiSpecsSection = () => {
       )}
       <SidebarSection
         id="api-specs"
-        title="API Specs"
+        title={t('SIDEBAR.API_SPECS')}
         icon={IconFileCode}
         actions={sectionActions}
         className="api-specs-section"

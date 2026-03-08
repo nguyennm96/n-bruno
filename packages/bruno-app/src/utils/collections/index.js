@@ -106,14 +106,6 @@ export const findItemInCollectionByItemUid = (collection, itemUid) => {
   return findItem(flattenedItems, itemUid);
 };
 
-export const findParentItemInCollectionByPathname = (collection, pathname) => {
-  let flattenedItems = flattenItems(collection.items);
-
-  return find(flattenedItems, (item) => {
-    return item.items && find(item.items, (i) => i.pathname === pathname);
-  });
-};
-
 export const findItemInCollection = (collection, itemUid) => {
   if (!collection || !collection.items) {
     return null;
@@ -988,12 +980,12 @@ export const refreshUidsInItem = (item) => {
 
 export const deleteUidsInItem = (item) => {
   delete item.uid;
-  const params = get(item, 'request.params', []);
-  const headers = get(item, 'request.headers', []);
-  const bodyFormUrlEncoded = get(item, 'request.body.formUrlEncoded', []);
-  const bodyMultipartForm = get(item, 'request.body.multipartForm', []);
-  const file = get(item, 'request.body.file', []);
-  const assertions = get(item, 'request.assertions', []);
+  const params = get(item, 'request.params') || [];
+  const headers = get(item, 'request.headers') || [];
+  const bodyFormUrlEncoded = get(item, 'request.body.formUrlEncoded') || [];
+  const bodyMultipartForm = get(item, 'request.body.multipartForm') || [];
+  const file = get(item, 'request.body.file') || [];
+  const assertions = get(item, 'request.assertions') || [];
 
   params.forEach((param) => delete param.uid);
   headers.forEach((header) => delete header.uid);
@@ -1439,38 +1431,40 @@ export const getReorderedItemsInSourceDirectory = ({ items }) => {
 };
 
 export const calculateDraggedItemNewPathname = ({ draggedItem, targetItem, dropType, collectionPathname, isCloudMode }) => {
-  if (isCloudMode) {
-    // In cloud mode, we return the target parent's uid or null for root
+  // Filesystem mode is only active when collectionPathname is an actual absolute path
+  // (Electron file-watcher collections). Cloud and IDB both use uid-based identifiers.
+  const isFilesystemMode = !isCloudMode && path.isAbsolute(collectionPathname ?? '');
+
+  if (!isFilesystemMode) {
+    // Cloud and IDB: return the target parent's uid so callers can decide where to place the item.
+    // handleMoveToNewLocation will recompute the exact parent for IDB adjacent drops.
     const isTargetItemAFolder = isItemAFolder(targetItem);
-    const isTargetTheCollection = !targetItem.parent_item_id && !targetItem.pathname;
+    const isTargetTheCollection = targetItem.uid === collectionPathname;
 
     if (dropType === 'inside' && (isTargetItemAFolder || isTargetTheCollection)) {
-      // Moving inside a folder - return target uid
       return targetItem.uid;
     } else if (dropType === 'adjacent') {
-      // Moving adjacent to an item - return parent uid (or null for root)
-      return targetItem.parent_item_id || null;
+      return targetItem.uid;
     }
     return null;
   }
 
-  // Local mode - use pathname (fall back to uid in IDB mode where pathname is not set)
-  const targetItemId = targetItem.pathname ?? targetItem.uid;
+  // Filesystem mode: derive new path from actual file paths
+  const targetItemPath = targetItem.pathname;
   const { filename: draggedItemFilename } = draggedItem;
 
-  if (!targetItemId || !draggedItemFilename) {
+  if (!targetItemPath || !draggedItemFilename) {
     console.error('calculateDraggedItemNewPathname: Missing pathname or filename', { targetItem, draggedItem });
     return null;
   }
 
-  const targetItemDirname = path.dirname(targetItemId);
-  const isTargetTheCollection = targetItemId === collectionPathname;
+  const isTargetTheCollection = targetItemPath === collectionPathname;
   const isTargetItemAFolder = isItemAFolder(targetItem);
 
   if (dropType === 'inside' && (isTargetItemAFolder || isTargetTheCollection)) {
-    return path.join(targetItemId, draggedItemFilename);
+    return path.join(targetItemPath, draggedItemFilename);
   } else if (dropType === 'adjacent') {
-    return path.join(targetItemDirname, draggedItemFilename);
+    return path.join(path.dirname(targetItemPath), draggedItemFilename);
   }
   return null;
 };

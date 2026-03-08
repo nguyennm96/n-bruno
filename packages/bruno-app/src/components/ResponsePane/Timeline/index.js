@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import StyledWrapper from './StyledWrapper';
 import { findItemInCollection, findParentItemInCollection } from 'utils/collections/index';
 import { get } from 'lodash';
@@ -44,6 +45,7 @@ const getEffectiveAuthSource = (collection, item) => {
 };
 
 const Timeline = ({ collection, item }) => {
+  const { t } = useTranslation();
   // Get the effective auth source if auth mode is inherit
   const authSource = getEffectiveAuthSource(collection, item);
   const isGrpcRequest = item.type === 'grpc-request' || item.type === 'ws-request';
@@ -111,7 +113,7 @@ const Timeline = ({ collection, item }) => {
               <div key={index} className="timeline-event">
                 <div className="timeline-event-header cursor-pointer flex items-center">
                   <div className="flex items-center">
-                    <span className="font-bold">OAuth2.0 Calls</span>
+                    <span className="font-bold">{t('RESPONSE_PANE.TIMELINE.OAUTH2_CALLS')}</span>
                   </div>
                 </div>
                 <div className="mt-2">
@@ -129,7 +131,7 @@ const Timeline = ({ collection, item }) => {
                       </div>
                     ))
                   ) : (
-                    <div>No debug information available.</div>
+                    <div>{t('RESPONSE_PANE.TIMELINE.NO_DEBUG_INFO')}</div>
                   )}
                 </div>
               </div>

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import CodeEditor from 'components/CodeEditor/index';
 import { get } from 'lodash';
 import find from 'lodash/find';
@@ -30,6 +31,7 @@ const QueryResultPreview = ({
   disableRunEventListener,
   displayedTheme
 }) => {
+  const { t } = useTranslation();
   const preferences = useSelector((state) => state.app.preferences);
   const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
@@ -122,10 +124,10 @@ const QueryResultPreview = ({
       return (
         <div className="p-4 flex flex-col items-center justify-center h-full text-center">
           <div className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">
-            No Preview Available
+            {t('RESPONSE_PANE.NO_PREVIEW')}
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            Sorry, no preview is available for this content type.
+            {t('RESPONSE_PANE.NO_PREVIEW_DESC')}
           </div>
         </div>
       );

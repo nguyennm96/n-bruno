@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import get from 'lodash/get';
 import { useDispatch, useSelector } from 'react-redux';
@@ -19,7 +20,6 @@ import {
 import { importCollection, openCollection, importCollectionFromZip } from 'providers/ReduxStore/slices/collections/actions';
 import { sortCollections } from 'providers/ReduxStore/slices/collections/index';
 import { savePreferences } from 'providers/ReduxStore/slices/app';
-import { normalizePath } from 'utils/common/path';
 import { isScratchCollection } from 'utils/collections';
 
 import MenuDropdown from 'ui/MenuDropdown';
@@ -27,7 +27,6 @@ import ActionIcon from 'ui/ActionIcon';
 import ImportCollection from 'components/Sidebar/ImportCollection';
 import ImportCollectionLocation from 'components/Sidebar/ImportCollectionLocation';
 import BulkImportCollectionLocation from 'components/Sidebar/BulkImportCollectionLocation';
-import CloneGitRepository from 'components/Sidebar/CloneGitRespository';
 import RemoveCollectionsModal from 'components/Sidebar/Collections/RemoveCollectionsModal/index';
 import CreateCollection from 'components/Sidebar/CreateCollection';
 import WelcomeModal from 'components/WelcomeModal';
@@ -36,6 +35,7 @@ import SidebarSection from 'components/Sidebar/SidebarSection';
 import { openDevtoolsAndSwitchToTerminal } from 'utils/terminal';
 
 const CollectionsSection = () => {
+  const { t } = useTranslation();
   const [showSearch, setShowSearch] = useState(false);
   const dispatch = useDispatch();
 
@@ -51,8 +51,6 @@ const CollectionsSection = () => {
   const [createCollectionModalOpen, setCreateCollectionModalOpen] = useState(false);
   const [importCollectionModalOpen, setImportCollectionModalOpen] = useState(false);
   const [importCollectionLocationModalOpen, setImportCollectionLocationModalOpen] = useState(false);
-  const [showCloneGitModal, setShowCloneGitModal] = useState(false);
-  const [gitRepositoryUrl, setGitRepositoryUrl] = useState(null);
 
   // Default to true (don't show modal) so that:
   // 1. Existing users who upgrade (no hasSeenWelcomeModal in their prefs) don't see it
@@ -70,7 +68,7 @@ const CollectionsSection = () => {
       }
     };
     dispatch(savePreferences(updatedPreferences)).catch(() => {
-      toast.error('Failed to save preferences');
+      toast.error(t('COLLECTIONS_SECTION.failedSavePreferences'));
     });
   };
 
@@ -81,21 +79,12 @@ const CollectionsSection = () => {
       if (isScratchCollection(c, workspaces)) {
         return false;
       }
-      return activeWorkspace.collections?.some((wc) => {
-        const wcPath = wc.path ?? wc.pathname ?? wc.uid;
-        return normalizePath(wcPath) === normalizePath(c.pathname);
-      });
+      return activeWorkspace.collections?.some((wc) => wc.uid === c.uid);
     });
   }, [activeWorkspace, collections, workspaces]);
 
-  const handleImportCollection = ({ rawData, type, repositoryUrl, ...rest }) => {
+  const handleImportCollection = ({ rawData, type, ...rest }) => {
     setImportCollectionModalOpen(false);
-
-    if (type === 'git-repository') {
-      setGitRepositoryUrl(repositoryUrl);
-      setShowCloneGitModal(true);
-      return;
-    }
 
     setImportData({ rawData, type, ...rest });
     setImportCollectionLocationModalOpen(true);
@@ -111,11 +100,6 @@ const CollectionsSection = () => {
         setImportCollectionLocationModalOpen(false);
         setImportData(null);
       });
-  };
-
-  const handleCloseGitModal = () => {
-    setShowCloneGitModal(false);
-    setGitRepositoryUrl(null);
   };
 
   const handleToggleSearch = () => {
@@ -155,11 +139,11 @@ const CollectionsSection = () => {
   const getSortLabel = () => {
     switch (collectionSortOrder) {
       case 'alphabetical':
-        return 'Sort Z-A';
+        return t('COLLECTIONS_SECTION.sortZA');
       case 'reverseAlphabetical':
-        return 'Clear sort';
+        return t('COLLECTIONS_SECTION.clearSort');
       default:
-        return 'Sort A-Z';
+        return t('COLLECTIONS_SECTION.sortAZ');
     }
   };
 
@@ -178,7 +162,7 @@ const CollectionsSection = () => {
     }
 
     dispatch(openCollection(options)).catch((err) => {
-      toast.error('An error occurred while opening the collection');
+      toast.error(t('COLLECTIONS_SECTION.openCollectionError'));
     });
   };
 
@@ -186,7 +170,7 @@ const CollectionsSection = () => {
     {
       id: 'create',
       leftSection: IconPlus,
-      label: 'Create collection',
+      label: t('COLLECTIONS_SECTION.createCollection'),
       onClick: () => {
         setCreateCollectionModalOpen(true);
       }
@@ -194,7 +178,7 @@ const CollectionsSection = () => {
     {
       id: 'open',
       leftSection: IconFolder,
-      label: 'Open collection',
+      label: t('COLLECTIONS_SECTION.openCollection'),
       onClick: () => {
         handleOpenCollection();
       }
@@ -202,7 +186,7 @@ const CollectionsSection = () => {
     {
       id: 'import',
       leftSection: IconDownload,
-      label: 'Import collection',
+      label: t('COLLECTIONS_SECTION.importCollection'),
       onClick: () => {
         setImportCollectionModalOpen(true);
       }
@@ -221,7 +205,7 @@ const CollectionsSection = () => {
     {
       id: 'close-all',
       leftSection: IconSquareX,
-      label: 'Close all',
+      label: t('COLLECTIONS_SECTION.closeAll'),
       onClick: () => {
         selectAllCollectionsToClose();
       }
@@ -229,7 +213,7 @@ const CollectionsSection = () => {
     {
       id: 'open-in-terminal',
       leftSection: IconTerminal2,
-      label: 'Open in Terminal',
+      label: t('COLLECTIONS_SECTION.openInTerminal'),
       onClick: () => {
         openDevtoolsAndSwitchToTerminal(dispatch, activeWorkspace?.pathname);
       }
@@ -251,7 +235,7 @@ const CollectionsSection = () => {
         placement="bottom-end"
       >
         <ActionIcon
-          label="Add new collection"
+          label={t('COLLECTIONS_SECTION.addNewCollection')}
         >
           <IconPlus size={14} stroke={1.5} aria-hidden="true" />
         </ActionIcon>
@@ -263,7 +247,7 @@ const CollectionsSection = () => {
         placement="bottom-end"
       >
         <ActionIcon
-          label="More actions"
+          label={t('COLLECTIONS_SECTION.moreActions')}
         >
           <IconDotsVertical size={14} stroke={1.5} aria-hidden="true" />
         </ActionIcon>
@@ -316,16 +300,9 @@ const CollectionsSection = () => {
           handleSubmit={handleImportCollectionLocation}
         />
       )}
-      {showCloneGitModal && (
-        <CloneGitRepository
-          onClose={handleCloseGitModal}
-          onFinish={handleCloseGitModal}
-          collectionRepositoryUrl={gitRepositoryUrl}
-        />
-      )}
       <SidebarSection
         id="collections"
-        title="Collections"
+        title={t('COLLECTIONS_SECTION.title')}
         icon={IconBox}
         actions={sectionActions}
       >

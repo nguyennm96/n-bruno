@@ -1,4 +1,5 @@
 import { get } from 'lodash';
+import { useTranslation } from 'react-i18next';
 import { updateRequestBody } from 'providers/ReduxStore/slices/collections';
 import { IconPlus } from '@tabler/icons';
 import React, { useEffect, useRef } from 'react';
@@ -8,6 +9,7 @@ import StyledWrapper from './StyledWrapper';
 import { SingleWSMessage } from './SingleWSMessage/index';
 
 const WSBody = ({ item, collection, handleRun }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const messagesContainerRef = useRef(null);
   const body = item.draft ? get(item, 'draft.request.body') : get(item, 'request.body');
@@ -42,7 +44,7 @@ const WSBody = ({ item, collection, handleRun }) => {
     return (
       <StyledWrapper>
         <div className="empty-state">
-          <p>No WebSocket messages available</p>
+          <p>{t('REQUEST.WS.NO_MESSAGES')}</p>
           <Button
             onClick={addNewMessage}
             variant="filled"

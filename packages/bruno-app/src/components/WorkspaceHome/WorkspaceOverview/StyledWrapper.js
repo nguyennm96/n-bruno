@@ -35,8 +35,8 @@ const StyledWrapper = styled.div`
   }
 
   .stat-value {
-    font-size: 22px;
-    font-weight: 600;
+    font-size: 1.375rem;
+    font-weight: 700;
     color: ${(props) => props.theme.text};
     line-height: 1;
   }

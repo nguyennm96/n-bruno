@@ -23,7 +23,7 @@ const StyledWrapper = styled.div`
     .warning-text {
       font-family: 'Inter', sans-serif;
       font-style: normal;
-      font-size: 14px;
+      font-size: ${(props) => props.theme.font.size.md};
       line-height: 17px;
       color: ${(props) => props.theme.deprecationWarning.text};
 

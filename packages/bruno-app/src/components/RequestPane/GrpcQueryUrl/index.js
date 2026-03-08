@@ -26,11 +26,13 @@ import useReflectionManagement from 'hooks/useReflectionManagement/index';
 import useProtoFileManagement from 'hooks/useProtoFileManagement/index';
 import MethodDropdown from './MethodDropdown';
 import ProtoFileDropdown from './ProtoFileDropdown';
+import { useTranslation } from 'react-i18next';
 
 const STREAMING_METHOD_TYPES = ['client-streaming', 'server-streaming', 'bidi-streaming'];
 const CLIENT_STREAMING_METHOD_TYPES = ['client-streaming', 'bidi-streaming'];
 
 const GrpcQueryUrl = ({ item, collection, handleRun }) => {
+  const { t } = useTranslation();
   const { theme, storedTheme } = useTheme();
   const dispatch = useDispatch();
   const method = getPropertyFromDraftOrRequest(item, 'request.method');
@@ -63,7 +65,7 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
     if (isConnectionActive) {
       cancelGrpcConnection(item.uid)
         .then(() => {
-          toast.success('gRPC connection cancelled');
+          toast.success(t('REQUEST.GRPC.CONNECTION_CANCELLED'));
         })
         .catch((err) => {
           console.error('Failed to cancel gRPC connection:', err);
@@ -121,7 +123,7 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
     const { methods, error, fromCache } = await reflectionManagement.loadMethodsFromReflection(url, isManualRefresh);
 
     if (error) {
-      toast.error(`Failed to load gRPC methods: ${error.message || 'Unknown error'}`);
+      toast.error(`${t('REQUEST.GRPC.FAILED_LOAD_METHODS')}: ${error.message || t('COMMON.UNKNOWN_ERROR')}`);
       return;
     }
 
@@ -140,7 +142,7 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
     }
 
     if (!fromCache && methods && methods.length > 0) {
-      toast.success(`Loaded ${methods.length} gRPC methods from reflection`);
+      toast.success(t('REQUEST.GRPC.LOADED_METHODS_REFLECTION', { count: methods.length }));
     }
 
     if (methods && methods.length > 0) {
@@ -165,7 +167,7 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
 
     if (error) {
       console.error('Failed to load gRPC methods:', error);
-      toast.error('Failed to load gRPC methods');
+      toast.error(t('REQUEST.GRPC.FAILED_LOAD_METHODS'));
       setGrpcMethods([]);
       return;
     }
@@ -175,7 +177,7 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
     setIsReflectionMode(false);
 
     if (!fromCache) {
-      toast.success(`Loaded ${methods.length} gRPC methods from proto file`);
+      toast.success(t('REQUEST.GRPC.LOADED_METHODS_PROTO', { count: methods.length }));
     }
 
     if (methods && methods.length > 0) {
@@ -197,12 +199,12 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
 
   const handleGrpcurl = async (url) => {
     if (!url) {
-      toast.error('Please enter a valid gRPC server URL');
+      toast.error(t('REQUEST.GRPC.ENTER_VALID_URL'));
       return;
     }
 
     if (!selectedGrpcMethod?.path) {
-      toast.error('Please select a gRPC method');
+      toast.error(t('REQUEST.GRPC.SELECT_METHOD'));
       return;
     }
 
@@ -213,11 +215,11 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
         setGrpcurlCommand(result.command);
         setShowGrpcurlModal(true);
       } else {
-        toast.error(result.error || 'Failed to generate grpcurl command');
+        toast.error(result.error || t('REQUEST.GRPC.FAILED_GENERATE_GRPCURL'));
       }
     } catch (error) {
       console.error('Error generating grpcurl command:', error);
-      toast.error('Failed to generate grpcurl command');
+      toast.error(t('REQUEST.GRPC.FAILED_GENERATE_GRPCURL'));
     }
   };
 
@@ -235,11 +237,11 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
 
     cancelGrpcConnection(item.uid)
       .then(() => {
-        toast.success('gRPC connection cancelled');
+        toast.success(t('REQUEST.GRPC.CONNECTION_CANCELLED'));
       })
       .catch((err) => {
         console.error('Failed to cancel gRPC connection:', err);
-        toast.error('Failed to cancel gRPC connection');
+        toast.error(t('REQUEST.GRPC.FAILED_CANCEL_CONNECTION'));
       });
   };
 
@@ -248,11 +250,11 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
 
     endGrpcConnection(item.uid)
       .then(() => {
-        toast.success('gRPC stream ended');
+        toast.success(t('REQUEST.GRPC.STREAM_ENDED'));
       })
       .catch((err) => {
         console.error('Failed to end gRPC stream:', err);
-        toast.error('Failed to end gRPC stream');
+        toast.error(t('REQUEST.GRPC.FAILED_END_STREAM'));
       });
   };
 
@@ -345,7 +347,7 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
             } else if (protoFilePath) {
               handleProtoFileLoad(protoFilePath, true);
             } else {
-              toast.error('No proto file selected');
+              toast.error(t('REQUEST.GRPC.NO_PROTO_SELECTED'));
             }
           }}
         >
@@ -357,7 +359,7 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
             data-testid="refresh-methods-icon"
           />
           <span className="infotip-text text-xs">
-            {isReflectionMode ? 'Refresh server reflection' : 'Refresh proto file methods'}
+            {isReflectionMode ? t('REQUEST.GRPC.REFRESH_REFLECTION') : t('REQUEST.GRPC.REFRESH_PROTO')}
           </span>
         </div>
 
@@ -373,7 +375,7 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
             strokeWidth={1.5}
             size={20}
           />
-          <span className="infotip-text text-xs">Generate grpcurl command</span>
+          <span className="infotip-text text-xs">{t('REQUEST.GRPC.GENERATE_GRPCURL')}</span>
         </div>
 
         <div
@@ -391,7 +393,7 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
             className={`${item.draft ? 'cursor-pointer' : 'cursor-default'}`}
           />
           <span className="infotip-text text-xs">
-            Save <span className="shortcut">({saveShortcut})</span>
+            {t('COMMON.SAVE')} <span className="shortcut">({saveShortcut})</span>
           </span>
         </div>
 
@@ -399,7 +401,7 @@ const GrpcQueryUrl = ({ item, collection, handleRun }) => {
           <div className="connection-controls relative flex items-center h-full gap-3">
             <div className="infotip" onClick={handleCancelConnection} data-testid="grpc-cancel-connection-button">
               <IconX color={theme.requestTabs.icon.color} strokeWidth={1.5} size={20} className="cursor-pointer" />
-              <span className="infotip-text text-xs">Cancel</span>
+              <span className="infotip-text text-xs">{t('COMMON.CANCEL')}</span>
             </div>
 
             {isClientStreamingMethod && (

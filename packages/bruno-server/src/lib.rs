@@ -4,6 +4,7 @@ pub mod errors;
 pub mod handlers;
 pub mod middleware;
 pub mod models;
+pub mod serde_helpers;
 // TODO: Fix OpenAPI schema definitions
 // pub mod openapi;
 pub mod router;
@@ -22,10 +23,14 @@ use services::{
         openapi::OpenApiService,
         postman::PostmanService,
     },
+    invite::InviteService,
     item::ItemService,
+    mailer::MailerService,
+    oauth::OauthService,
     public_docs::PublicDocsService,
     sync::SyncService,
     workspace::WorkspaceService,
+    ai::AiService,
 };
 use state::AppState;
 use ws::WsManager;
@@ -39,9 +44,14 @@ pub async fn build_app(
     db::create_indexes(&db).await.expect("Index creation failed");
 
     let workspace_service = WorkspaceService::new(&db);
+    let mailer = MailerService::new(&cfg);
+    let invite_service = InviteService::new(&db, &cfg, mailer.clone());
     let ws_manager = WsManager::new();
+    let oauth_service = OauthService::new(&db, cfg.clone());
+    oauth_service.ensure_indexes().await.expect("OAuth index creation failed");
     let state = AppState {
-        auth_service: AuthService::new(&db, cfg.clone()),
+        auth_service: AuthService::new(&db, cfg.clone(), mailer),
+        oauth_service,
         collection_service: CollectionService::new(&db, workspace_service.clone(), ws_manager.clone()),
         item_service: ItemService::new(&db, workspace_service.clone(), ws_manager.clone()),
         environment_service: EnvironmentService::new(&db, workspace_service.clone(), ws_manager.clone()),
@@ -51,9 +61,13 @@ pub async fn build_app(
         openapi_service: OpenApiService::new(&db, workspace_service.clone()),
         insomnia_service: InsomniaService::new(&db, workspace_service.clone()),
         public_docs_service: PublicDocsService::new(&db, workspace_service.clone(), cfg.clone()),
+        ai_service: AiService::new(&cfg),
         workspace_service,
+        invite_service,
         ws_manager,
+        db: db.clone(),
         config: cfg,
     };
     router::create_router(state)
 }
+

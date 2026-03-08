@@ -97,16 +97,9 @@ const Wrapper = styled.div`
   }
 
   .collection-items-grid {
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows 0.18s ease;
-
-    &.expanded {
-      grid-template-rows: 1fr;
-    }
-
     .collection-items-inner {
       overflow: hidden;
+      animation: slide-down 0.15s ease forwards;
     }
   }
 `;

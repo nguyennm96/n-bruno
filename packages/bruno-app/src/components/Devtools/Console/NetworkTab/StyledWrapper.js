@@ -78,7 +78,7 @@ const StyledWrapper = styled.div`
     padding: 4px 16px;
     background: ${(props) => props.theme.console.headerBg};
     border-bottom: 1px solid ${(props) => props.theme.console.border};
-    font-size: 10px;
+    font-size: ${(props) => props.theme.font.size.xs};
     color: ${(props) => props.theme.console.titleColor};
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -117,7 +117,7 @@ const StyledWrapper = styled.div`
     display: inline-flex;
     align-items: center;
     justify-content: start;
-    font-size: 10px;
+    font-size: ${(props) => props.theme.font.size.xs};
     text-transform: uppercase;
     letter-spacing: 0.5px;
     min-width: 45px;

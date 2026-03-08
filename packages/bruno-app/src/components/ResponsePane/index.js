@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import find from 'lodash/find';
 import { useDispatch, useSelector } from 'react-redux';
 import { updateResponsePaneTab, updateResponseFormat, updateResponseViewTab } from 'providers/ReduxStore/slices/tabs';
@@ -31,6 +32,7 @@ const RIGHT_CONTENT_EXPANDED_WIDTH = 135;
 
 const ResponsePane = ({ item, collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const tabs = useSelector((state) => state.tabs.tabs);
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
   const isLoading = ['queued', 'sending'].includes(item.requestState);
@@ -123,17 +125,17 @@ const ResponsePane = ({ item, collection }) => {
     return [
       {
         key: 'response',
-        label: 'Response',
+        label: t('RESPONSE_PANE.TABS.RESPONSE'),
         indicator: null
       },
       {
         key: 'headers',
-        label: 'Headers',
+        label: t('RESPONSE_PANE.TABS.HEADERS'),
         indicator: responseHeadersCount > 0 ? <sup className="ml-1 font-medium">{responseHeadersCount}</sup> : null
       },
       {
         key: 'timeline',
-        label: 'Timeline',
+        label: t('RESPONSE_PANE.TABS.TIMELINE'),
         indicator: null
       },
       {
@@ -149,7 +151,7 @@ const ResponsePane = ({ item, collection }) => {
         indicator: null
       }
     ];
-  }, [responseHeadersCount, item.testResults, item.assertionResults, item.preRequestTestResults, item.postResponseTestResults]);
+  }, [responseHeadersCount, item.testResults, item.assertionResults, item.preRequestTestResults, item.postResponseTestResults, t]);
 
   const getTabPanel = (tab) => {
     switch (tab) {
@@ -220,7 +222,7 @@ const ResponsePane = ({ item, collection }) => {
   }
 
   if (!activeTabUid) {
-    return <div>Something went wrong</div>;
+    return <div>{t('ERRORS.SOMETHING_WENT_WRONG')}</div>;
   }
 
   if (!focusedTab || !focusedTab.uid || !focusedTab.responsePaneTab) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import find from 'lodash/find';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { useSelector, useDispatch } from 'react-redux';
 import GraphQLRequestPane from 'components/RequestPane/GraphQLRequestPane';
@@ -21,7 +21,6 @@ import { DocExplorer } from '@usebruno/graphql-docs';
 import StyledWrapper from './StyledWrapper';
 import FolderSettings from 'components/FolderSettings';
 import { getGlobalEnvironmentVariables, getGlobalEnvironmentVariablesMasked } from 'utils/collections/index';
-import { produce } from 'immer';
 import CollectionOverview from 'components/CollectionSettings/Overview';
 import RequestNotLoaded from './RequestNotLoaded';
 import RequestIsLoading from './RequestIsLoading';
@@ -44,6 +43,7 @@ const MIN_TOP_PANE_HEIGHT = 150;
 const MIN_BOTTOM_PANE_HEIGHT = 150;
 
 const RequestTabPanel = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const activeTabUid = useSelector((state) => state.tabs.activeTabUid);
   const focusedTab = useSelector((state) => {
@@ -52,11 +52,12 @@ const RequestTabPanel = () => {
   });
   const { globalEnvironments, activeGlobalEnvironmentUid } = useSelector((state) => state.globalEnvironments);
   const _collections = useSelector((state) => state.collections.collections);
-  const preferences = useSelector((state) => state.app.preferences);
-  const { workspaces, activeWorkspaceUid } = useSelector((state) => state.workspaces);
-  const activeWorkspace = workspaces.find((w) => w.uid === activeWorkspaceUid);
-  const isVerticalLayout = preferences?.layout?.responsePaneOrientation === 'vertical';
+  const isVerticalLayout = useSelector((state) => state.app.preferences?.layout?.responsePaneOrientation === 'vertical');
   const isConsoleOpen = useSelector((state) => state.logs.isConsoleOpen);
+  const activeWorkspace = useSelector((state) => {
+    const { workspaces, activeWorkspaceUid } = state.workspaces;
+    return workspaces.find((w) => w.uid === activeWorkspaceUid) ?? null;
+  });
 
   // Use ref to avoid stale closure in event handlers
   const isVerticalLayoutRef = useRef(isVerticalLayout);
@@ -64,23 +65,26 @@ const RequestTabPanel = () => {
     isVerticalLayoutRef.current = isVerticalLayout;
   }, [isVerticalLayout]);
 
-  // merge `globalEnvironmentVariables` into the active collection and rebuild `collections` immer proxy object
-  const collections = useMemo(() => produce(_collections, (draft) => {
-    const collection = find(draft, (c) => c.uid === focusedTab?.collectionUid);
+  // Merge `globalEnvironmentVariables` into the active collection only (avoid Immer deep-copying all collections)
+  const collectionUid = focusedTab?.collectionUid;
+  const globalEnvironmentVariables = useMemo(
+    () => getGlobalEnvironmentVariables({ globalEnvironments, activeGlobalEnvironmentUid }),
+    [globalEnvironments, activeGlobalEnvironmentUid]
+  );
+  const globalEnvSecrets = useMemo(
+    () => getGlobalEnvironmentVariablesMasked({ globalEnvironments, activeGlobalEnvironmentUid }),
+    [globalEnvironments, activeGlobalEnvironmentUid]
+  );
 
-    if (collection) {
-      // add selected global env variables to the collection object
-      const globalEnvironmentVariables = getGlobalEnvironmentVariables({
-        globalEnvironments,
-        activeGlobalEnvironmentUid
-      });
-      const globalEnvSecrets = getGlobalEnvironmentVariablesMasked({ globalEnvironments, activeGlobalEnvironmentUid });
-      collection.globalEnvironmentVariables = globalEnvironmentVariables;
-      collection.globalEnvSecrets = globalEnvSecrets;
-    }
-  }), [_collections, focusedTab?.collectionUid, globalEnvironments, activeGlobalEnvironmentUid]);
+  const collections = useMemo(() => {
+    if (!collectionUid) return _collections;
+    return _collections.map((c) => {
+      if (c.uid !== collectionUid) return c;
+      return { ...c, globalEnvironmentVariables, globalEnvSecrets };
+    });
+  }, [_collections, collectionUid, globalEnvironmentVariables, globalEnvSecrets]);
 
-  const collection = find(collections, (c) => c.uid === focusedTab?.collectionUid);
+  const collection = collections.find((c) => c.uid === focusedTab?.collectionUid);
   const [dragging, setDragging] = useState(false);
   const draggingRef = useRef(false);
 
@@ -212,7 +216,7 @@ const RequestTabPanel = () => {
   }
 
   if (!collection || !collection.uid) {
-    return <div className="pb-4 px-4">Collection not found!</div>;
+    return <div className="pb-4 px-4">{t('REQUEST_TAB_PANEL.collectionNotFound')}</div>;
   }
 
   if (focusedTab.type === 'response-example') {
@@ -274,17 +278,17 @@ const RequestTabPanel = () => {
     const request = item.draft ? item.draft.request : item.request;
 
     if (isGrpcRequest && !request.url) {
-      toast.error('Please enter a valid gRPC server URL');
+      toast.error(t('REQUEST_TAB_PANEL.grpcServerUrlRequired'));
       return;
     }
 
     if (isGrpcRequest && !request.method) {
-      toast.error('Please select a gRPC method');
+      toast.error(t('REQUEST_TAB_PANEL.grpcMethodRequired'));
       return;
     }
 
     if (isWsRequest && !request.url) {
-      toast.error('Please enter a valid WebSocket URL');
+      toast.error(t('REQUEST_TAB_PANEL.wsUrlRequired'));
       return;
     }
 
@@ -394,7 +398,7 @@ const RequestTabPanel = () => {
       {item.type === 'graphql-request' ? (
         <div className={`graphql-docs-explorer-container ${showGqlDocs ? '' : 'hidden'}`}>
           <DocExplorer schema={schema} ref={(r) => (docExplorerRef.current = r)}>
-            <button className="mr-2" onClick={toggleDocs} aria-label="Close Documentation Explorer">
+            <button className="mr-2" onClick={toggleDocs} aria-label={t('REQUEST_TAB_PANEL.closeDocExplorer')}>
               {'\u2715'}
             </button>
           </DocExplorer>

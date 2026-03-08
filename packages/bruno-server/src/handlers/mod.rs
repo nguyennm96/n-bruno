@@ -8,3 +8,6 @@ pub mod health;
 pub mod import_export;
 pub mod sync;
 pub mod public_docs;
+pub mod invite;
+pub mod users;
+pub mod ai;

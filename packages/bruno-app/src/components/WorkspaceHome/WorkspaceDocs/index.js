@@ -11,8 +11,10 @@ import { IconFileText, IconEdit, IconX, IconPlus } from '@tabler/icons';
 import Button from 'ui/Button';
 import toast from 'react-hot-toast';
 import ActionIcon from 'ui/ActionIcon/index';
+import { useTranslation } from 'react-i18next';
 
 const WorkspaceDocs = ({ workspace }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { displayedTheme } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
@@ -39,17 +41,17 @@ const WorkspaceDocs = ({ workspace }) => {
 
   const onSave = async () => {
     if (!workspace) {
-      toast.error('Workspace not found');
+      toast.error(t('SIDEBAR.WORKSPACE_NOT_FOUND'));
       return;
     }
 
     try {
       await dispatch(saveWorkspaceDocs(workspace.uid, localDocs));
-      toast.success('Documentation saved successfully');
+      toast.success(t('WORKSPACE.DOCS_SAVE_SUCCESS'));
       toggleViewMode();
     } catch (error) {
       console.error('Error saving workspace docs:', error);
-      toast.error('Failed to save documentation');
+      toast.error(t('WORKSPACE.DOCS_SAVE_ERROR'));
     }
   };
 
@@ -64,15 +66,14 @@ const WorkspaceDocs = ({ workspace }) => {
       <div className="docs-header">
         <div className="docs-title">
           <IconFileText size={16} strokeWidth={1.5} />
-          <span>Documentation</span>
+          <span>{t('WORKSPACE.DOCS_TITLE')}</span>
         </div>
         {hasDocs && !isEditing && (
-          <ActionIcon className="edit-btn" onClick={toggleViewMode}>
-            <IconEdit size={16} strokeWidth={1.5} />
+          <ActionIcon className="edit-btn" onClick={toggleViewMode} label={t('WORKSPACE.DOCS_EDIT_LABEL')}>
           </ActionIcon>
         )}
         {isEditing && (
-          <ActionIcon className="edit-btn" onClick={handleDiscardChanges}>
+          <ActionIcon className="edit-btn" onClick={handleDiscardChanges} label={t('WORKSPACE.DOCS_DISCARD_LABEL')}>
             <IconX size={16} strokeWidth={1.5} />
           </ActionIcon>
         )}
@@ -92,7 +93,7 @@ const WorkspaceDocs = ({ workspace }) => {
             />
             <div className="editor-actions">
               <Button onClick={onSave}>
-                Save
+                {t('COMMON.SAVE')}
               </Button>
             </div>
           </div>
@@ -106,17 +107,17 @@ const WorkspaceDocs = ({ workspace }) => {
               <IconFileText size={52} strokeWidth={1} />
             </div>
             <p className="empty-text">
-              Add documentation to help your team work smoothly.
+              {t('WORKSPACE.DOCS_EMPTY_TEXT')}
             </p>
-            <p className="empty-subtext">You can include:</p>
+            <p className="empty-subtext">{t('WORKSPACE.DOCS_YOU_CAN_INCLUDE')}</p>
             <ul className="suggestions-list">
-              <li>Project overview</li>
-              <li>Setup instructions</li>
-              <li>Key workflows</li>
-              <li>Resources & FAQs</li>
+              <li>{t('WORKSPACE.DOCS_ITEM_OVERVIEW')}</li>
+              <li>{t('WORKSPACE.DOCS_ITEM_SETUP')}</li>
+              <li>{t('WORKSPACE.DOCS_ITEM_WORKFLOWS')}</li>
+              <li>{t('WORKSPACE.DOCS_ITEM_RESOURCES')}</li>
             </ul>
             <Button color="light" size="sm" icon={<IconPlus size={14} strokeWidth={1.5} />} onClick={handleAddDocumentation}>
-              Add Documentation
+              {t('WORKSPACE.DOCS_ADD_BUTTON')}
             </Button>
           </div>
         )}

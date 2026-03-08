@@ -10,6 +10,7 @@ import { flattenItems, isItemARequest, isItemTransientRequest } from 'utils/coll
 import filter from 'lodash/filter';
 import { get } from 'lodash';
 import { formatIpcError } from 'utils/common/error';
+import { useTranslation } from 'react-i18next';
 
 const REQUEST_TYPE = {
   HTTP: 'http',
@@ -51,6 +52,7 @@ const generateTransientRequestName = (collection) => {
 };
 
 const CreateTransientRequest = ({ collectionUid }) => {
+  const { t } = useTranslation();
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const dropdownTippyRef = useRef();
   const dispatch = useDispatch();
@@ -199,7 +201,7 @@ const CreateTransientRequest = ({ collectionUid }) => {
     <ActionIcon
       onClick={handleLeftClick}
       onContextMenu={handleRightClick}
-      aria-label="New Transient Request"
+      label={t('REQUEST.CREATE_TRANSIENT.NEW_REQUEST')}
       size="lg"
       style={{ marginBottom: '3px' }}
     >
@@ -219,25 +221,25 @@ const CreateTransientRequest = ({ collectionUid }) => {
         <div className="dropdown-icon">
           <IconApi size={16} strokeWidth={2} />
         </div>
-        <div className="dropdown-label">HTTP</div>
+        <div className="dropdown-label">{t('REQUEST.CREATE_TRANSIENT.HTTP')}</div>
       </div>
       <div className="dropdown-item" onClick={() => handleItemClick(REQUEST_TYPE.GRAPHQL)}>
         <div className="dropdown-icon">
           <IconBrandGraphql size={16} strokeWidth={2} />
         </div>
-        <div className="dropdown-label">GraphQL</div>
+        <div className="dropdown-label">{t('REQUEST.CREATE_TRANSIENT.GRAPHQL')}</div>
       </div>
       <div className="dropdown-item" onClick={() => handleItemClick(REQUEST_TYPE.GRPC)}>
         <div className="dropdown-icon">
           <IconCode size={16} strokeWidth={2} />
         </div>
-        <div className="dropdown-label">gRPC</div>
+        <div className="dropdown-label">{t('REQUEST.CREATE_TRANSIENT.GRPC')}</div>
       </div>
       <div className="dropdown-item" onClick={() => handleItemClick(REQUEST_TYPE.WEBSOCKET)}>
         <div className="dropdown-icon">
           <IconPlugConnected size={16} strokeWidth={2} />
         </div>
-        <div className="dropdown-label">WebSocket</div>
+        <div className="dropdown-label">{t('REQUEST.CREATE_TRANSIENT.WEBSOCKET')}</div>
       </div>
     </Dropdown>
   );

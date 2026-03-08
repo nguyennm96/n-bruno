@@ -27,7 +27,7 @@ const Wrapper = styled.div`
     padding: 4px 0;
 
     .file-name {
-      font-size: 12px;
+      font-size: ${(props) => props.theme.font.size.sm};
       color: ${(props) => props.theme.text};
     }
   }

@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import { useDispatch } from 'react-redux';
 import { useTheme } from 'providers/Theme';
@@ -14,6 +15,7 @@ import StyledWrapper from './StyledWrapper';
 import { isWindowsOS } from 'utils/common/platform';
 
 const ResponseExampleMultipartFormParams = ({ item, collection, exampleUid, editMode = false }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { storedTheme } = useTheme();
 
@@ -185,7 +187,7 @@ const ResponseExampleMultipartFormParams = ({ item, collection, exampleUid, edit
               <button
                 className="clear-file-btn ml-1"
                 onClick={() => handleClearFile(row)}
-                title="Remove file"
+                title="t('REQUEST.REMOVE_FILE')"
               >
                 <IconX size={16} />
               </button>
@@ -213,7 +215,7 @@ const ResponseExampleMultipartFormParams = ({ item, collection, exampleUid, edit
               <button
                 className="upload-btn ml-1"
                 onClick={() => handleBrowseFiles(row, onChange)}
-                title="Select file"
+                title="t('REQUEST.SELECT_FILE')"
               >
                 <IconUpload size={16} />
               </button>

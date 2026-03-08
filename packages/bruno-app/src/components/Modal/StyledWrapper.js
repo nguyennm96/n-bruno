@@ -5,10 +5,10 @@ const Wrapper = styled.div`
   color: ${(props) => props.theme.text};
 
   &.modal--animate-out {
-    animation: fade-out 0.5s forwards cubic-bezier(0.19, 1, 0.22, 1);
+    animation: fade-out 0.2s forwards ease;
 
     .bruno-modal-card {
-      animation: fade-and-slide-out-from-top 0.5s forwards cubic-bezier(0.19, 1, 0.22, 1);
+      animation: fade-and-slide-out-from-top 0.2s forwards ease;
     }
   }
 
@@ -63,7 +63,7 @@ const Wrapper = styled.div`
       max-width: calc(100% - 30px);
     }
 
-    animation: fade-and-slide-in-from-top 0.5s forwards cubic-bezier(0.19, 1, 0.22, 1);
+    animation: scale-in 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   }
 
   .bruno-modal-header {

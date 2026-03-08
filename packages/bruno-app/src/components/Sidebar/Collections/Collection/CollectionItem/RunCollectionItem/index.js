@@ -11,8 +11,10 @@ import { areItemsLoading } from 'utils/collections';
 import RunnerTags from 'components/RunnerResults/RunnerTags/index';
 import { getRequestItemsForCollectionRun } from 'utils/collections/index';
 import Button from 'ui/Button';
+import { useTranslation } from 'react-i18next';
 
 const RunCollectionItem = ({ collectionUid, item, onClose }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
 
   const collection = useSelector((state) => state.collections.collections?.find((c) => c.uid === collectionUid));
@@ -62,42 +64,42 @@ const RunCollectionItem = ({ collectionUid, item, onClose }) => {
 
   return (
     <StyledWrapper>
-      <Modal size="md" title="Collection Runner" hideFooter={true} handleCancel={onClose}>
+      <Modal size="md" title={t('MODALS.COLLECTION_RUNNER_TITLE')} hideFooter={true} handleCancel={onClose}>
         <div>
           <div className="mb-1">
-            <span className="font-medium">Run</span>
-            <span className="ml-1 text-xs">({totalRequestItemsCountForFolderRun} requests)</span>
+            <span className="font-medium">{t('SIDEBAR.RUN')}</span>
+            <span className="ml-1 text-xs">{t('SIDEBAR.REQUESTS_COUNT', { count: totalRequestItemsCountForFolderRun })}</span>
           </div>
-          <div className="mb-8">This will only run the requests in this folder.</div>
+          <div className="mb-8">{t('SIDEBAR.RUN_FOLDER_ONLY')}</div>
           <div className="mb-1">
-            <span className="font-medium">Recursive Run</span>
-            <span className="ml-1 text-xs">({totalRequestItemsCountForRecursiveFolderRun} requests)</span>
+            <span className="font-medium">{t('SIDEBAR.RECURSIVE_RUN')}</span>
+            <span className="ml-1 text-xs">{t('SIDEBAR.REQUESTS_COUNT', { count: totalRequestItemsCountForRecursiveFolderRun })}</span>
           </div>
-          <div className={isFolderLoading ? 'mb-2' : 'mb-8'}>This will run all the requests in this folder and all its subfolders.</div>
-          {isFolderLoading ? <div className="mb-8 warning">Requests in this folder are still loading.</div> : null}
-          {isCollectionRunInProgress ? <div className="mb-6 warning">A Collection Run is already in progress.</div> : null}
+          <div className={isFolderLoading ? 'mb-2' : 'mb-8'}>{t('SIDEBAR.RECURSIVE_RUN_DESC')}</div>
+          {isFolderLoading ? <div className="mb-8 warning">{t('SIDEBAR.FOLDER_REQUESTS_LOADING')}</div> : null}
+          {isCollectionRunInProgress ? <div className="mb-6 warning">{t('SIDEBAR.COLLECTION_RUN_IN_PROGRESS')}</div> : null}
 
           {/* Tags for the collection run */}
           <RunnerTags collectionUid={collection.uid} className="mb-6" />
 
           <div className="flex justify-end bruno-modal-footer">
             <Button type="button" color="secondary" variant="ghost" onClick={onClose} className="mr-3">
-              Cancel
+              {t('COMMON.CANCEL')}
             </Button>
             {
               isCollectionRunInProgress
                 ? (
                     <Button type="submit" onClick={handleViewRunner}>
-                      View Run
+                      {t('SIDEBAR.VIEW_RUN')}
                     </Button>
                   )
                 : (
                     <>
                       <Button type="submit" disabled={shouldDisableRecursiveFolderRun} onClick={() => onSubmit(true)} className="mr-3">
-                        Recursive Run
+                        {t('SIDEBAR.RECURSIVE_RUN')}
                       </Button>
                       <Button type="submit" disabled={shouldDisableFolderRun} onClick={() => onSubmit(false)}>
-                        Run
+                        {t('SIDEBAR.RUN')}
                       </Button>
                     </>
                   )

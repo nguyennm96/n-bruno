@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../../providers/Theme';
 import { useDispatch, useSelector } from 'react-redux';
 import { openCollection } from 'providers/ReduxStore/slices/collections/actions';
@@ -13,6 +14,7 @@ const LinkStyle = styled.span`
 `;
 
 const CreateOrOpenCollection = () => {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const dispatch = useDispatch();
   const [createCollectionModalOpen, setCreateCollectionModalOpen] = useState(false);
@@ -24,7 +26,7 @@ const CreateOrOpenCollection = () => {
     dispatch(openCollection()).catch(
       (err) => {
         console.log(err);
-        toast.error('An error occurred while opening the collection');
+        toast.error(t('CREATE_OR_OPEN_COLLECTION.openError'));
       }
     );
   };
@@ -34,12 +36,12 @@ const CreateOrOpenCollection = () => {
       theme={theme}
       onClick={() => setCreateCollectionModalOpen(true)}
     >
-      Create
+      {t('CREATE_OR_OPEN_COLLECTION.create')}
     </LinkStyle>
   );
   const OpenLink = () => (
     <LinkStyle className="underline text-link cursor-pointer" theme={theme} onClick={() => handleOpenCollection(true)}>
-      Open
+      {t('CREATE_OR_OPEN_COLLECTION.open')}
     </LinkStyle>
   );
 
@@ -52,9 +54,9 @@ const CreateOrOpenCollection = () => {
       ) : null}
 
       <div className="text-xs text-center">
-        <div>No collections found.</div>
+        <div>{t('CREATE_OR_OPEN_COLLECTION.noCollectionsFound')}</div>
         <div className="mt-2">
-          <CreateLink /> or <OpenLink /> Collection.
+          <CreateLink /> {t('CREATE_OR_OPEN_COLLECTION.or')} <OpenLink /> {t('CREATE_OR_OPEN_COLLECTION.collection')}
         </div>
       </div>
     </StyledWrapper>

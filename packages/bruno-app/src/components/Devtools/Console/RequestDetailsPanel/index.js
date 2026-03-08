@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   IconX,
@@ -13,6 +14,7 @@ import StyledWrapper from './StyledWrapper';
 import { uuid } from 'utils/common/index';
 
 const RequestTab = ({ request, response }) => {
+  const { t } = useTranslation();
   const formatHeaders = (headers) => {
     if (!headers) return [];
     if (Array.isArray(headers)) return headers;
@@ -20,7 +22,7 @@ const RequestTab = ({ request, response }) => {
   };
 
   const formatBody = (body) => {
-    if (!body) return 'No body';
+    if (!body) return t('DEVTOOLS.NO_BODY');
     if (typeof body === 'string') return body;
     return JSON.stringify(body, null, 2);
   };
@@ -28,28 +30,28 @@ const RequestTab = ({ request, response }) => {
   return (
     <div className="tab-content">
       <div className="section">
-        <h4>General</h4>
+        <h4>{t('DEVTOOLS.GENERAL')}</h4>
         <div className="info-grid">
           <div className="info-item">
-            <span className="label">Request URL:</span>
+            <span className="label">{t('DEVTOOLS.REQUEST_URL')}</span>
             <span className="value">{request?.url || 'N/A'}</span>
           </div>
           <div className="info-item">
-            <span className="label">Request Method:</span>
+            <span className="label">{t('DEVTOOLS.REQUEST_METHOD')}</span>
             <span className="value">{request?.method || 'GET'}</span>
           </div>
         </div>
       </div>
 
       <div className="section">
-        <h4>Request Headers</h4>
+        <h4>{t('DEVTOOLS.REQUEST_HEADERS')}</h4>
         {formatHeaders(request?.headers).length > 0 ? (
           <div className="headers-table">
             <table>
               <thead>
                 <tr>
-                  <td>Name</td>
-                  <td>Value</td>
+                  <td>{t('DEVTOOLS.NAME')}</td>
+                  <td>{t('DEVTOOLS.VALUE')}</td>
                 </tr>
               </thead>
               <tbody>
@@ -63,13 +65,13 @@ const RequestTab = ({ request, response }) => {
             </table>
           </div>
         ) : (
-          <div className="empty-state">No headers</div>
+          <div className="empty-state">{t('DEVTOOLS.NO_HEADERS')}</div>
         )}
       </div>
 
       {request?.data && (
         <div className="section">
-          <h4>Request Body</h4>
+          <h4>{t('DEVTOOLS.REQUEST_BODY')}</h4>
           <pre className="code-block">{formatBody(request.data)}</pre>
         </div>
       )}
@@ -78,6 +80,7 @@ const RequestTab = ({ request, response }) => {
 };
 
 const ResponseTab = ({ response, request, collection }) => {
+  const { t } = useTranslation();
   const formatHeaders = (headers) => {
     if (!headers) return [];
     if (Array.isArray(headers)) return headers;
@@ -87,14 +90,14 @@ const ResponseTab = ({ response, request, collection }) => {
   return (
     <div className="tab-content">
       <div className="section">
-        <h4>Response Headers</h4>
+        <h4>{t('DEVTOOLS.RESPONSE_HEADERS')}</h4>
         {formatHeaders(response?.headers).length > 0 ? (
           <div className="headers-table">
             <table>
               <thead>
                 <tr>
-                  <td>Name</td>
-                  <td>Value</td>
+                  <td>{t('DEVTOOLS.NAME')}</td>
+                  <td>{t('DEVTOOLS.VALUE')}</td>
                 </tr>
               </thead>
               <tbody>
@@ -108,12 +111,12 @@ const ResponseTab = ({ response, request, collection }) => {
             </table>
           </div>
         ) : (
-          <div className="empty-state">No headers</div>
+          <div className="empty-state">{t('DEVTOOLS.NO_HEADERS')}</div>
         )}
       </div>
 
       <div className="section">
-        <h4>Response Body</h4>
+        <h4>{t('DEVTOOLS.RESPONSE_BODY')}</h4>
         <div className="response-body-container">
           {response?.data || response?.dataBuffer ? (
             <QueryResponse
@@ -126,7 +129,7 @@ const ResponseTab = ({ response, request, collection }) => {
               disableRunEventListener={true}
             />
           ) : (
-            <div className="empty-state">No response data</div>
+            <div className="empty-state">{t('DEVTOOLS.NO_RESPONSE_DATA')}</div>
           )}
         </div>
       </div>
@@ -135,17 +138,18 @@ const ResponseTab = ({ response, request, collection }) => {
 };
 
 const NetworkTab = ({ response }) => {
+  const { t } = useTranslation();
   const timeline = response?.timeline || [];
 
   return (
     <div className="tab-content">
       <div className="section">
-        <h4>Network Logs</h4>
+        <h4>{t('DEVTOOLS.NETWORK_LOGS')}</h4>
         <div className="network-logs-wrapper">
           {timeline.length > 0 ? (
             <Network logs={timeline} />
           ) : (
-            <div className="empty-state">No network logs available</div>
+            <div className="empty-state">{t('DEVTOOLS.NO_NETWORK_LOGS')}</div>
           )}
         </div>
       </div>
@@ -154,6 +158,7 @@ const NetworkTab = ({ response }) => {
 };
 
 const RequestDetailsPanel = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { selectedRequest } = useSelector((state) => state.logs);
   const collections = useSelector((state) => state.collections.collections);
@@ -193,14 +198,14 @@ const RequestDetailsPanel = () => {
       <div className="panel-header">
         <div className="panel-title">
           <IconFileText size={16} strokeWidth={1.5} />
-          <span>Request Details</span>
+          <span>{t('DEVTOOLS.REQUEST_DETAILS')}</span>
           <span className="request-time">({formatTime(selectedRequest.timestamp)})</span>
         </div>
 
         <button
           className="close-button"
           onClick={handleClose}
-          title="Close details panel"
+          title={t('DEVTOOLS.CLOSE_DETAILS_PANEL')}
         >
           <IconX size={16} strokeWidth={1.5} />
         </button>
@@ -212,7 +217,7 @@ const RequestDetailsPanel = () => {
           onClick={() => setActiveTab('request')}
         >
           <IconArrowRight size={14} strokeWidth={1.5} />
-          Request
+          {t('DEVTOOLS.TAB_REQUEST')}
         </button>
 
         <button
@@ -220,7 +225,7 @@ const RequestDetailsPanel = () => {
           onClick={() => setActiveTab('response')}
         >
           <IconFileText size={14} strokeWidth={1.5} />
-          Response
+          {t('DEVTOOLS.TAB_RESPONSE_LABEL')}
         </button>
 
         <button
@@ -228,7 +233,7 @@ const RequestDetailsPanel = () => {
           onClick={() => setActiveTab('network')}
         >
           <IconNetwork size={14} strokeWidth={1.5} />
-          Network
+          {t('DEVTOOLS.TAB_NETWORK')}
         </button>
       </div>
 

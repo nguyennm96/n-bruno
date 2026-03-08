@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import i18next from 'i18next';
 import toast from 'react-hot-toast';
 import { buildClientSchema, buildSchema, validateSchema } from 'graphql';
 import { fetchGqlSchema } from 'utils/network';
@@ -100,7 +101,7 @@ const useGraphqlSchema = (endpoint, environment, request, collection) => {
             duration: 5000
           });
         } else {
-          toast.success('GraphQL Schema loaded successfully');
+          toast.success(i18next.t('REQUEST.GRAPHQL.SCHEMA_LOADED'));
         }
       }
     } catch (err) {

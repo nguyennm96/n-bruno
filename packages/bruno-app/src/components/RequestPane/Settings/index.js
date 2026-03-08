@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import get from 'lodash/get';
 import { IconTag } from '@tabler/icons';
@@ -18,6 +19,7 @@ const DEFAULT_SETTINGS = {
 };
 
 const Settings = ({ item, collection }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
 
   // Get current settings with defaults applied
@@ -97,12 +99,12 @@ const Settings = ({ item, collection }) => {
 
   return (
     <div className="h-full w-full">
-      <div className="text-xs mb-4 text-muted">Configure request settings for this item.</div>
+      <div className="text-xs mb-4 text-muted">{t('REQUEST_SETTINGS.configureSettings')}</div>
       <div className="bruno-form">
         <div className="mb-6">
           <h3 className="text-xs font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1 mb-4">
             <IconTag size={16} />
-            Tags
+            {t('REQUEST_SETTINGS.tags')}
           </h3>
           <Tags item={item} collection={collection} />
         </div>
@@ -113,8 +115,8 @@ const Settings = ({ item, collection }) => {
             <ToggleSelector
               checked={encodeUrl}
               onChange={onToggleUrlEncoding}
-              label="URL Encoding"
-              description="Automatically encode query parameters in the URL"
+              label={t('REQUEST_SETTINGS.urlEncoding')}
+              description={t('REQUEST_SETTINGS.urlEncodingDescription')}
               size="medium"
               data-testid="encode-url-toggle"
             />
@@ -124,8 +126,8 @@ const Settings = ({ item, collection }) => {
             <ToggleSelector
               checked={followRedirects}
               onChange={onToggleFollowRedirects}
-              label="Automatically Follow Redirects"
-              description="Follow HTTP redirects automatically"
+              label={t('REQUEST_SETTINGS.followRedirects')}
+              description={t('REQUEST_SETTINGS.followRedirectsDescription')}
               size="medium"
               data-testid="follow-redirects-toggle"
             />
@@ -133,18 +135,18 @@ const Settings = ({ item, collection }) => {
 
           <SettingsInput
             id="maxRedirects"
-            label="Max Redirects"
+            label={t('REQUEST_SETTINGS.maxRedirects')}
             value={maxRedirects}
             onChange={onMaxRedirectsChange}
-            description="Set a limit for the number of redirects to follow"
+            description={t('REQUEST_SETTINGS.maxRedirectsDescription')}
             onKeyDown={handleKeyDown}
           />
 
           <InheritableSettingsInput
             id="timeout"
-            label="Timeout (ms)"
+            label={t('REQUEST_SETTINGS.timeout')}
             value={timeout}
-            description="Set maximum time to wait before aborting the request"
+            description={t('REQUEST_SETTINGS.timeoutDescription')}
             onKeyDown={handleKeyDown}
             isInherited={isTimeoutInherited}
             onDropdownSelect={handleTimeoutDropdownSelect}

@@ -40,6 +40,8 @@ The project is a **monorepo** managed via npm workspaces.
 | `packages/bruno-graphql-docs` | GraphQL introspection schema renderer |
 | `packages/bruno-toml` | TOML config file parsing |
 | `packages/bruno-api` | TypeScript API client methods and types for Bruno Cloud |
+| `packages/bruno-docs` | Documentation package (placeholder) |
+| `packages/bruno-tests` | Integration test collections and test utilities |
 
 ### Communication Pattern
 
@@ -88,9 +90,13 @@ All network requests to external APIs are executed in the **Electron main proces
   - **Generate Docs** — export collection as standalone interactive HTML file (OpenCollection viewer); no login needed
 
 ### Cloud (requires authentication)
-- **Cloud Workspaces** — shared workspaces synced to Bruno Cloud
-- **Collection Sharing** — share collections with team members
-- **Cloud Sync** — sync collections across devices
+- **Cloud Workspaces** — shared workspaces with role-based access control (Owner / Editor / Viewer)
+- **Collection Sharing** — share collections with team members; clone and resequence items
+- **Real-time Sync** — WebSocket-based live sync across devices; sync queue and status tracking
+- **Environments (Cloud)** — workspace-level and collection-level environments synced to cloud
+- **Examples** — per-request response examples (create/list/update/delete)
+- **Import** — Postman v2.1, Insomnia collections; conflict strategies (error/replace/rename)
+- **Export** — collections to Postman JSON, OpenAPI 3.0, Swagger 2.0; full workspace export
 - **Publish Docs** — publish collection documentation to a public URL; supports custom slug, custom CSS, custom logo, password protection, workspace-member-only visibility, and view analytics
 
 ---
@@ -114,10 +120,13 @@ All network requests to external APIs are executed in the **Electron main proces
 - **Jest** + **@testing-library/react** — unit/component tests
 
 ### Cloud Backend (`bruno-server`)
-- **Rust** + **Axum** — HTTP framework
+- **Rust** + **Axum 0.7** — HTTP framework (43 REST endpoints + 1 WebSocket)
 - **MongoDB** — database
 - **Argon2** — password hashing
-- **JWT** — authentication tokens
+- **JWT** — authentication tokens (access + refresh)
+- **Tokio** — async runtime
+- **Role-based access** — Owner / Editor / Viewer per workspace
+- **WebSocket** — real-time sync events (`CollectionChanged`, `Ping/Pong`)
 
 ### Public Docs Viewer (`bruno-public-docs`)
 - **Vite** + **React** — standalone SPA served at `/p/:slug`
@@ -191,6 +200,64 @@ src/
   services/        # Service layer utilities
   selectors/       # Redux selectors
 ```
+
+---
+
+## UI Conventions
+
+> Full reference: `packages/bruno-app/UI_CONVENTIONS.md`
+
+### Color
+- **MUST** use theme tokens: `${({ theme }) => theme.colors.xxx}` — never hardcode hex/hsl/rgb
+- **MUST NOT** use Tailwind color utilities (`text-red-500`, `bg-gray-100`, etc.)
+- CSS variables (`var(--color-brand)`) are legacy — do not use in new code
+- Key semantic keys: `theme.brand`, `theme.text`, `theme.background.*`, `theme.status.*`, `theme.colors.border*`
+
+### Typography
+- Use `theme.font.size.*`: `xs`(11px) · `sm`(12px) · `base`(13px) · `md`(14px) · `lg`(16px) · `xl`(18px)
+- Font weight: `400` normal, `500` medium, `600` semibold — no `bold`/`700` in UI
+- Line height: `1.4` for dense UI, `1.6` for descriptions
+
+### Border Radius
+- **MUST** use `theme.border.radius.*`: `sm`(4px) · `base`(6px) · `md`(8px) · `lg`(10px) · `xl`(12px)
+- Pills/badges: `999px`
+- **MUST NOT** hardcode `border-radius: 4px`
+
+### Transitions — Standard
+| Name | Value | Use |
+|---|---|---|
+| fast | `0.1s ease` | Hover backgrounds, icon color |
+| base | `0.15s ease` | Color, border, opacity ← **default** |
+| slow | `0.25s cubic-bezier(0.4, 0, 0.2, 1)` | Size changes, sliding panels |
+| spring | `0.2s cubic-bezier(0.34, 1.56, 0.64, 1)` | Menu/modal open |
+
+- Use `theme.transition.*` tokens: `theme.transition.fast`, `.base`, `.slow`, `.spring`
+- **MUST NOT** use `transition: all` — be explicit: `transition: background-color ${theme.transition.fast}`
+- **MUST NOT** transition `width`, `height`, `padding`, `margin` — use `transform` or `max-height` instead
+
+### Interactive States (required on all interactive elements)
+```css
+/* Hover */
+background-color: ...; transition: background-color ${theme.transition.fast};
+/* Active */
+transform: scale(0.97); transition: transform ${theme.transition.fast};
+/* Focus */
+outline: 2px solid rgba(brand, 0.5); outline-offset: 2px;
+/* Disabled */
+opacity: 0.5; cursor: not-allowed;
+```
+
+### Loading States
+- Use `<Skeleton>` (`src/ui/Skeleton/`) for async content — never show empty containers while loading
+
+### Styled-Components Rules
+- One `StyledWrapper.js` per component — no inline `styled.div` in `index.js`
+- Prefix style-only props with `$`: `$isActive`, `$variant`
+- Use `css` helper for conditional style blocks
+
+### Tailwind: Layout Only
+Allowed: `flex`, `grid`, `gap-*`, `p-*`, `m-*`, `w-*`, `h-*`, `overflow-*`, `truncate`, positioning
+Not allowed: any color, shadow, radius, border-color utility
 
 ---
 
@@ -280,3 +347,54 @@ IPC handler files in `bruno-electron/src/ipc/`:
 - `@usebruno/*` is the npm package scope used across all packages.
 - New TypeScript code should go into packages that already use TypeScript (`bruno-common`, `bruno-requests`, `bruno-filestore`, `bruno-schema-types`, `bruno-api`). `bruno-app`, `bruno-electron`, and `bruno-cli` are still JavaScript.
 - `bruno-server` is written in **Rust** — do not add Node.js/TypeScript code there.
+
+---
+
+## Bruno Cloud Server — MongoDB Schema
+
+> Full reference: `packages/bruno-server/MONGODB_SCHEMA.md`
+
+### Collections Overview
+
+| Collection | Mô tả | Soft Delete |
+|---|---|---|
+| `users` | Tài khoản người dùng | ❌ |
+| `refresh_tokens` | JWT refresh token (TTL tự xóa) | ❌ |
+| `workspaces` | Workspace nhóm làm việc | ❌ |
+| `workspace_members` | Quan hệ user ↔ workspace + role | ❌ |
+| `collections` | API collection | ✅ `deletedAt` |
+| `items` | Folder và Request trong collection | ✅ `deletedAt` |
+| `environments` | Biến môi trường (workspace hoặc collection level) | ✅ `deletedAt` |
+| `examples` | Response example của request | ✅ `deletedAt` |
+
+### ID Conventions
+
+- **`_id`**: MongoDB `ObjectId` — internal only, never exposed in API responses
+- **`uid`**: 21-character nanoid (UUID v4 truncated) — used in all API routes and cross-collection references
+- Owner/member joins use `ObjectId` (`owner_id`, `workspace_id`, `user_id`); all other cross-collection refs use nanoid `uid`
+
+### Key Design Decisions
+
+- **`items` collection** stores both Folders and Requests discriminated by `type: "folder" | "request"`. `request`, `settings`, and `filename` fields are only present on requests.
+- **`items.seq`** is `f64` (fractional index) — allows reordering without updating every sibling.
+- **`environments`** is a single collection for both workspace-level and collection-level envs. Exactly one of `workspaceUid` or `collectionUid` is set; never both.
+- **`collections.public_docs`** is an embedded sub-document (not a separate collection). Contains `visibility` (public / password / workspaceMembers / customList), `settings`, and `analytics`.
+- **Soft delete**: `deletedAt` field on `collections`, `items`, `environments`, `examples`. All queries must filter `{ deletedAt: null }`. Deleting a folder cascades soft-delete to all child items.
+- **`refresh_tokens`** uses a MongoDB TTL index on `expires_at` (expireAfterSeconds: 0) — expired tokens are auto-deleted by MongoDB. Only the bcrypt hash of the token is stored, never the raw value.
+
+### Workspace Roles
+
+| Role | `can_write()` | `is_owner()` | Permissions |
+|---|---|---|---|
+| `owner` | ✅ | ✅ | Full CRUD + manage members + delete workspace |
+| `editor` | ✅ | ❌ | Create/edit collections, items, environments |
+| `viewer` | ❌ | ❌ | Read-only |
+
+### Server Logging
+
+Every HTTP request emits one structured JSON log line (default) with:
+`request_id`, `method`, `path`, `query`, `ip`, `user_agent`, `content_type`, `content_length_bytes`, `status`, `latency_ms`, `user_id`
+
+- Log level: `5xx → ERROR`, `4xx → WARN`, `2xx/3xx → INFO`
+- `LOG_FORMAT=text` for human-readable output; JSON is the default
+- `RUST_LOG` controls verbosity (default: `bruno_server=info,warn`)

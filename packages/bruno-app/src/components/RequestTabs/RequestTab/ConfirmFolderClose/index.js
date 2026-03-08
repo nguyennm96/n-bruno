@@ -2,12 +2,14 @@ import React from 'react';
 import { IconAlertTriangle } from '@tabler/icons';
 import Modal from 'components/Modal';
 import Button from 'ui/Button';
+import { useTranslation } from 'react-i18next';
 
 const ConfirmFolderClose = ({ folder, onCancel, onCloseWithoutSave, onSaveAndClose }) => {
+  const { t } = useTranslation();
   return (
     <Modal
       size="md"
-      title="Unsaved changes"
+      title={t('REQUEST_TAB.UNSAVED_CHANGES_TITLE')}
       confirmText="Save and Close"
       cancelText="Close without saving"
       disableEscapeKey={true}
@@ -22,24 +24,24 @@ const ConfirmFolderClose = ({ folder, onCancel, onCloseWithoutSave, onSaveAndClo
     >
       <div className="flex items-center font-normal">
         <IconAlertTriangle size={32} strokeWidth={1.5} className="text-yellow-600" />
-        <h1 className="ml-2 text-lg font-medium">Hold on..</h1>
+        <h1 className="ml-2 text-lg font-medium">{t('REQUEST_TAB.HOLD_ON')}</h1>
       </div>
       <div className="font-normal mt-4">
-        You have unsaved changes in <span className="font-medium">{folder.name}</span> folder settings.
+        {t('REQUEST_TAB.FOLDER_UNSAVED_CHANGES', { name: folder.name })}
       </div>
 
       <div className="flex justify-between mt-6">
         <div>
           <Button color="danger" onClick={onCloseWithoutSave}>
-            Don't Save
+            {t('REQUEST_TAB.DONT_SAVE')}
           </Button>
         </div>
         <div className="flex gap-2">
           <Button size="sm" color="secondary" variant="ghost" onClick={onCancel}>
-            Cancel
+            {t('COMMON.CANCEL')}
           </Button>
           <Button onClick={onSaveAndClose}>
-            Save
+            {t('COMMON.SAVE')}
           </Button>
         </div>
       </div>

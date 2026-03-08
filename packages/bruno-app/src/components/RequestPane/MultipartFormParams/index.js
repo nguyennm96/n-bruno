@@ -15,9 +15,11 @@ import EditableTable from 'components/EditableTable';
 import StyledWrapper from './StyledWrapper';
 import path from 'utils/common/path';
 import { isWindowsOS } from 'utils/common/platform';
+import { useTranslation } from 'react-i18next';
 
 const MultipartFormParams = ({ item, collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const { storedTheme } = useTheme();
   const params = item.draft ? get(item, 'draft.request.body.multipartForm') : get(item, 'request.body.multipartForm');
 
@@ -106,21 +108,21 @@ const MultipartFormParams = ({ item, collection }) => {
     if (validPaths.length === 1) {
       return validPaths[0].split(separator).pop();
     }
-    return `${validPaths.length} file(s)`;
+    return t('REQUEST.BODY.FILES_COUNT', { count: validPaths.length });
   };
 
   const columns = [
     {
       key: 'name',
-      name: 'Key',
+      name: t('COMMON.KEY'),
       isKeyField: true,
-      placeholder: 'Key',
+      placeholder: t('COMMON.KEY'),
       width: '30%'
     },
     {
       key: 'value',
-      name: 'Value',
-      placeholder: 'Value',
+      name: t('COMMON.VALUE'),
+      placeholder: t('COMMON.VALUE'),
       width: '35%',
       render: ({ row, value, onChange, isLastEmptyRow }) => {
         const isFile = row.type === 'file';
@@ -137,7 +139,7 @@ const MultipartFormParams = ({ item, collection }) => {
               <button
                 className="clear-file-btn ml-1"
                 onClick={() => handleClearFile(row)}
-                title="Remove file"
+                title={t('REQUEST.BODY.REMOVE_FILE')}
               >
                 <IconX size={16} />
               </button>
@@ -157,14 +159,14 @@ const MultipartFormParams = ({ item, collection }) => {
                 allowNewlines={true}
                 collection={collection}
                 item={item}
-                placeholder={!value ? 'Value' : ''}
+                placeholder={!value ? t('COMMON.VALUE') : ''}
               />
             </div>
             {!hasTextValue && !isLastEmptyRow && (
               <button
                 className="upload-btn ml-1"
                 onClick={() => handleBrowseFiles(row, onChange)}
-                title="Select file"
+                title={t('REQUEST.BODY.SELECT_FILE')}
               >
                 <IconUpload size={16} />
               </button>
@@ -175,14 +177,14 @@ const MultipartFormParams = ({ item, collection }) => {
     },
     {
       key: 'contentType',
-      name: 'Content-Type',
-      placeholder: 'Auto',
+      name: t('REQUEST.BODY.CONTENT_TYPE'),
+      placeholder: t('REQUEST.BODY.AUTO'),
       width: '20%',
       render: ({ value, onChange }) => (
         <SingleLineEditor
           onSave={onSave}
           theme={storedTheme}
-          placeholder={!value ? 'Auto' : ''}
+          placeholder={!value ? t('REQUEST.BODY.AUTO') : ''}
           value={value || ''}
           onChange={onChange}
           onRun={handleRun}

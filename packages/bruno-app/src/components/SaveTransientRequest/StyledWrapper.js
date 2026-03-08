@@ -51,7 +51,7 @@ const StyledWrapper = styled.div`
   .collection-name {
     display: flex;
     align-items: center;
-    font-size: 14px;
+    font-size: ${(props) => props.theme.font.size.md};
     margin-bottom: 12px;
     color: ${(props) => props.theme.colors.text.muted};
   }
@@ -123,7 +123,7 @@ const StyledWrapper = styled.div`
   .folder-empty-state {
     padding: 16px 12px;
     text-align: center;
-    font-size: 14px;
+    font-size: ${(props) => props.theme.font.size.md};
     color: ${(props) => props.theme.colors.text.muted};
   }
 
@@ -178,7 +178,7 @@ const StyledWrapper = styled.div`
   .collection-empty-state {
     padding: 20px 16px;
     text-align: center;
-    font-size: 14px;
+    font-size: ${(props) => props.theme.font.size.md};
     color: ${(props) => props.theme.colors.text.muted};
     line-height: 1.5;
   }
@@ -244,7 +244,7 @@ const StyledWrapper = styled.div`
   }
 
   .new-folder-header-label {
-    font-size: 13px;
+    font-size: ${(props) => props.theme.font.size.base};
     font-weight: 500;
     color: ${(props) => props.theme.text};
   }
@@ -262,7 +262,7 @@ const StyledWrapper = styled.div`
     background-color: ${(props) => props.theme.input.bg};
     border: 1px solid ${(props) => props.theme.input.border};
     color: ${(props) => props.theme.text};
-    font-size: 14px;
+    font-size: ${(props) => props.theme.font.size.md};
     transition: border-color ease-in-out 0.1s;
 
     &:focus {
@@ -310,7 +310,7 @@ const StyledWrapper = styled.div`
   }
 
   .new-folder-filesystem-label {
-    font-size: 13px;
+    font-size: ${(props) => props.theme.font.size.base};
     font-weight: 500;
     color: ${(props) => props.theme.text};
   }
@@ -355,7 +355,7 @@ const StyledWrapper = styled.div`
     color: ${(props) => props.theme.colors.text.muted};
     cursor: pointer;
     border-radius: ${(props) => props.theme.border.radius.sm};
-    font-size: 12px;
+    font-size: ${(props) => props.theme.font.size.sm};
     transition: all 0.15s ease;
     align-self: flex-start;
 
@@ -367,7 +367,7 @@ const StyledWrapper = styled.div`
 
   .new-folder-error {
     color: ${(props) => props.theme.colors.danger};
-    font-size: 12px;
+    font-size: ${(props) => props.theme.font.size.sm};
     margin-top: 4px;
   }
 `;

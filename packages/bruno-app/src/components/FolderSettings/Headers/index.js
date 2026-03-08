@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import { useDispatch } from 'react-redux';
 import { useTheme } from 'providers/Theme';
@@ -17,6 +18,7 @@ const headerAutoCompleteList = StandardHTTPHeaders.map((e) => e.header);
 
 const Headers = ({ collection, folder }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const { storedTheme } = useTheme();
   const headers = folder.draft
     ? get(folder, 'draft.request.headers', [])
@@ -68,7 +70,7 @@ const Headers = ({ collection, folder }) => {
           onChange={(newValue) => onChange(newValue.replace(/[\r\n]/g, ''))}
           autocomplete={headerAutoCompleteList}
           collection={collection}
-          placeholder={!value ? 'Name' : ''}
+          placeholder={!value ? t('COMMON.NAME') : ''}
         />
       )
     },
@@ -85,7 +87,7 @@ const Headers = ({ collection, folder }) => {
           collection={collection}
           item={folder}
           autocomplete={MimeTypes}
-          placeholder={!value ? 'Value' : ''}
+          placeholder={!value ? t('COMMON.VALUE') : ''}
         />
       )
     }

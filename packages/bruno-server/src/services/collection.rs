@@ -76,7 +76,7 @@ impl CollectionService {
 
         let col_oid = col.id.unwrap();
         let now = Utc::now();
-        let mut update = doc! { "updated_at": now.to_rfc3339() };
+        let mut update = doc! { "updated_at": bson::DateTime::from_chrono(now) };
         if let Some(n) = &name { update.insert("name", n); }
         if let Some(d) = &description { update.insert("description", d); }
         if let Some(bc) = &bruno_config {
@@ -121,7 +121,7 @@ impl CollectionService {
         let deleted_uid = col.uid.clone();
         self.collections.update_one(
             doc! { "_id": col.id.unwrap() },
-            doc! { "$set": { "deletedAt": chrono::Utc::now().to_rfc3339() } },
+            doc! { "$set": { "deletedAt": bson::DateTime::now() } },
         ).await.map_err(AppError::from)?;
         self.ws_manager.broadcast(
             &workspace_uid,
@@ -247,7 +247,7 @@ impl CollectionService {
             let result = self.items
                 .update_one(
                     doc! { "_id": item.id.unwrap() },
-                    doc! { "$set": { "seq": new_seq, "updated_at": now.to_rfc3339() } },
+                    doc! { "$set": { "seq": new_seq, "updated_at": bson::DateTime::from_chrono(now) } },
                 )
                 .await
                 .map_err(AppError::from)?;

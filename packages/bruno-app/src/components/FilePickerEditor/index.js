@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import path from 'utils/common/path';
 import { useDispatch } from 'react-redux';
 import { browseFiles } from 'providers/ReduxStore/slices/collections/actions';
@@ -29,6 +30,7 @@ const FilePickerEditor = ({
   label,
   icon: CustomIcon
 }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const filenames = (isSingleFilePicker ? [value] : value || [])
     .filter((v) => v != null && v != '')
@@ -115,7 +117,7 @@ const FilePickerEditor = ({
             <button
               className="clear-btn"
               onClick={clear}
-              title="Remove file"
+              title={t('COMMON.REMOVE_FILE')}
               type="button"
             >
               <IconX size={16} />

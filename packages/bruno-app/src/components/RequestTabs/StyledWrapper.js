@@ -73,7 +73,11 @@ const Wrapper = styled.div`
         background: ${(props) => props.theme.requestTabs.bg};
         border-color: transparent;
         border-radius: ${(props) => props.theme.border.radius.base};
+        transition: background-color 0.1s ease, border-color 0.1s ease;
 
+        &:hover {
+          background: ${(props) => props.theme.background.surface0};
+        }
       }
 
       &:nth-last-child(1) {
@@ -168,7 +172,7 @@ const Wrapper = styled.div`
           align-items: center;
           justify-content: center;
           border-radius: ${(props) => props.theme.border.radius.sm};
-          transition: background-color 0.12s ease, color 0.12s ease;
+          transition: background-color 0.1s ease, color 0.1s ease;
         }
 
         > div.home-icon-container {
@@ -190,6 +194,7 @@ const Wrapper = styled.div`
           > div {
             background-color: ${(props) => props.theme.background.surface0};
             color: ${(props) => props.theme.text};
+            transition: background-color 0.1s ease, color 0.1s ease;
           }
         }
       }

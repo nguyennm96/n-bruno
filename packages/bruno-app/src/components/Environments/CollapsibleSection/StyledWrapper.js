@@ -56,7 +56,7 @@ const StyledWrapper = styled.div`
 
     .section-title {
       padding-right: 4px;
-      font-size: 11px;
+      font-size: ${(props) => props.theme.font.size.xs};
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -64,7 +64,7 @@ const StyledWrapper = styled.div`
     }
 
     .section-badge {
-      font-size: 10px;
+      font-size: ${(props) => props.theme.font.size.xs};
       padding: 1px 6px;
       background: ${(props) => props.theme.sidebar.collection.item.hoverBg};
       border-radius: 10px;

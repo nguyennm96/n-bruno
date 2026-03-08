@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import { getLanguages } from 'utils/codegenerator/targets';
 import { updateGenerateCode } from 'providers/ReduxStore/slices/app';
@@ -8,6 +9,7 @@ import StyledWrapper from './StyledWrapper';
 const CATEGORY_ORDER = ['Shell', 'JavaScript', 'Python', 'JVM', '.NET', 'PHP', 'Ruby', 'Go', 'Systems', 'Apple', 'Other'];
 
 const LanguageList = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const languages = useMemo(() => getLanguages(), []);
   const generateCodePrefs = useSelector((state) => state.app.generateCode);
@@ -80,7 +82,7 @@ const LanguageList = () => {
         <input
           className="search-input"
           type="text"
-          placeholder="Search language..."
+          placeholder={t('GENERATE_CODE.LANGUAGE_LIST.SEARCH_PLACEHOLDER')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           autoComplete="off"
@@ -101,7 +103,7 @@ const LanguageList = () => {
                   title={lang.displayName}
                 >
                   <span className="lang-name">{lang.displayName}</span>
-                  {lang.clients.length > 1 && <span className="client-name">{lang.clients.length} libs</span>}
+                  {lang.clients.length > 1 && <span className="client-name">{t('GENERATE_CODE.LANGUAGE_LIST.LIBS_COUNT', { count: lang.clients.length })}</span>}
                 </button>
               );
             })}
@@ -109,7 +111,7 @@ const LanguageList = () => {
         ))}
 
         {orderedCategories.length === 0 && (
-          <div className="no-results">No languages found</div>
+          <div className="no-results">{t('GENERATE_CODE.LANGUAGE_LIST.NO_RESULTS')}</div>
         )}
       </div>
     </StyledWrapper>

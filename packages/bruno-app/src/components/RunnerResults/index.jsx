@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import path from 'utils/common/path';
 import { useDispatch } from 'react-redux';
 import { get, cloneDeep } from 'lodash';
@@ -11,6 +11,7 @@ import StyledWrapper from './StyledWrapper';
 import RunnerTags from './RunnerTags/index';
 import RunConfigurationPanel from './RunConfigurationPanel';
 import Button from 'ui/Button/index';
+import { useTranslation } from 'react-i18next';
 
 const getDisplayName = (fullPath, pathname, name = '') => {
   let relativePath = path.relative(fullPath, pathname);
@@ -40,25 +41,21 @@ const anyTestFailed = (item) => {
     || item.postResponseTestStatus === 'fail';
 };
 
-// === Centralized filters definition ===
+// === Centralized filters definition (predicates only; labels are translated in component) ===
 const FILTERS = {
   all: {
-    label: 'All',
     predicate: () => true,
     resultFilter: (results) => results
   },
   passed: {
-    label: 'Passed',
     predicate: (item) => allTestsPassed(item),
     resultFilter: (results) => results?.filter((r) => r.status === 'pass')
   },
   failed: {
-    label: 'Failed',
     predicate: (item) => anyTestFailed(item),
     resultFilter: (results) => results?.filter((r) => ['fail', 'error'].includes(r.status))
   },
   skipped: {
-    label: 'Skipped',
     predicate: (item) => item.status === 'skipped',
     resultFilter: (results) => results
   }
@@ -77,6 +74,7 @@ const FilterButton = ({ label, count, active, onClick }) => (
 
 export default function RunnerResults({ collection }) {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const [selectedItem, setSelectedItem] = useState(null);
   const [delay, setDelay] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
@@ -256,6 +254,13 @@ export default function RunnerResults({ collection }) {
     skipped: items.filter((i) => i.status === 'skipped').length
   };
 
+  const filterLabels = useMemo(() => ({
+    all: t('RUNNER.FILTER_ALL'),
+    passed: t('RUNNER.FILTER_PASSED'),
+    failed: t('RUNNER.FILTER_FAILED'),
+    skipped: t('RUNNER.FILTER_SKIPPED')
+  }), [t]);
+
   let isCollectionLoading = areItemsLoading(collection);
   if (!items || !items.length) {
     return (
@@ -263,20 +268,20 @@ export default function RunnerResults({ collection }) {
         <div className="flex overflow-hidden max-h-full h-full">
           <div className={`${configureMode ? 'w-1/2 pr-4' : 'w-full'}`}>
             <div className="font-medium mt-6 title flex items-center">
-              Runner
+              {t('RUNNER.TITLE')}
               <IconRun size={20} strokeWidth={1.5} className="ml-2" />
             </div>
             <div className="mt-6">
-              You have <span className="font-medium">{totalRequestsInCollection}</span> requests in this collection.
+              {t('RUNNER.REQUESTS_IN_COLLECTION', { count: totalRequestsInCollection })}
               {isCollectionLoading && (
                 <span className="ml-2 text-muted">
-                  (Loading...)
+                  {t('RUNNER.LOADING')}
                 </span>
               )}
             </div>
-            {isCollectionLoading ? <div className="my-1 danger">Requests in this collection are still loading.</div> : null}
+            {isCollectionLoading ? <div className="my-1 danger">{t('RUNNER.STILL_LOADING')}</div> : null}
             <div className="mt-6">
-              <label>Delay (in ms)</label>
+              <label>{t('RUNNER.DELAY_LABEL')}</label>
               <input
                 type="number"
                 className="block textbox mt-2 py-5"
@@ -303,7 +308,7 @@ export default function RunnerResults({ collection }) {
                   checked={configureMode}
                   onChange={toggleConfigureMode}
                 />
-                <label htmlFor="filter-config" className="block font-medium">Configure requests to run</label>
+                <label htmlFor="filter-config" className="block font-medium">{t('RUNNER.CONFIGURE_REQUESTS')}</label>
               </div>
             </div>
 
@@ -314,12 +319,14 @@ export default function RunnerResults({ collection }) {
                 onClick={runCollection}
               >
                 {configureMode && selectedRequestItems.length > 0
-                  ? `Run ${selectedRequestItems.length} Selected Request${selectedRequestItems.length > 1 ? 's' : ''}`
-                  : 'Run Collection'}
+                  ? (selectedRequestItems.length > 1
+                      ? t('RUNNER.RUN_SELECTED_MANY', { count: selectedRequestItems.length })
+                      : t('RUNNER.RUN_SELECTED_ONE', { count: selectedRequestItems.length }))
+                  : t('RUNNER.RUN_COLLECTION')}
               </Button>
 
               <Button type="button" variant="ghost" onClick={resetRunner}>
-                Reset
+                {t('RUNNER.RESET')}
               </Button>
             </div>
           </div>
@@ -344,13 +351,13 @@ export default function RunnerResults({ collection }) {
       <div className="flex items-center justify-between mb-4 pt-[14px] gap-4">
         <div className="filter-bar">
           <div className="filter-label">
-            <span>Filter by:</span>
+            <span>{t('RUNNER.FILTER_BY')}</span>
           </div>
           <div className="filter-buttons">
-            {Object.entries(FILTERS).map(([key, { label }]) => (
+            {Object.keys(FILTERS).map((key) => (
               <FilterButton
                 key={key}
-                label={label}
+                label={filterLabels[key]}
                 count={filterCounts[key]}
                 active={activeFilter === key}
                 onClick={() => setActiveFilter(key)}
@@ -368,7 +375,7 @@ export default function RunnerResults({ collection }) {
               variant="filled"
               color="danger"
             >
-              Cancel Execution
+              {t('RUNNER.CANCEL_EXECUTION')}
             </Button>
           </div>
         ) : runnerInfo.status === 'ended' ? (
@@ -380,7 +387,7 @@ export default function RunnerResults({ collection }) {
               variant="filled"
               color="secondary"
             >
-              Run Again
+              {t('RUNNER.RUN_AGAIN')}
             </Button>
             <Button
               type="button"
@@ -389,7 +396,7 @@ export default function RunnerResults({ collection }) {
               variant="filled"
               color="secondary"
             >
-              Reset
+              {t('RUNNER.RESET')}
             </Button>
           </div>
         ) : null}
@@ -453,7 +460,7 @@ export default function RunnerResults({ collection }) {
                         </span>
                       ) : (
                         <span className="danger text-xs cursor-pointer" onClick={() => setSelectedItem(item)}>
-                          (request failed)
+                          {t('RUNNER.REQUEST_FAILED')}
                         </span>
                       )}
                     </div>
@@ -588,7 +595,7 @@ export default function RunnerResults({ collection }) {
                 <IconExternalLink size={64} strokeWidth={1.5} />
               </div>
               <p className="text-subtext1">
-                Click on the status code to view the response
+                {t('RUNNER.CLICK_STATUS_CODE')}
               </p>
             </div>
           </div>

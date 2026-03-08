@@ -7,6 +7,7 @@ import get from 'lodash/get';
 import { updateItemSettings } from 'providers/ReduxStore/slices/collections';
 import { useTheme } from 'providers/Theme';
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import * as Yup from 'yup';
 import StyledWrapper from './StyledWrapper';
@@ -19,19 +20,16 @@ import StyledWrapper from './StyledWrapper';
 const getPropertyFromDraftOrRequest = (propertyKey, item) =>
   item.draft ? get(item, `draft.${propertyKey}`, {}) : get(item, propertyKey, {});
 
-const ERRORS = {
-  timeout: {
-    invalid: `Timeout needs to be a valid number`
-  },
-  keepAliveInterval: {
-    invalid: `Timeout needs to be a valid number`
-  }
-};
-
 const WSSettingsPane = ({ item, collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const { storedTheme } = useTheme();
   const requestPreferences = useSelector((state) => state.app.preferences.request);
+
+  const ERRORS = {
+    timeout: { invalid: t('REQUEST.WS_SETTINGS.TIMEOUT_INVALID') },
+    keepAliveInterval: { invalid: t('REQUEST.WS_SETTINGS.TIMEOUT_INVALID') }
+  };
 
   const { timeout: _connectionTimeout, keepAliveInterval = 0 } = getPropertyFromDraftOrRequest('settings', item);
 
@@ -56,14 +54,14 @@ const WSSettingsPane = ({ item, collection }) => {
     <StyledWrapper className="flex flex-col gap-4 w-full">
       <section className="grid gap-4 items-center grid-cols-2">
         <div>
-          <label className="font-medium mb-2">Timeout</label>
+          <label className="font-medium mb-2">{t('REQUEST.WS_SETTINGS.TIMEOUT')}</label>
           <InfoTip
             infotipId="setting-connection-timeout"
             className="tooltip-mod max-w-lg"
             content={(
               <div>
                 <p>
-                  <span>Timeout in milliseconds</span>
+                  <span>{t('REQUEST.WS_SETTINGS.TIMEOUT_DESC')}</span>
                 </p>
               </div>
             )}
@@ -91,7 +89,7 @@ const WSSettingsPane = ({ item, collection }) => {
         </div>
 
         <div>
-          <label className="font-medium mb-2">Keep Alive Interval</label>
+          <label className="font-medium mb-2">{t('REQUEST.WS_SETTINGS.KEEP_ALIVE')}</label>
           <InfoTip
             infotipId="setting-keep-alive"
             className="tooltip-mod max-w-lg"
@@ -99,10 +97,10 @@ const WSSettingsPane = ({ item, collection }) => {
               <div>
                 <p>
                   <span>
-                    Keep the websocket alive by sending ping requests to the server at every interval (in millseconds)
+                    {t('REQUEST.WS_SETTINGS.KEEP_ALIVE_DESC')}
                   </span>
                 </p>
-                <p className="mt-2">0 (zero) = off</p>
+                <p className="mt-2">{t('REQUEST.WS_SETTINGS.KEEP_ALIVE_ZERO')}</p>
               </div>
             )}
           />

@@ -10,10 +10,12 @@ import { IconAlertTriangle, IconDeviceFloppy } from '@tabler/icons';
 import Modal from 'components/Modal';
 import toast from 'react-hot-toast';
 import Button from 'ui/Button';
+import { useTranslation } from 'react-i18next';
 
 const MAX_UNSAVED_REQUESTS_TO_SHOW = 5;
 
 const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
 
   const latestCollection = useSelector((state) => findCollectionByUid(state.collections.collections, collectionUid));
@@ -53,7 +55,7 @@ const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) =>
   const handleSaveAll = () => {
     // If there are transient drafts, we can't proceed with batch save
     if (currentTransientDrafts.length > 0) {
-      toast.error('Please save or discard transient requests first');
+      toast.error(t('SIDEBAR.SAVE_TRANSIENT_FIRST'));
       return;
     }
     // Save only non-transient drafts
@@ -62,22 +64,22 @@ const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) =>
         .then(() => {
           dispatch(removeCollection(collectionUid))
             .then(() => {
-              toast.success('Collection removed from workspace');
+              toast.success(t('SIDEBAR.COLLECTION_REMOVED'));
               onClose();
             })
-            .catch(() => toast.error('An error occurred while removing the collection'));
+            .catch(() => toast.error(t('SIDEBAR.REMOVE_COLLECTION_ERROR')));
         })
         .catch(() => {
-          toast.error('Failed to save requests!');
+          toast.error(t('SIDEBAR.SAVE_REQUESTS_ERROR'));
         });
     } else {
       // No non-transient drafts, just remove the collection
       dispatch(removeCollection(collectionUid))
         .then(() => {
-          toast.success('Collection removed from workspace');
+          toast.success(t('SIDEBAR.COLLECTION_REMOVED'));
           onClose();
         })
-        .catch(() => toast.error('An error occurred while removing the collection'));
+        .catch(() => toast.error(t('SIDEBAR.REMOVE_COLLECTION_ERROR')));
     }
   };
 
@@ -93,10 +95,10 @@ const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) =>
     // Then remove the collection
     dispatch(removeCollection(collectionUid))
       .then(() => {
-        toast.success('Collection removed from workspace');
+        toast.success(t('SIDEBAR.COLLECTION_REMOVED'));
         onClose();
       })
-      .catch(() => toast.error('An error occurred while removing the collection'));
+      .catch(() => toast.error(t('SIDEBAR.REMOVE_COLLECTION_ERROR')));
   };
 
   const handleSaveTransient = (draft) => {
@@ -110,9 +112,9 @@ const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) =>
   return (
     <Modal
       size="md"
-      title="Remove Collection"
+      title={t('MODALS.REMOVE_COLLECTION_TITLE')}
       confirmText="Save and Remove"
-      cancelText="Remove without saving"
+      cancelText={t('SIDEBAR.REMOVE_WITHOUT_SAVING')}
       handleCancel={onClose}
       disableEscapeKey={true}
       disableCloseOnOutsideClick={true}
@@ -121,10 +123,10 @@ const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) =>
     >
       <div className="flex items-center">
         <IconAlertTriangle size={32} strokeWidth={1.5} className="text-yellow-600" />
-        <h1 className="ml-2 text-lg font-medium">Hold on..</h1>
+        <h1 className="ml-2 text-lg font-medium">{t('SIDEBAR.HOLD_ON')}</h1>
       </div>
       <p className="mt-4">
-        You have unsaved changes in <span className="font-medium">{allDrafts.length}</span>{' '}
+        {t('SIDEBAR.UNSAVED_CHANGES_IN')} <span className="font-medium">{allDrafts.length}</span>{' '}
         {pluralizeWord('request', allDrafts.length)}.
       </p>
 
@@ -132,7 +134,7 @@ const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) =>
       {currentDrafts.length > 0 && (
         <div className="mt-4">
           <p className="text-sm font-medium mb-2">
-            Saved {pluralizeWord('Request', currentDrafts.length)} ({currentDrafts.length})
+            {t('SIDEBAR.SAVED_TYPE', { type: pluralizeWord('Request', currentDrafts.length), count: currentDrafts.length })}
           </p>
           <ul className="ml-2">
             {currentDrafts.slice(0, MAX_UNSAVED_REQUESTS_TO_SHOW).map((item) => {
@@ -145,8 +147,7 @@ const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) =>
           </ul>
           {currentDrafts.length > MAX_UNSAVED_REQUESTS_TO_SHOW && (
             <p className="ml-2 mt-1 text-xs text-gray-500">
-              ...{currentDrafts.length - MAX_UNSAVED_REQUESTS_TO_SHOW} additional{' '}
-              {pluralizeWord('request', currentDrafts.length - MAX_UNSAVED_REQUESTS_TO_SHOW)} not shown
+              {t('SIDEBAR.ADDITIONAL_NOT_SHOWN', { count: currentDrafts.length - MAX_UNSAVED_REQUESTS_TO_SHOW, requests: pluralizeWord('request', currentDrafts.length - MAX_UNSAVED_REQUESTS_TO_SHOW) })}
             </p>
           )}
         </div>
@@ -156,10 +157,10 @@ const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) =>
       {currentTransientDrafts.length > 0 && (
         <div className="mt-4">
           <p className="text-sm font-medium mb-2">
-            Transient {pluralizeWord('Request', currentTransientDrafts.length)} ({currentTransientDrafts.length})
+            {t('SIDEBAR.TRANSIENT_TYPE', { type: pluralizeWord('Request', currentTransientDrafts.length), count: currentTransientDrafts.length })}
           </p>
           <p className="text-xs text-orange-600 mb-3">
-            These requests need to be saved individually before closing the collection.
+            {t('SIDEBAR.TRANSIENT_REQUESTS_HELP')}
           </p>
           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
             {currentTransientDrafts.map((item) => {
@@ -176,7 +177,7 @@ const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) =>
                     onClick={() => handleSaveTransient(item)}
                     icon={<IconDeviceFloppy size={14} strokeWidth={1.5} />}
                   >
-                    Save
+                    {t('COMMON.SAVE')}
                   </Button>
                 </div>
               );
@@ -188,19 +189,19 @@ const ConfirmCollectionCloseDrafts = ({ onClose, collection, collectionUid }) =>
       <div className="flex justify-between mt-6">
         <div>
           <Button color="danger" onClick={handleDiscardAll}>
-            Discard All and Remove
+            {t('SIDEBAR.DISCARD_ALL_AND_REMOVE')}
           </Button>
         </div>
         <div>
           <Button className="mr-2" color="secondary" variant="ghost" onClick={onClose}>
-            Cancel
+            {t('COMMON.CANCEL')}
           </Button>
           <Button
             onClick={handleSaveAll}
             disabled={currentTransientDrafts.length > 0}
-            title={currentTransientDrafts.length > 0 ? 'Please save or discard transient requests first' : ''}
+            title={currentTransientDrafts.length > 0 ? t('SIDEBAR.SAVE_TRANSIENT_FIRST') : ''}
           >
-            {currentDrafts.length > 1 ? 'Save All and Remove' : 'Save and Remove'}
+            {currentDrafts.length > 1 ? t('SIDEBAR.SAVE_ALL_AND_REMOVE') : t('SIDEBAR.SAVE_AND_REMOVE')}
           </Button>
         </div>
       </div>

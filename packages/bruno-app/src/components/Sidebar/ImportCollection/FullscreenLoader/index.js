@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconLoader2 } from '@tabler/icons';
 
 // Messages to cycle through while loading
@@ -11,6 +12,7 @@ const loadingMessages = [
 ];
 
 const FullscreenLoader = ({ isLoading }) => {
+  const { t } = useTranslation();
   const [loadingMessage, setLoadingMessage] = useState('');
 
   useEffect(() => {
@@ -33,7 +35,7 @@ const FullscreenLoader = ({ isLoading }) => {
         <IconLoader2 className="animate-spin h-12 w-12 mb-4" strokeWidth={1.5} />
         <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-50 mb-2">{loadingMessage}</h3>
         <p className="text-zinc-500 dark:text-zinc-400">
-          This may take a moment depending on the collection size
+          {t('COLLECTION.IMPORT_LOADING_HINT')}
         </p>
       </div>
     </div>

@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { Tooltip } from 'react-tooltip';
 import { getGlobalEnvironmentVariables } from 'utils/collections';
 import { stripEnvVarUid } from 'utils/environments';
+import { useTranslation } from 'react-i18next';
 
 const MIN_H = 35 * 2;
 const MIN_COLUMN_WIDTH = 80;
@@ -51,6 +52,7 @@ const EnvironmentVariablesTable = ({
   renderExtraValueContent,
   searchQuery = ''
 }) => {
+  const { t } = useTranslation();
   const { storedTheme, theme } = useTheme();
   const valueMatchBg = theme?.colors?.accent ? `${theme.colors.accent}1a` : undefined;
   const { globalEnvironments, activeGlobalEnvironmentUid } = useSelector((state) => state.globalEnvironments);
@@ -139,10 +141,10 @@ const EnvironmentVariablesTable = ({
           then: (schema) => schema.optional(),
           otherwise: (schema) =>
             schema
-              .required('Name cannot be empty')
+              .required(t('ENVIRONMENTS.VAR_NAME_CANNOT_BE_EMPTY'))
               .matches(
                 variableNameRegex,
-                'Name contains invalid characters. Must only contain alphanumeric characters, "-", "_", "." and cannot start with a digit.'
+                t('ENVIRONMENTS.VAR_NAME_INVALID_CHARS')
               )
               .trim()
         }),
@@ -164,11 +166,11 @@ const EnvironmentVariablesTable = ({
 
         if (!variable.name || variable.name.trim() === '') {
           if (!errors[index]) errors[index] = {};
-          errors[index].name = 'Name cannot be empty';
+          errors[index].name = t('ENVIRONMENTS.VAR_NAME_CANNOT_BE_EMPTY');
         } else if (!variableNameRegex.test(variable.name)) {
           if (!errors[index]) errors[index] = {};
           errors[index].name
-            = 'Name contains invalid characters. Must only contain alphanumeric characters, "-", "_", "." and cannot start with a digit.';
+            = t('ENVIRONMENTS.VAR_NAME_INVALID_CHARS');
         }
       });
       return Object.keys(errors).length > 0 ? errors : {};
@@ -336,7 +338,7 @@ const EnvironmentVariablesTable = ({
     // Compare without UIDs since they can be different but the actual data is the same
     const hasChanges = JSON.stringify(variablesToSave.map(stripEnvVarUid)) !== JSON.stringify(savedValues.map(stripEnvVarUid));
     if (!hasChanges) {
-      toast.error('No changes to save');
+      toast.error(t('ENVIRONMENTS.NO_CHANGES_TO_SAVE'));
       return;
     }
 
@@ -351,13 +353,13 @@ const EnvironmentVariablesTable = ({
     });
 
     if (hasValidationErrors) {
-      toast.error('Please fix validation errors before saving');
+      toast.error(t('ENVIRONMENTS.FIX_VALIDATION_ERRORS'));
       return;
     }
 
     onSave(cloneDeep(variablesToSave))
       .then(() => {
-        toast.success('Changes saved successfully');
+        toast.success(t('ENVIRONMENTS.CHANGES_SAVED'));
         const newValues = [
           ...variablesToSave,
           {
@@ -374,7 +376,7 @@ const EnvironmentVariablesTable = ({
       })
       .catch((error) => {
         console.error(error);
-        toast.error('An error occurred while saving the changes');
+        toast.error(t('ENVIRONMENTS.SAVE_CHANGES_ERROR'));
       });
   }, [formik.values, environment.variables, onSave, setIsModified]);
 
@@ -449,8 +451,8 @@ const EnvironmentVariablesTable = ({
                   onMouseDown={(e) => handleResizeStart(e, 'name')}
                 />
               </td>
-              <td style={{ width: columnWidths.value }}>Value</td>
-              <td className="text-center">Secret</td>
+              <td style={{ width: columnWidths.value }}>{t('ENVIRONMENTS.VAR_VALUE')}</td>
+              <td className="text-center">{t('ENVIRONMENTS.VAR_SECRET')}</td>
               <td></td>
             </tr>
           )}

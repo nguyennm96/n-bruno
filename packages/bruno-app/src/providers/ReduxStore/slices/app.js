@@ -36,7 +36,8 @@ const initialState = {
     },
     general: {
       defaultLocation: '',
-      previewTabMode: false
+      previewTabMode: false,
+      language: 'en'
     },
     onboarding: {
       hasLaunchedBefore: false,
@@ -55,8 +56,6 @@ const initialState = {
   },
   cookies: [],
   taskQueue: [],
-  gitOperationProgress: {},
-  gitVersion: null,
   clipboard: {
     hasCopiedItems: false // Whether clipboard has Bruno data (for UI)
   },
@@ -151,19 +150,6 @@ export const appSlice = createSlice({
     toggleSidebarCollapse: (state) => {
       state.sidebarCollapsed = !state.sidebarCollapsed;
     },
-    updateGitOperationProgress: (state, action) => {
-      const { uid, data } = action.payload;
-      if (!state.gitOperationProgress[uid]) {
-        state.gitOperationProgress[uid] = { progressData: [] };
-      }
-      state.gitOperationProgress[uid].progressData.push(data);
-    },
-    removeGitOperationProgress: (state, action) => {
-      delete state.gitOperationProgress[action.payload];
-    },
-    setGitVersion: (state, action) => {
-      state.gitVersion = action.payload;
-    },
     setClipboard: (state, action) => {
       // Update clipboard UI state
       state.clipboard.hasCopiedItems = action.payload.hasCopiedItems;
@@ -213,9 +199,6 @@ export const {
   updateSystemProxyVariables,
   updateGenerateCode,
   toggleSidebarCollapse,
-  updateGitOperationProgress,
-  removeGitOperationProgress,
-  setGitVersion,
   setClipboard,
   setEnvVarSearchQuery,
   setEnvVarSearchExpanded

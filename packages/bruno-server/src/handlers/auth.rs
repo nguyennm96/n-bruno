@@ -1,7 +1,7 @@
 use axum::{
-    extract::{Extension, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
-    response::Json,
+    response::{Json, Redirect},
     Json as JsonBody,
 };
 use serde::{Deserialize, Serialize};
@@ -81,6 +81,7 @@ pub async fn login(
                 "id": user.id.unwrap_or_default().to_hex(),
                 "email": user.email,
                 "name": user.name,
+                "avatar": user.avatar,
             }
         }
     })))
@@ -121,6 +122,164 @@ pub async fn me(
         "id": user.id.unwrap_or_default().to_hex(),
         "email": user.email,
         "name": user.name,
+        "avatar": user.avatar,
         "created_at": user.created_at,
     }})))
+}
+
+// ── Profile update ────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateProfileRequest {
+    #[validate(length(min = 1, message = "Name cannot be empty"))]
+    pub name: Option<String>,
+    pub avatar: Option<String>,
+}
+
+pub async fn update_me_handler(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    JsonBody(body): JsonBody<UpdateProfileRequest>,
+) -> AppResult<Json<Value>> {
+    if let Err(e) = body.validate() {
+        return Err(AppError::Validation(e.to_string()));
+    }
+    let user_id = extract_user_id(&claims)?;
+    let user = state.auth_service.update_profile(user_id, body.name, body.avatar).await?;
+    Ok(Json(json!({ "data": {
+        "id": user.id.unwrap_or_default().to_hex(),
+        "email": user.email,
+        "name": user.name,
+        "avatar": user.avatar,
+        "created_at": user.created_at,
+    }})))
+}
+
+// ── Forgot / reset password ───────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct ForgotPasswordRequest {
+    #[validate(email(message = "Invalid email address"))]
+    pub email: String,
+}
+
+pub async fn forgot_password(
+    State(state): State<AppState>,
+    JsonBody(body): JsonBody<ForgotPasswordRequest>,
+) -> AppResult<Json<Value>> {
+    if let Err(e) = body.validate() {
+        return Err(AppError::Validation(e.to_string()));
+    }
+    state.auth_service.send_password_reset_otp(&body.email).await?;
+    Ok(Json(json!({
+        "message": "If that email address is registered, you will receive an OTP shortly."
+    })))
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct ResetPasswordRequest {
+    #[validate(email(message = "Invalid email address"))]
+    pub email: String,
+    #[validate(length(min = 6, max = 6, message = "OTP must be 6 digits"))]
+    pub otp: String,
+    #[validate(length(min = 8, message = "Password must be at least 8 characters"))]
+    pub new_password: String,
+}
+
+pub async fn reset_password(
+    State(state): State<AppState>,
+    JsonBody(body): JsonBody<ResetPasswordRequest>,
+) -> AppResult<Json<Value>> {
+    if let Err(e) = body.validate() {
+        return Err(AppError::Validation(e.to_string()));
+    }
+    state
+        .auth_service
+        .reset_password_with_otp(&body.email, &body.otp, &body.new_password)
+        .await?;
+    Ok(Json(json!({ "message": "Password updated successfully." })))
+}
+
+// ── OAuth ─────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct OauthCallbackQuery {
+    pub code: Option<String>,
+    pub state: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OauthExchangeRequest {
+    pub code: String,
+}
+
+/// GET /api/auth/oauth/:provider/authorize
+/// Returns the OAuth authorization URL for the given provider.
+pub async fn oauth_authorize(
+    State(state): State<AppState>,
+    Path(provider): Path<String>,
+) -> AppResult<Json<Value>> {
+    let url = state.oauth_service.build_authorize_url(&provider)?;
+    Ok(Json(json!({ "data": { "url": url } })))
+}
+
+/// GET /api/auth/oauth/:provider/callback
+/// Handles the OAuth callback from the provider.
+/// Exchanges code for user info, finds/creates user, issues OTC, redirects to bruno://
+pub async fn oauth_callback(
+    State(state): State<AppState>,
+    Path(provider): Path<String>,
+    Query(query): Query<OauthCallbackQuery>,
+) -> AppResult<Redirect> {
+    if let Some(err) = query.error {
+        let error_url = format!("bruno://oauth?error={}", urlencoding::encode(&err));
+        return Ok(Redirect::temporary(&error_url));
+    }
+
+    let code = query.code.ok_or_else(|| AppError::BadRequest("Missing code parameter".to_string()))?;
+    let state_param = query.state.ok_or_else(|| AppError::BadRequest("Missing state parameter".to_string()))?;
+
+    if !state.oauth_service.verify_state(&state_param) {
+        return Err(AppError::Unauthorized("Invalid OAuth state — possible CSRF attack".to_string()));
+    }
+
+    let user_info = state.oauth_service.exchange_code(&provider, &code).await?;
+    let user = state.oauth_service.find_or_create_user(&user_info).await?;
+    let user_id = user.id.ok_or_else(|| AppError::Internal("User has no ID".to_string()))?;
+
+    let otc = state.oauth_service.create_oauth_code(user_id, &provider).await?;
+
+    let redirect_url = format!(
+        "bruno://oauth?code={}&provider={}",
+        urlencoding::encode(&otc),
+        urlencoding::encode(&provider),
+    );
+    Ok(Redirect::temporary(&redirect_url))
+}
+
+/// POST /api/auth/oauth/exchange
+/// Exchanges a one-time OAuth code for JWT tokens.
+pub async fn oauth_exchange(
+    State(state): State<AppState>,
+    JsonBody(body): JsonBody<OauthExchangeRequest>,
+) -> AppResult<Json<Value>> {
+    let user = state.oauth_service.exchange_oauth_code(&body.code).await?;
+    let access_token = state.auth_service.generate_access_token(&user)?;
+    let user_id = user.id.ok_or_else(|| AppError::Internal("User has no ID".to_string()))?;
+    let refresh_token = state.auth_service.create_refresh_token(user_id).await?;
+
+    Ok(Json(json!({
+        "data": {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "Bearer",
+            "user": {
+                "id": user.id.unwrap_or_default().to_hex(),
+                "email": user.email,
+                "name": user.name,
+                "avatar": user.avatar,
+            }
+        }
+    })))
 }

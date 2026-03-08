@@ -8,8 +8,10 @@ import { findCollectionByUid, flattenItems, isItemARequest, hasRequestChanges } 
 import filter from 'lodash/filter';
 import ConfirmCollectionCloseDrafts from './ConfirmCollectionCloseDrafts';
 import StyledWrapper from './StyledWrapper';
+import { useTranslation } from 'react-i18next';
 
 const RemoveCollection = ({ onClose, collectionUid }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const collection = useSelector((state) => findCollectionByUid(state.collections.collections, collectionUid));
 
@@ -22,20 +24,20 @@ const RemoveCollection = ({ onClose, collectionUid }) => {
 
   const onConfirm = () => {
     if (!collection) {
-      toast.error('Collection not found');
+      toast.error(t('SIDEBAR.COLLECTION_NOT_FOUND'));
       onClose();
       return;
     }
     dispatch(removeCollection(collection.uid))
       .then(() => {
-        toast.success('Collection removed from workspace');
+        toast.success(t('SIDEBAR.COLLECTION_REMOVED'));
         onClose();
       })
-      .catch(() => toast.error('An error occurred while removing the collection'));
+      .catch(() => toast.error(t('SIDEBAR.REMOVE_COLLECTION_ERROR')));
   };
 
   if (!collection) {
-    return <div>Collection not found</div>;
+    return <div>{t('SIDEBAR.COLLECTION_NOT_FOUND')}</div>;
   }
 
   // If there are drafts, show the draft confirmation modal
@@ -46,7 +48,7 @@ const RemoveCollection = ({ onClose, collectionUid }) => {
   const customHeader = (
     <div className="flex items-center gap-2" data-testid="close-collection-modal-title">
       <IconAlertCircle size={18} strokeWidth={1.5} className="warning-icon" />
-      <span>Remove Collection</span>
+      <span>{t('MODALS.REMOVE_COLLECTION_TITLE')}</span>
     </div>
   );
 
@@ -55,20 +57,20 @@ const RemoveCollection = ({ onClose, collectionUid }) => {
     <StyledWrapper>
       <Modal
         size="sm"
-        title="Remove Collection"
+        title={t('MODALS.REMOVE_COLLECTION_TITLE')}
         customHeader={customHeader}
-        confirmText="Remove"
+        confirmText={t('COMMON.REMOVE')}
         confirmButtonColor="warning"
         handleConfirm={onConfirm}
         handleCancel={onClose}
       >
-        <p className="mb-4">Are you sure you want to close following collection in Bruno?</p>
+        <p className="mb-4">{t('SIDEBAR.REMOVE_COLLECTION_CONFIRM')}</p>
         <div className="collection-info-card">
           <div className="collection-name">{collection.name}</div>
           <div className="collection-path">{collection.uid}</div>
         </div>
         <p className="mt-4 text-muted text-sm">
-          It will still be available in the filesystem at the above location and can be re-opened later.
+          {t('SIDEBAR.REMOVE_COLLECTION_INFO')}
         </p>
       </Modal>
     </StyledWrapper>

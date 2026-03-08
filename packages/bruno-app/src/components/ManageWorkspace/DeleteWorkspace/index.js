@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Portal from 'components/Portal/index';
 import Modal from 'components/Modal/index';
 import toast from 'react-hot-toast';
@@ -7,6 +8,7 @@ import { IconFolder, IconCloud } from '@tabler/icons';
 import { closeWorkspaceAction } from 'providers/ReduxStore/slices/workspaces/actions';
 
 const DeleteWorkspace = ({ onClose, workspace }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -20,7 +22,7 @@ const DeleteWorkspace = ({ onClose, workspace }) => {
       await dispatch(closeWorkspaceAction(workspace.uid));
       onClose();
     } catch (error) {
-      toast.error(error?.message || 'An error occurred while removing the workspace');
+      toast.error(error?.message || t('WORKSPACE.DELETE_ERROR'));
       setIsDeleting(false);
     }
   };
@@ -29,8 +31,8 @@ const DeleteWorkspace = ({ onClose, workspace }) => {
     <Portal>
       <Modal
         size="sm"
-        title={isCloud ? 'Delete Workspace' : 'Remove Workspace'}
-        confirmText={isDeleting ? (isCloud ? 'Deleting...' : 'Removing...') : (isCloud ? 'Delete' : 'Remove')}
+        title={isCloud ? t('WORKSPACE.DELETE_TITLE') : t('WORKSPACE.REMOVE_TITLE')}
+        confirmText={isDeleting ? (isCloud ? t('WORKSPACE.DELETING') : t('WORKSPACE.REMOVING')) : (isCloud ? t('COMMON.DELETE') : t('COMMON.REMOVE'))}
         handleConfirm={onConfirm}
         handleCancel={onClose}
         confirmDisabled={isDeleting}

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useTheme } from 'providers/Theme';
 import get from 'lodash/get';
@@ -14,6 +15,7 @@ import StyledWrapper from './StyledWrapper';
 const headerAutoCompleteList = StandardHTTPHeaders.map((e) => e.header);
 
 const ResponseExampleResponseHeaders = ({ editMode, item, collection, exampleUid }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { storedTheme } = useTheme();
   const [isBulkEditMode, setIsBulkEditMode] = useState(false);
@@ -186,7 +188,7 @@ const ResponseExampleResponseHeaders = ({ editMode, item, collection, exampleUid
             className="btn-action text-link select-none"
             onClick={toggleBulkEditMode}
           >
-            Bulk Edit
+            {t('REQUEST.BULK_EDIT')}
           </button>
         </div>
       )}

@@ -81,7 +81,7 @@ impl EnvironmentService {
 
         let env_oid = env.id.unwrap();
         let now = Utc::now();
-        let mut update = doc! { "updated_at": now.to_rfc3339() };
+        let mut update = doc! { "updated_at": bson::DateTime::from_chrono(now) };
         if let Some(n) = &name { update.insert("name", n); }
         if let Some(vars) = &variables {
             let bson_vars = bson::to_bson(vars).map_err(|e| AppError::Internal(e.to_string()))?;
@@ -133,7 +133,7 @@ impl EnvironmentService {
         let deleted_uid = env.uid.clone();
         self.environments.update_one(
             doc! { "_id": env.id.unwrap() },
-            doc! { "$set": { "deletedAt": chrono::Utc::now().to_rfc3339() } },
+            doc! { "$set": { "deletedAt": bson::DateTime::now() } },
         ).await.map_err(AppError::from)?;
         self.ws_manager.broadcast(
             &workspace_uid,

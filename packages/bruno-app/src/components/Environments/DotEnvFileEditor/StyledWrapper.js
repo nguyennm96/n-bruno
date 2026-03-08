@@ -27,7 +27,7 @@ const StyledWrapper = styled.div`
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 12px;
+    font-size: ${(props) => props.theme.font.size.sm};
 
     td {
       vertical-align: middle;
@@ -168,13 +168,13 @@ const StyledWrapper = styled.div`
     }
 
     .title {
-      font-size: 13px;
+      font-size: ${(props) => props.theme.font.size.base};
       font-weight: 500;
       margin-bottom: 8px;
     }
 
     .description {
-      font-size: 12px;
+      font-size: ${(props) => props.theme.font.size.sm};
       text-align: center;
       max-width: 300px;
       line-height: 1.5;

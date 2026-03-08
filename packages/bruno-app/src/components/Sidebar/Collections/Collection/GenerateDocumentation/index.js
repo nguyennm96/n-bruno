@@ -6,6 +6,7 @@ import jsyaml from 'js-yaml';
 import jsesc from 'jsesc';
 import toast from 'react-hot-toast';
 import { IconBook, IconCheck, IconAlertTriangle, IconLoader2 } from '@tabler/icons';
+import { useTranslation } from 'react-i18next';
 
 import Modal from 'components/Modal';
 import StyledWrapper from './StyledWrapper';
@@ -17,12 +18,6 @@ import { sanitizeName } from 'utils/common/regex';
 import { escapeHtml } from 'utils/response';
 
 const CDN_BASE_URL = 'https://cdn.opencollection.com';
-
-const FEATURES = [
-  'Standalone HTML file - no server required',
-  'Interactive API playground',
-  'Host on any static file server'
-];
 
 const buildHtmlDocument = (collectionName, escapedYamlContent) => `<!DOCTYPE html>
 <html lang="en">
@@ -50,22 +45,32 @@ const buildHtmlDocument = (collectionName, escapedYamlContent) => `<!DOCTYPE htm
 </body>
 </html>`;
 
-const CollectionNotFound = ({ onClose }) => (
-  <Modal size="md" title="Generate Documentation" confirmText="Close" handleConfirm={onClose} hideCancel>
-    <StyledWrapper className="w-[500px]">
-      <div className="flex items-center gap-2 text-warning">
-        <IconAlertTriangle size={16} className="shrink-0" />
-        <span>Collection not found. It may have been deleted or is no longer available.</span>
-      </div>
-    </StyledWrapper>
-  </Modal>
-);
+const CollectionNotFound = ({ onClose }) => {
+  const { t } = useTranslation();
+  return (
+    <Modal size="md" title={t('MODALS.GENERATE_DOCUMENTATION_TITLE')} confirmText={t('COMMON.CLOSE')} handleConfirm={onClose} hideCancel>
+      <StyledWrapper className="w-[500px]">
+        <div className="flex items-center gap-2 text-warning">
+          <IconAlertTriangle size={16} className="shrink-0" />
+          <span>{t('SIDEBAR.GENERATE_DOCS_NOT_FOUND')}</span>
+        </div>
+      </StyledWrapper>
+    </Modal>
+  );
+};
 
 const GenerateDocumentation = ({ onClose, collectionUid }) => {
+  const { t } = useTranslation();
   const { version } = useApp();
   const collection = useSelector((state) =>
     findCollectionByUid(state.collections.collections, collectionUid)
   );
+
+  const FEATURES = [
+    t('SIDEBAR.GENERATE_DOCS_FEATURE_1'),
+    t('SIDEBAR.GENERATE_DOCS_FEATURE_2'),
+    t('SIDEBAR.GENERATE_DOCS_FEATURE_3')
+  ];
 
   const isLoading = useMemo(
     () => (collection ? areItemsLoading(collection) : false),
@@ -108,11 +113,11 @@ const GenerateDocumentation = ({ onClose, collectionUid }) => {
       const fileName = `${sanitizeName(collection.name)}-documentation.html`;
       FileSaver.saveAs(new Blob([htmlContent], { type: 'text/html' }), fileName);
 
-      toast.success('Documentation generated successfully');
+      toast.success(t('SIDEBAR.GENERATE_DOCS_SUCCESS'));
       onClose();
     } catch (error) {
       console.error('Error generating documentation:', error);
-      toast.error('Failed to generate documentation');
+      toast.error(t('SIDEBAR.GENERATE_DOCS_ERROR'));
     }
   }, [collection, version, onClose]);
 
@@ -123,9 +128,9 @@ const GenerateDocumentation = ({ onClose, collectionUid }) => {
   return (
     <Modal
       size="md"
-      title="Generate Documentation"
-      confirmText={isLoading ? 'Loading...' : 'Generate'}
-      cancelText="Cancel"
+      title={t('MODALS.GENERATE_DOCUMENTATION_TITLE')}
+      confirmText={isLoading ? t('COMMON.LOADING') : t('SIDEBAR.GENERATE')}
+      cancelText={t('COMMON.CANCEL')}
       handleConfirm={isLoading ? undefined : handleGenerate}
       handleCancel={onClose}
       confirmDisabled={isLoading}
@@ -134,20 +139,20 @@ const GenerateDocumentation = ({ onClose, collectionUid }) => {
         {isLoading ? (
           <div className="flex items-center justify-center gap-3 py-8">
             <IconLoader2 size={20} className="animate-spin" />
-            <span>Loading collection...</span>
+            <span>{t('SIDEBAR.LOADING_COLLECTION')}</span>
           </div>
         ) : (
           <div className="content">
             <h3 className="title flex items-center gap-2 mt-2 font-medium">
               <IconBook size={18} />
-              <span>Interactive API Documentation</span>
+              <span>{t('SIDEBAR.INTERACTIVE_API_DOCS')}</span>
             </h3>
             <p className="description mb-4">
-              Generate a standalone HTML file that can be hosted anywhere or shared with your team.
+              {t('SIDEBAR.GENERATE_DOCS_DESCRIPTION')}
             </p>
 
             <div className="preview-container relative mb-4">
-              <span className="preview-label absolute">Sample Output</span>
+              <span className="preview-label absolute">{t('SIDEBAR.SAMPLE_OUTPUT')}</span>
               <img src={demoImage} alt="Documentation preview" className="preview-image" />
             </div>
 
@@ -161,7 +166,7 @@ const GenerateDocumentation = ({ onClose, collectionUid }) => {
             </ul>
 
             <p className="note m-0">
-              The generated file loads OpenCollection's JavaScript and CSS files from a CDN, which requires an internet connection.
+              {t('SIDEBAR.GENERATE_DOCS_NOTE')}
             </p>
           </div>
         )}

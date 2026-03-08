@@ -12,6 +12,18 @@ pub struct Config {
     pub jwt_refresh_expires_days: i64,
     pub cors_allowed_origins: Vec<String>,
     pub public_docs_base_url: String,
+    pub app_url: String,
+    pub sendgrid_api_key: Option<String>,
+    pub sendgrid_from_email: String,
+    pub sendgrid_from_name: String,
+    pub openai_api_key: Option<String>,
+    pub anthropic_api_key: Option<String>,
+    pub ai_provider: String,
+    // OAuth providers
+    pub google_client_id: Option<String>,
+    pub google_client_secret: Option<String>,
+    pub github_client_id: Option<String>,
+    pub github_client_secret: Option<String>,
 }
 
 impl Config {
@@ -46,6 +58,20 @@ impl Config {
                 .collect(),
             public_docs_base_url: env::var("PUBLIC_DOCS_BASE_URL")
                 .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            app_url: env::var("APP_URL")
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            sendgrid_api_key: env::var("SENDGRID_API_KEY").ok(),
+            sendgrid_from_email: env::var("SENDGRID_FROM_EMAIL")
+                .unwrap_or_else(|_| "noreply@usebruno.com".to_string()),
+            sendgrid_from_name: env::var("SENDGRID_FROM_NAME")
+                .unwrap_or_else(|_| "Bruno".to_string()),
+            openai_api_key: env::var("OPENAI_API_KEY").ok(),
+            anthropic_api_key: env::var("ANTHROPIC_API_KEY").ok(),
+            ai_provider: env::var("AI_PROVIDER").unwrap_or_else(|_| "openai".to_string()),
+            google_client_id: env::var("GOOGLE_CLIENT_ID").ok(),
+            google_client_secret: env::var("GOOGLE_CLIENT_SECRET").ok(),
+            github_client_id: env::var("GITHUB_CLIENT_ID").ok(),
+            github_client_secret: env::var("GITHUB_CLIENT_SECRET").ok(),
         })
     }
 
@@ -63,6 +89,17 @@ impl Config {
             jwt_refresh_expires_days: 30,
             cors_allowed_origins: vec!["http://localhost:3000".to_string()],
             public_docs_base_url: "http://localhost:3000".to_string(),
+            app_url: "http://localhost:3000".to_string(),
+            sendgrid_api_key: None,
+            sendgrid_from_email: "noreply@usebruno.com".to_string(),
+            sendgrid_from_name: "Bruno".to_string(),
+            openai_api_key: None,
+            anthropic_api_key: None,
+            ai_provider: "openai".to_string(),
+            google_client_id: None,
+            google_client_secret: None,
+            github_client_id: None,
+            github_client_secret: None,
         }
     }
 
@@ -70,3 +107,4 @@ impl Config {
         self.app_env == "production"
     }
 }
+

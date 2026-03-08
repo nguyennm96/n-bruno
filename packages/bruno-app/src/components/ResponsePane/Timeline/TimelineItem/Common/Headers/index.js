@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const HeadersBlock = ({ headers, type }) => {
+  const { t } = useTranslation();
   const [areHeadersCollapsed, toggleHeaders] = useState(true);
 
   return (
@@ -16,7 +18,7 @@ const HeadersBlock = ({ headers, type }) => {
         <div className="mt-1">
           {headers && Object.keys(headers).length > 0
             ? <Headers headers={headers} type={type} />
-            : <div className="timeline-item-timestamp">No Headers found</div>}
+            : <div className="timeline-item-timestamp">{t('COMMON.NO_HEADERS_FOUND')}</div>}
         </div>
       )}
     </div>

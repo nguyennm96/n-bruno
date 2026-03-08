@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSelector, useDispatch } from 'react-redux';
 import Modal from 'components/Modal';
 import SearchInput from 'components/SearchInput';
@@ -24,6 +25,7 @@ import { uuid } from 'utils/common';
 import { formatIpcError } from 'utils/common/error';
 
 const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOpen = false, onClose }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
 
   const latestCollection = useSelector((state) =>
@@ -43,7 +45,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
     if (!isScratchCollection || !activeWorkspace) return [];
 
     return (activeWorkspace.collections || []).map((wc) => {
-      const fullCollection = allCollections.find((c) => c.pathname === wc.path);
+      const fullCollection = allCollections.find((c) => c.uid === wc.uid);
       // Use stable deterministic UID based on path to avoid duplicate Redux entries
       const stableUid = wc.path ? `pending-${wc.path.replace(/[^a-zA-Z0-9]/g, '-')}` : uuid();
       return fullCollection || { ...wc, uid: stableUid, mountStatus: 'unmounted' };
@@ -67,23 +69,23 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
   const [pendingFolderNavigation, setPendingFolderNavigation] = useState(null);
   const newFolderInputRef = useRef(null);
 
-  const [selectedTargetCollectionPath, setSelectedTargetCollectionPath] = useState(null);
+  const [selectedTargetCollectionUid, setSelectedTargetCollectionUid] = useState(null);
   const [isSelectingCollection, setIsSelectingCollection] = useState(isScratchCollection);
-  const folderTreeCollectionUid = selectedTargetCollectionPath
-    ? availableCollections.find((c) => (c.path || c.pathname) === selectedTargetCollectionPath)?.uid
+  const folderTreeCollectionUid = selectedTargetCollectionUid
+    ? availableCollections.find((c) => c.uid === selectedTargetCollectionUid)?.uid
     : collection?.uid;
 
-  const selectedTargetCollection = selectedTargetCollectionPath
-    ? availableCollections.find((c) => (c.path || c.pathname) === selectedTargetCollectionPath)
+  const selectedTargetCollection = selectedTargetCollectionUid
+    ? availableCollections.find((c) => c.uid === selectedTargetCollectionUid)
     : null;
 
   useEffect(() => {
     const isMounted = selectedTargetCollection?.mountStatus === 'mounted';
     const isFullyLoaded = isMounted && !areItemsLoading(selectedTargetCollection);
-    if (selectedTargetCollectionPath && isFullyLoaded) {
+    if (selectedTargetCollectionUid && isFullyLoaded) {
       setIsSelectingCollection(false);
     }
-  }, [selectedTargetCollectionPath, selectedTargetCollection]);
+  }, [selectedTargetCollectionUid, selectedTargetCollection]);
 
   const {
     currentFolders,
@@ -108,7 +110,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
     setShowFilesystemName(false);
     setIsEditingFolderFilename(false);
     setPendingFolderNavigation(null);
-    setSelectedTargetCollectionPath(null);
+    setSelectedTargetCollectionUid(null);
     setIsSelectingCollection(isScratchCollection);
   }, [item?.name, isScratchCollection, reset]);
 
@@ -152,7 +154,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
     const isMounted = selectedCollection.mountStatus === 'mounted';
     const isFullyLoaded = isMounted && !areItemsLoading(selectedCollection);
 
-    setSelectedTargetCollectionPath(collectionPath);
+    setSelectedTargetCollectionUid(selectedCollection.uid);
 
     if (isFullyLoaded) {
       setIsSelectingCollection(false);
@@ -182,7 +184,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
 
       const trimmedName = requestName.trim();
       if (!trimmedName || trimmedName.length === 0) {
-        toast.error('Request name is required');
+        toast.error(t('SAVE_REQUEST.REQUEST_NAME_REQUIRED'));
         return;
       }
 
@@ -229,10 +231,10 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
         dispatch(addTab({ uid: createdItem.uid, collectionUid: targetCollection.uid, requestPaneTab: getDefaultRequestPaneTab(createdItem), preview: false }));
       }
 
-      toast.success('Request saved successfully');
+      toast.success(t('SAVE_REQUEST.SAVED_SUCCESSFULLY'));
       handleClose();
     } catch (err) {
-      toast.error(formatIpcError(err) || 'Failed to save request');
+      toast.error(formatIpcError(err) || t('SAVE_REQUEST.SAVE_ERROR'));
       console.error('Error saving request:', err);
     }
   };
@@ -264,7 +266,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
     const trimmedFolderName = newFolderName.trim();
 
     if (!trimmedFolderName) {
-      toast.error('Folder name is required');
+      toast.error(t('SAVE_REQUEST.FOLDER_NAME_REQUIRED'));
       return;
     }
 
@@ -279,7 +281,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
 
     try {
       await dispatch(newFolder(trimmedFolderName, directoryName, targetCollectionUid, parentFolder?.uid));
-      toast.success('New folder created!');
+      toast.success(t('SAVE_REQUEST.FOLDER_CREATED'));
 
       setPendingFolderNavigation(directoryName);
       handleCancelNewFolder();
@@ -307,11 +309,11 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
     <StyledWrapper>
       <Modal
         size="md"
-        title={isSelectingCollection ? 'Select Collection' : 'Save Request'}
+        title={isSelectingCollection ? t('SAVE_REQUEST.SELECT_COLLECTION') : t('SAVE_REQUEST.SAVE_REQUEST')}
         handleCancel={handleCancel}
         handleConfirm={handleConfirm}
-        confirmText="Save"
-        cancelText="Cancel"
+        confirmText={t('SAVE_REQUEST.SAVE')}
+        cancelText={t('SAVE_REQUEST.CANCEL')}
         hideFooter={true}
       >
         <div className="save-request-form">
@@ -336,7 +338,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
 
           <div className="collections-section">
             <div className="collections-label">
-              {isSelectingCollection ? 'Select a collection to save to' : 'Save to Collections'}
+              {isSelectingCollection ? t('SAVE_REQUEST.SELECT_COLLECTION') : t('SAVE_REQUEST.SAVE_TO_COLLECTIONS')}
             </div>
 
             {isScratchCollection && (
@@ -345,11 +347,11 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
                   className={isSelectingCollection ? '' : 'collection-name-breadcrumb'}
                   onClick={!isSelectingCollection ? () => {
                     setIsSelectingCollection(true);
-                    setSelectedTargetCollectionPath(null);
+                    setSelectedTargetCollectionUid(null);
                     reset();
                   } : undefined}
                 >
-                  Collections
+                  {t('COMMON.COLLECTIONS')}
                 </span>
                 {!isSelectingCollection && (
                   <>
@@ -374,11 +376,11 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
                       const collPath = coll.path || coll.pathname;
                       return (
                         <CollectionListItem
-                          key={collPath}
+                          key={coll.uid}
                           collectionUid={coll.uid}
                           collectionPath={collPath}
                           collectionName={coll.name}
-                          isSelected={selectedTargetCollectionPath === collPath}
+                          isSelected={selectedTargetCollectionUid === coll.uid}
                           onSelect={() => handleSelectCollection(coll)}
                         />
                       );
@@ -408,7 +410,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
                   <SearchInput
                     searchText={searchText}
                     setSearchText={setSearchText}
-                    placeholder="Search for folder"
+                    placeholder={t('SAVE_REQUEST.SEARCH_FOLDER_PLACEHOLDER')}
                     autoFocus={false}
                   />
                 </div>
@@ -442,7 +444,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
                               ref={newFolderInputRef}
                               type="text"
                               className="new-folder-input"
-                              placeholder="Untitled new folder"
+                              placeholder={t('SAVE_REQUEST.NEW_FOLDER_PLACEHOLDER')}
                               value={newFolderName}
                               onChange={(e) => handleNewFolderNameChange(e.target.value)}
                               onKeyDown={(e) => {
@@ -461,7 +463,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
                                 type="button"
                                 className="new-folder-action-btn"
                                 onClick={handleCancelNewFolder}
-                                title="Cancel"
+                                title={t('SAVE_REQUEST.CANCEL')}
                               >
                                 <IconX size={16} strokeWidth={1.5} />
                               </button>
@@ -469,7 +471,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
                                 type="button"
                                 className="new-folder-action-btn"
                                 onClick={handleCreateNewFolder}
-                                title="Create folder"
+                                title={t('SAVE_REQUEST.CREATE_FOLDER')}
                               >
                                 <IconCheck size={16} strokeWidth={1.5} />
                               </button>
@@ -508,7 +510,7 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
                                   <input
                                     type="text"
                                     className="block textbox mt-2 w-full"
-                                    placeholder="Folder Name"
+                                    placeholder={t('SAVE_REQUEST.FOLDER_NAME_PLACEHOLDER')}
                                     value={newFolderDirectoryName}
                                     autoComplete="off"
                                     autoCorrect="off"
@@ -550,12 +552,12 @@ const SaveTransientRequest = ({ item: itemProp, collection: collectionProp, isOp
                             {showFilesystemName ? (
                               <>
                                 <IconEyeOff size={16} strokeWidth={1.5} />
-                                <span>Hide filesystem name</span>
+                                <span>{t('SAVE_REQUEST.HIDE_FILESYSTEM_NAME')}</span>
                               </>
                             ) : (
                               <>
                                 <IconEye size={16} strokeWidth={1.5} />
-                                <span>Show filesystem name</span>
+                                <span>{t('SAVE_REQUEST.SHOW_FILESYSTEM_NAME')}</span>
                               </>
                             )}
                           </button>

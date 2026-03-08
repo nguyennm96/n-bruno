@@ -1,4 +1,5 @@
 import { IconChevronDown } from '@tabler/icons';
+import { useTranslation } from 'react-i18next';
 import Dropdown from 'components/Dropdown/index';
 import {
   IconGrpcBidiStreaming,
@@ -18,6 +19,7 @@ const MethodDropdown = ({
   onMethodSelect,
   onMethodDropdownCreate
 }) => {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [searchText, setSearchText] = useState('');
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -148,7 +150,7 @@ const MethodDropdown = ({
           <SearchInput
             searchText={searchText}
             setSearchText={setSearchText}
-            placeholder="Search"
+            placeholder={t('COMMON.SEARCH')}
             ref={searchInputRef}
             onKeyDown={handleKeyDown}
             onBlur={focusSearchInput}

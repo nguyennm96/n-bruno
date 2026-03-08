@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 import {
   selectWsConnected,
@@ -11,6 +12,7 @@ import {
  * Displayed at the bottom of the sidebar.
  */
 const CloudSyncBadge = () => {
+  const { t } = useTranslation();
   const wsConnected = useSelector(selectWsConnected);
   const syncState = useSelector(selectSyncState);
   const lastSyncedAt = useSelector(selectLastSyncedAt);
@@ -26,13 +28,13 @@ const CloudSyncBadge = () => {
 
   let label, dotClass;
   if (syncState === 'syncing') {
-    label = 'Syncing…';
+    label = t('CLOUD.SYNCING');
     dotClass = 'dot-syncing';
   } else if (!wsConnected) {
-    label = 'Offline';
+    label = t('CLOUD.OFFLINE');
     dotClass = 'dot-offline';
   } else if (syncState === 'error') {
-    label = 'Sync error';
+    label = t('CLOUD.SYNC_ERROR');
     dotClass = 'dot-error';
   } else {
     const time = formatTime(lastSyncedAt);

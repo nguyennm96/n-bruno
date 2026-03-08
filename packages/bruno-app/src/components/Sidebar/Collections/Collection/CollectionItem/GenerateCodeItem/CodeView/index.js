@@ -1,5 +1,6 @@
 import CodeEditor from 'components/CodeEditor/index';
 import get from 'lodash/get';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from 'providers/Theme/index';
 import StyledWrapper from './StyledWrapper';
 import { useSelector, useDispatch } from 'react-redux';
@@ -14,6 +15,7 @@ import { updateGenerateCode } from 'providers/ReduxStore/slices/app';
 import { generateSnippet } from '../utils/snippet-generator';
 
 const CodeView = ({ language, item }) => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const { displayedTheme } = useTheme();
   const preferences = useSelector((state) => state.app.preferences);
@@ -71,7 +73,7 @@ const CodeView = ({ language, item }) => {
 
   const handleCopy = () => {
     setCopied(true);
-    toast.success('Copied to clipboard!');
+    toast.success(t('GENERATE_CODE.CODE_VIEW.COPIED_TOAST'));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -103,7 +105,7 @@ const CodeView = ({ language, item }) => {
               checked={generateCodePrefs.shouldInterpolate}
               onChange={handleInterpolateChange}
             />
-            <span>Use env values</span>
+            <span>{t('GENERATE_CODE.CODE_VIEW.USE_ENV_VALUES')}</span>
           </label>
 
           <CopyToClipboard
@@ -113,7 +115,7 @@ const CodeView = ({ language, item }) => {
           >
             <button className={`copy-btn ${copied ? 'copied' : ''}`}>
               {copied ? <IconCheck size={14} strokeWidth={2} /> : <IconCopy size={14} strokeWidth={1.5} />}
-              <span>{copied ? 'Copied!' : 'Copy code'}</span>
+              <span>{copied ? t('GENERATE_CODE.CODE_VIEW.COPIED_LABEL') : t('GENERATE_CODE.CODE_VIEW.COPY_CODE')}</span>
             </button>
           </CopyToClipboard>
         </div>

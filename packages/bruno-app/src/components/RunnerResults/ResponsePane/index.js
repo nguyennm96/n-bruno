@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import classnames from 'classnames';
 import QueryResponse from 'components/ResponsePane/QueryResponse/index';
@@ -15,6 +16,7 @@ import ScriptError from 'components/ResponsePane/ScriptError';
 import ScriptErrorIcon from 'components/ResponsePane/ScriptErrorIcon';
 
 const ResponsePane = ({ rightPaneWidth, item, collection }) => {
+  const { t } = useTranslation();
   const [selectedTab, setSelectedTab] = useState('response');
   const [showScriptErrorCard, setShowScriptErrorCard] = useState(false);
 
@@ -100,14 +102,14 @@ const ResponsePane = ({ rightPaneWidth, item, collection }) => {
     <StyledWrapper className="flex flex-col h-full relative overflow-auto">
       <div className="flex items-center tabs overflow-visible" role="tablist">
         <div className={getTabClassname('response')} role="tab" onClick={() => selectTab('response')}>
-          Response
+          {t('RESPONSE_PANE.TABS.RESPONSE')}
         </div>
         <div className={getTabClassname('headers')} role="tab" onClick={() => selectTab('headers')}>
-          Headers
+          {t('RESPONSE_PANE.TABS.HEADERS')}
           {headers?.length > 0 && <sup className="ml-1 font-medium">{headers.length}</sup>}
         </div>
         <div className={getTabClassname('timeline')} role="tab" onClick={() => selectTab('timeline')}>
-          Timeline
+          {t('RESPONSE_PANE.TABS.TIMELINE')}
         </div>
         <div className={getTabClassname('tests')} role="tab" onClick={() => selectTab('tests')}>
           <TestResultsLabel

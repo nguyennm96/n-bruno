@@ -426,13 +426,6 @@ class StorageManager {
     return this.getStorage().deleteDotenvFile(pathname, filename);
   }
 
-  // Git operations
-  async cloneGitRepository(data) {
-    const mode = this.getMode();
-    console.log(`StorageManager.cloneGitRepository: routing to ${mode} storage`);
-    return this.getStorage().cloneGitRepository(data);
-  }
-
   async scanForBrunoFiles(dir) {
     const mode = this.getMode();
     console.log(`StorageManager.scanForBrunoFiles: routing to ${mode} storage`);
@@ -595,8 +588,8 @@ class StorageManager {
   }
 
   async startWorkspaceWatcher(workspacePath) {
-    console.log('StorageManager.startWorkspaceWatcher: always local');
-    return this.localStorage.startWorkspaceWatcher(workspacePath);
+    // No-op in IDB mode — no filesystem watching needed for workspaces.
+    return true;
   }
 
   async saveWorkspaceDocs(workspacePath, docs) {
@@ -842,7 +835,7 @@ class StorageManager {
    * Check if a collection is a cloud collection
    */
   isCloudCollection(collection) {
-    return collection?.isCloud === true || collection?.pathname?.startsWith('cloud://');
+    return collection?.isCloud === true;
   }
 
   /**
@@ -850,18 +843,7 @@ class StorageManager {
    * (e.g., scratch collections, temp directories)
    */
   isLocalOnlyResource(pathnameOrUid) {
-    // If it's a filesystem path (not a UUID and not cloud://), it's local-only
-    if (typeof pathnameOrUid === 'string') {
-      // Cloud resources start with 'cloud://'
-      if (pathnameOrUid.startsWith('cloud://')) {
-        return false;
-      }
-      // Paths with slashes or backslashes are filesystem paths
-      if (pathnameOrUid.includes('/') || pathnameOrUid.includes('\\')) {
-        return true;
-      }
-    }
-    return false;
+    return typeof pathnameOrUid === 'string' && (pathnameOrUid.includes('/') || pathnameOrUid.includes('\\'));
   }
 }
 

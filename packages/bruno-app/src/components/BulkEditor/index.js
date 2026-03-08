@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import get from 'lodash/get';
 import CodeEditor from 'components/CodeEditor';
 import { useTheme } from 'providers/Theme';
@@ -6,6 +7,7 @@ import { useSelector } from 'react-redux';
 import { parseBulkKeyValue, serializeBulkKeyValue } from 'utils/common/bulkKeyValueUtils';
 
 const BulkEditor = ({ params, onChange, onToggle, onSave, onRun }) => {
+  const { t } = useTranslation();
   const preferences = useSelector((state) => state.app.preferences);
   const { displayedTheme } = useTheme();
 
@@ -32,7 +34,7 @@ const BulkEditor = ({ params, onChange, onToggle, onSave, onRun }) => {
       </div>
       <div className="flex btn-action justify-between items-center mt-3">
         <button className="text-link select-none ml-auto" onClick={onToggle}>
-          Key/Value Edit
+          {t('COMMON.KEY_VALUE_EDIT')}
         </button>
       </div>
     </>

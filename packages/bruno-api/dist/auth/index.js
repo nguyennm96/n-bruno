@@ -51,5 +51,24 @@ class AuthService {
         const response = await this.client.getClient().get('/api/auth/me');
         return response.data;
     }
+    /**
+     * Update the current user's name and/or avatar
+     */
+    async updateProfile(data) {
+        const response = await this.client.getClient().patch('/api/auth/me', data);
+        return response.data;
+    }
+    /**
+     * Request a 6-digit OTP sent to the user's email for password reset
+     */
+    async forgotPassword(email) {
+        await this.client.getClient().post('/api/auth/forgot-password', { email });
+    }
+    /**
+     * Reset password using the OTP received by email
+     */
+    async resetPassword(data) {
+        await this.client.getClient().post('/api/auth/reset-password', data);
+    }
 }
 exports.AuthService = AuthService;

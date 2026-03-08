@@ -4,6 +4,7 @@ import { uuid } from 'utils/common';
 import { useFormik } from 'formik';
 import { variableNameRegex } from 'utils/common/regex';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 import StyledWrapper from './StyledWrapper';
 import DotEnvTableView from './DotEnvTableView';
@@ -23,6 +24,7 @@ const DotEnvFileEditor = ({
   collection,
   item
 }) => {
+  const { t } = useTranslation();
   const { displayedTheme } = useTheme();
   const [tableHeight, setTableHeight] = useState(MIN_TABLE_HEIGHT);
   // Derive a single baseline raw value for consistent dirty-tracking
@@ -64,11 +66,10 @@ const DotEnvFileEditor = ({
 
         if (!variable.name || variable.name.trim() === '') {
           if (!errors[index]) errors[index] = {};
-          errors[index].name = 'Name cannot be empty';
+          errors[index].name = t('ENVIRONMENTS.DOT_ENV_FILE_EDITOR.NAME_CANNOT_BE_EMPTY');
         } else if (!variableNameRegex.test(variable.name)) {
           if (!errors[index]) errors[index] = {};
-          errors[index].name
-            = 'Name contains invalid characters. Must only contain alphanumeric characters, "-", "_", "." and cannot start with a digit.';
+          errors[index].name = t('ENVIRONMENTS.DOT_ENV_FILE_EDITOR.NAME_INVALID_CHARS');
         }
       });
       return Object.keys(errors).length > 0 ? errors : {};
@@ -203,14 +204,14 @@ const DotEnvFileEditor = ({
     });
 
     if (hasValidationErrors) {
-      toast.error('Please fix validation errors before saving');
+      toast.error(t('ENVIRONMENTS.DOT_ENV_FILE_EDITOR.PLEASE_FIX_VALIDATION_ERRORS'));
       return;
     }
 
     setIsSaving(true);
     onSave(variablesToSave)
       .then(() => {
-        toast.success('Changes saved successfully');
+        toast.success(t('ENVIRONMENTS.DOT_ENV_FILE_EDITOR.CHANGES_SAVED_SUCCESSFULLY'));
         const newValues = [
           ...variablesToSave,
           { uid: uuid(), name: '', value: '' }
@@ -221,38 +222,38 @@ const DotEnvFileEditor = ({
       })
       .catch((error) => {
         console.error(error);
-        toast.error('An error occurred while saving the changes');
+        toast.error(t('ENVIRONMENTS.DOT_ENV_FILE_EDITOR.ERROR_SAVING_CHANGES'));
         window.dispatchEvent(new Event('dotenv-save-failed'));
       })
       .finally(() => {
         setIsSaving(false);
       });
-  }, [isSaving, formik.values, onSave, setIsModified]);
+  }, [isSaving, formik.values, onSave, setIsModified, t]);
 
   const handleSaveRaw = useCallback(() => {
     if (isSaving) return;
 
     if (!onSaveRaw) {
-      toast.error('Raw save is not supported');
+      toast.error(t('ENVIRONMENTS.DOT_ENV_FILE_EDITOR.RAW_SAVE_NOT_SUPPORTED'));
       return;
     }
 
     setIsSaving(true);
     onSaveRaw(rawValue)
       .then(() => {
-        toast.success('Changes saved successfully');
+        toast.success(t('ENVIRONMENTS.DOT_ENV_FILE_EDITOR.CHANGES_SAVED_SUCCESSFULLY'));
         setIsModified(false);
         window.dispatchEvent(new Event('dotenv-save-complete'));
       })
       .catch((error) => {
         console.error(error);
-        toast.error('An error occurred while saving the changes');
+        toast.error(t('ENVIRONMENTS.DOT_ENV_FILE_EDITOR.ERROR_SAVING_CHANGES'));
         window.dispatchEvent(new Event('dotenv-save-failed'));
       })
       .finally(() => {
         setIsSaving(false);
       });
-  }, [isSaving, rawValue, onSaveRaw, setIsModified]);
+  }, [isSaving, rawValue, onSaveRaw, setIsModified, t]);
 
   const handleReset = useCallback(() => {
     if (viewMode === 'raw') {

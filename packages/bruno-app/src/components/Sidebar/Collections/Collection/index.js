@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useTransition } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getEmptyImage } from 'react-dnd-html5-backend';
 import classnames from 'classnames';
 import { uuid } from 'utils/common';
@@ -56,6 +57,7 @@ import { selectIsAuthenticated } from 'providers/ReduxStore/slices/auth';
 import { selectSyncStatus } from 'providers/ReduxStore/slices/syncStatus';
 
 const Collection = ({ collection, searchText }) => {
+  const { t } = useTranslation();
   const { dropdownContainerRef } = useSidebarAccordion();
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
@@ -68,6 +70,7 @@ const Collection = ({ collection, searchText }) => {
   const [dropType, setDropType] = useState(null);
   const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
   const dispatch = useDispatch();
+  const [, startTransition] = useTransition();
   const isLoading = areItemsLoading(collection);
   const collectionRef = useRef(null);
 
@@ -78,7 +81,7 @@ const Collection = ({ collection, searchText }) => {
 
   // Cloud workspace integration
   const isAuthenticated = useSelector(selectIsAuthenticated);
-  const syncStatus = useSelector((state) => selectSyncStatus(state, collection.uid ?? collection.pathname));
+  const syncStatus = useSelector((state) => selectSyncStatus(state, collection.uid));
 
   const handleRun = () => {
     dispatch(
@@ -96,7 +99,7 @@ const Collection = ({ collection, searchText }) => {
     }
     dispatch(mountCollection({
       collectionUid: collection.uid,
-      collectionPathname: collection.uid ?? collection.pathname,
+      collectionPathname: collection.uid,
       brunoConfig: collection.brunoConfig
     }));
   };
@@ -117,25 +120,29 @@ const Collection = ({ collection, searchText }) => {
     ensureCollectionIsMounted();
 
     if (collection.collapsed) {
-      dispatch(toggleCollection(collection.uid));
-      // Set default jsSandboxMode to 'safe' if not present and save to disk
-      if (!collection.securityConfig?.jsSandboxMode) {
-        dispatch(saveCollectionSecurityConfig(collection.uid, {
-          jsSandboxMode: 'safe'
-        }));
-      }
+      startTransition(() => {
+        dispatch(toggleCollection(collection.uid));
+        // Set default jsSandboxMode to 'safe' if not present and save to disk
+        if (!collection.securityConfig?.jsSandboxMode) {
+          dispatch(saveCollectionSecurityConfig(collection.uid, {
+            jsSandboxMode: 'safe'
+          }));
+        }
+      });
     }
 
     if (!isChevronClick) {
-      dispatch(
-        addTab({
-          uid: collection.uid,
-          collectionUid: collection.uid,
-          type: 'collection-settings',
-          preview: previewTabMode
-        })
-      );
-      dispatch(closeWorkspaceTabs());
+      startTransition(() => {
+        dispatch(
+          addTab({
+            uid: collection.uid,
+            collectionUid: collection.uid,
+            type: 'collection-settings',
+            preview: previewTabMode
+          })
+        );
+        dispatch(closeWorkspaceTabs());
+      });
     }
   };
 
@@ -178,10 +185,10 @@ const Collection = ({ collection, searchText }) => {
   const handlePasteItem = () => {
     dispatch(pasteItem(collection.uid, null))
       .then(() => {
-        toast.success('Item pasted successfully');
+        toast.success(t('COLLECTION.PASTE_SUCCESS'));
       })
       .catch((err) => {
-        toast.error(err ? err.message : 'An error occurred while pasting the item');
+        toast.error(err ? err.message : t('COLLECTION.PASTE_ERROR'));
       });
   };
 
@@ -282,14 +289,20 @@ const Collection = ({ collection, searchText }) => {
     return items.sort((a, b) => a.seq - b.seq);
   };
 
-  const requestItems = sortItemsBySequence(filter(collection.items, (i) => isItemARequest(i) && !i.isTransient));
-  const folderItems = sortByNameThenSequence(filter(collection.items, (i) => isItemAFolder(i) && !i.isTransient));
+  const requestItems = useMemo(
+    () => sortItemsBySequence(filter(collection.items, (i) => isItemARequest(i) && !i.isTransient)),
+    [collection.items]
+  );
+  const folderItems = useMemo(
+    () => sortByNameThenSequence(filter(collection.items, (i) => isItemAFolder(i) && !i.isTransient)),
+    [collection.items]
+  );
 
   const menuItems = [
     {
       id: 'new-request',
       leftSection: IconFilePlus,
-      label: 'New Request',
+      label: t('COLLECTION.MENU.NEW_REQUEST'),
       onClick: () => {
         ensureCollectionIsMounted();
         setShowNewRequestModal(true);
@@ -298,7 +311,7 @@ const Collection = ({ collection, searchText }) => {
     {
       id: 'new-folder',
       leftSection: IconFolderPlus,
-      label: 'New Folder',
+      label: t('COLLECTION.MENU.NEW_FOLDER'),
       onClick: () => {
         ensureCollectionIsMounted();
         setShowNewFolderModal(true);
@@ -307,7 +320,7 @@ const Collection = ({ collection, searchText }) => {
     {
       id: 'run',
       leftSection: IconPlayerPlay,
-      label: 'Run',
+      label: t('COLLECTION.MENU.RUN'),
       onClick: () => {
         ensureCollectionIsMounted();
         handleRun();
@@ -316,7 +329,7 @@ const Collection = ({ collection, searchText }) => {
     {
       id: 'clone',
       leftSection: IconCopy,
-      label: 'Clone',
+      label: t('COLLECTION.MENU.CLONE'),
       testId: 'clone-collection',
       onClick: () => {
         setShowCloneCollectionModalOpen(true);
@@ -327,7 +340,7 @@ const Collection = ({ collection, searchText }) => {
           {
             id: 'paste',
             leftSection: IconClipboard,
-            label: 'Paste',
+            label: t('COLLECTION.MENU.PASTE'),
             onClick: handlePasteItem
           }
         ]
@@ -335,7 +348,7 @@ const Collection = ({ collection, searchText }) => {
     {
       id: 'rename',
       leftSection: IconEdit,
-      label: 'Rename',
+      label: t('COLLECTION.MENU.RENAME'),
       onClick: () => {
         setShowRenameCollectionModal(true);
       }
@@ -343,7 +356,7 @@ const Collection = ({ collection, searchText }) => {
     {
       id: 'share',
       leftSection: IconShare,
-      label: 'Share',
+      label: t('COLLECTION.MENU.SHARE'),
       onClick: () => {
         ensureCollectionIsMounted();
         setShowShareCollectionModal(true);
@@ -352,7 +365,7 @@ const Collection = ({ collection, searchText }) => {
     {
       id: 'generate-docs',
       leftSection: IconBook,
-      label: 'Generate Docs',
+      label: t('COLLECTION.MENU.GENERATE_DOCS'),
       onClick: () => {
         ensureCollectionIsMounted();
         setShowGenerateDocumentationModal(true);
@@ -363,7 +376,7 @@ const Collection = ({ collection, searchText }) => {
           {
             id: 'publish-docs',
             leftSection: IconCloud,
-            label: 'Publish Docs',
+            label: t('COLLECTION.MENU.PUBLISH_DOCS'),
             onClick: () => {
               ensureCollectionIsMounted();
               setShowPublishDocumentationModal(true);
@@ -374,7 +387,7 @@ const Collection = ({ collection, searchText }) => {
     {
       id: 'collapse',
       leftSection: IconFoldDown,
-      label: 'Collapse',
+      label: t('COLLECTION.MENU.COLLAPSE'),
       onClick: handleCollapseFullCollection
     },
     {
@@ -384,22 +397,22 @@ const Collection = ({ collection, searchText }) => {
     {
       id: 'settings',
       leftSection: IconSettings,
-      label: 'Settings',
+      label: t('COLLECTION.MENU.SETTINGS'),
       onClick: viewCollectionSettings
     },
     {
       id: 'terminal',
       leftSection: IconTerminal2,
-      label: 'Open in Terminal',
+      label: t('COLLECTION.MENU.OPEN_IN_TERMINAL'),
       onClick: async () => {
-        const collectionCwd = collection.uid ?? collection.pathname;
+        const collectionCwd = collection.uid;
         await openDevtoolsAndSwitchToTerminal(dispatch, collectionCwd);
       }
     },
     {
       id: 'remove',
       leftSection: IconX,
-      label: 'Remove',
+      label: t('COLLECTION.MENU.REMOVE'),
       onClick: () => {
         setShowRemoveCollectionModal(true);
       }
@@ -498,7 +511,7 @@ const Collection = ({ collection, searchText }) => {
               popperOptions={{ strategy: 'fixed' }}
               data-testid="collection-actions"
             >
-              <ActionIcon className="collection-actions">
+              <ActionIcon className="collection-actions" label={t('COLLECTION.MENU.OPTIONS')}>
                 <IconDots size={18} />
               </ActionIcon>
             </MenuDropdown>
@@ -507,11 +520,11 @@ const Collection = ({ collection, searchText }) => {
       </div>
       <div className={`collection-items-grid ${collectionIsCollapsed ? '' : 'expanded'}`}>
         <div className="collection-items-inner">
-          {folderItems?.map?.((i) => {
-            return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.uid ?? collection.pathname} searchText={searchText} />;
+          {!collectionIsCollapsed && folderItems?.map?.((i) => {
+            return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.uid} searchText={searchText} />;
           })}
-          {requestItems?.map?.((i) => {
-            return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.uid ?? collection.pathname} searchText={searchText} />;
+          {!collectionIsCollapsed && requestItems?.map?.((i) => {
+            return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.uid} searchText={searchText} />;
           })}
         </div>
       </div>

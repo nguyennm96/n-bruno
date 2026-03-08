@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { storage } from 'utils/storage';
+import i18n from '../../i18n';
 import {
   updateCookies,
   updatePreferences,
-  savePreferences,
-  setGitVersion
+  savePreferences
 } from 'providers/ReduxStore/slices/app';
 import {
   addTab
@@ -30,10 +30,8 @@ import {
 } from 'providers/ReduxStore/slices/collections';
 import { collectionAddEnvFileEvent, openCollectionEvent, hydrateCollectionWithUiStateSnapshot, mergeAndPersistEnvironment } from 'providers/ReduxStore/slices/collections/actions';
 import {
-  workspaceOpenedEvent,
-  workspaceConfigUpdatedEvent
-} from 'providers/ReduxStore/slices/workspaces/actions';
-import { workspaceDotEnvUpdateEvent, setWorkspaceDotEnvVariables } from 'providers/ReduxStore/slices/workspaces';
+  workspaceDotEnvUpdateEvent, setWorkspaceDotEnvVariables
+} from 'providers/ReduxStore/slices/workspaces';
 import toast from 'react-hot-toast';
 import { useDispatch, useStore } from 'react-redux';
 import { isElectron } from 'utils/common/platform';
@@ -173,78 +171,6 @@ const useIpcEvents = () => {
       dispatch(openCollectionEvent(uid, pathname, brunoConfig));
     });
 
-    const removeOpenWorkspaceListener = ipcRenderer.on('main:workspace-opened', (workspacePath, workspaceUid, workspaceConfig) => {
-      // In cloud mode (authenticated), skip local workspace events — cloud workspaces are
-      // loaded via initializeCloudData and the default local workspace must not pollute the list.
-      const state = store.getState();
-      if (state.auth?.isAuthenticated) {
-        return;
-      }
-      dispatch(workspaceOpenedEvent(workspacePath, workspaceUid, workspaceConfig));
-    });
-
-    const removeWorkspaceConfigUpdatedListener = ipcRenderer.on('main:workspace-config-updated', (workspacePath, workspaceUid, workspaceConfig) => {
-      const state = store.getState();
-      if (state.auth?.isAuthenticated) {
-        return;
-      }
-      dispatch(workspaceConfigUpdatedEvent(workspacePath, workspaceUid, workspaceConfig));
-    });
-
-    const removeWorkspaceEnvironmentAddedListener = ipcRenderer.on('main:workspace-environment-added', (workspaceUid, file) => {
-      const state = store.getState();
-      const activeWorkspaceUid = state.workspaces?.activeWorkspaceUid;
-      if (activeWorkspaceUid === workspaceUid) {
-        const workspace = state.workspaces?.workspaces?.find((w) => w.uid === workspaceUid);
-        if (workspace) {
-          storage.getGlobalEnvironments({
-            workspaceUid,
-            workspacePath: workspace.pathname
-          }).then((result) => {
-            dispatch(updateGlobalEnvironments(result));
-          }).catch((error) => {
-            console.error('Error refreshing global environments:', error);
-          });
-        }
-      }
-    });
-
-    const removeWorkspaceEnvironmentChangedListener = ipcRenderer.on('main:workspace-environment-changed', (workspaceUid, file) => {
-      const state = store.getState();
-      const activeWorkspaceUid = state.workspaces?.activeWorkspaceUid;
-      if (activeWorkspaceUid === workspaceUid) {
-        const workspace = state.workspaces?.workspaces?.find((w) => w.uid === workspaceUid);
-        if (workspace) {
-          storage.getGlobalEnvironments({
-            workspaceUid,
-            workspacePath: workspace.pathname
-          }).then((result) => {
-            dispatch(updateGlobalEnvironments(result));
-          }).catch((error) => {
-            console.error('Error refreshing global environments:', error);
-          });
-        }
-      }
-    });
-
-    const removeWorkspaceEnvironmentDeletedListener = ipcRenderer.on('main:workspace-environment-deleted', (workspaceUid, environmentUid) => {
-      const state = store.getState();
-      const activeWorkspaceUid = state.workspaces?.activeWorkspaceUid;
-      if (activeWorkspaceUid === workspaceUid) {
-        const workspace = state.workspaces?.workspaces?.find((w) => w.uid === workspaceUid);
-        if (workspace) {
-          storage.getGlobalEnvironments({
-            workspaceUid,
-            workspacePath: workspace.pathname
-          }).then((result) => {
-            dispatch(updateGlobalEnvironments(result));
-          }).catch((error) => {
-            console.error('Error refreshing global environments:', error);
-          });
-        }
-      }
-    });
-
     const removeDisplayErrorListener = ipcRenderer.on('main:display-error', (error) => {
       if (typeof error === 'string') {
         return toast.error(error || 'Something went wrong!');
@@ -353,6 +279,9 @@ const useIpcEvents = () => {
 
     const removePreferencesUpdatesListener = ipcRenderer.on('main:load-preferences', async (val) => {
       dispatch(updatePreferences(val));
+      if (val?.general?.language) {
+        i18n.changeLanguage(val.general.language);
+      }
     });
 
     const removeCookieUpdateListener = ipcRenderer.on('main:cookies-update', (val) => {
@@ -393,10 +322,6 @@ const useIpcEvents = () => {
       dispatch(updateCollectionLoadingState(val));
     });
 
-    const gitVersionListener = ipcRenderer.on('main:git-version', (val) => {
-      dispatch(setGitVersion(val));
-    });
-
     // TODO: Cloud sync on file change - removed workspace linking dependency
     // const removeCloudSyncRequestListener = ipcRenderer.on('main:request-cloud-sync', async (syncData) => {
     //   ...workspace linking logic removed...
@@ -414,11 +339,6 @@ const useIpcEvents = () => {
       removeCollectionTreeBatchUpdateListener();
       removeApiSpecTreeUpdateListener();
       removeOpenCollectionListener();
-      removeOpenWorkspaceListener();
-      removeWorkspaceConfigUpdatedListener();
-      removeWorkspaceEnvironmentAddedListener();
-      removeWorkspaceEnvironmentChangedListener();
-      removeWorkspaceEnvironmentDeletedListener();
       removeDisplayErrorListener();
       removeScriptEnvUpdateListener();
       removeGlobalEnvironmentVariablesUpdateListener();
@@ -443,7 +363,6 @@ const useIpcEvents = () => {
       removeCollectionLoadingStateListener();
       removePersistentEnvVariablesUpdateListener();
       removeSystemResourcesListener();
-      gitVersionListener();
       // removeCloudSyncRequestListener(); // Removed workspace linking dependency
     };
   }, [isElectron]);

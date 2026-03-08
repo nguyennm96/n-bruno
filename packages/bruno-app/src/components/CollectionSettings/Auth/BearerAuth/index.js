@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import SensitiveFieldWarning from 'components/SensitiveFieldWarning';
 import { useDetectSensitiveField } from 'hooks/useDetectSensitiveField';
 import get from 'lodash/get';
@@ -11,6 +12,7 @@ import StyledWrapper from './StyledWrapper';
 
 const BearerAuth = ({ collection }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const { storedTheme } = useTheme();
 
   const bearerToken = collection.draft?.root ? get(collection, 'draft.root.request.auth.bearer.token', '') : get(collection, 'root.request.auth.bearer.token', '');
@@ -33,7 +35,7 @@ const BearerAuth = ({ collection }) => {
 
   return (
     <StyledWrapper className="mt-2 w-full">
-      <label className="block mb-1">Token</label>
+      <label className="block mb-1">{t('REQUEST.AUTH.TOKEN')}</label>
       <div className="single-line-editor-wrapper flex items-center">
         <SingleLineEditor
           value={bearerToken}

@@ -9,6 +9,7 @@ import { isItemARequest } from 'utils/collections';
 import path from 'utils/common/path';
 import { cloneDeep, get } from 'lodash';
 import Button from 'ui/Button/index';
+import { useTranslation } from 'react-i18next';
 
 const ItemTypes = {
   REQUEST_ITEM: 'request-item'
@@ -153,6 +154,7 @@ const RequestItem = ({ item, index, moveItem, isSelected, onSelect, onDrop }) =>
 
 const RunConfigurationPanel = ({ collection, selectedItems, setSelectedItems }) => {
   const dispatch = useDispatch();
+  const { t } = useTranslation();
   const [flattenedRequests, setFlattenedRequests] = useState([]);
   const [originalRequests, setOriginalRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -309,30 +311,30 @@ const RunConfigurationPanel = ({ collection, selectedItems, setSelectedItems }) 
     <StyledWrapper>
       <div className="header">
         <div className="counter">
-          {selectedItems.length} of {flattenedRequests.length} selected
+          {t('RUNNER.CONFIG.SELECTED', { count: selectedItems.length, total: flattenedRequests.length })}
         </div>
         <div className="actions">
           <Button
             variant="ghost"
             onClick={handleSelectAll}
           >
-            {selectedItems.length === flattenedRequests.length ? 'Deselect All' : 'Select All'}
+            {selectedItems.length === flattenedRequests.length ? t('RUNNER.CONFIG.DESELECT_ALL') : t('RUNNER.CONFIG.SELECT_ALL')}
           </Button>
           <Button
             variant="ghost"
             onClick={handleReset}
-            title="Reset selection and order"
+            title={t('RUNNER.CONFIG.RESET_TITLE')}
           >
-            Reset
+            {t('RUNNER.CONFIG.RESET')}
           </Button>
         </div>
       </div>
 
       <div className="request-list">
         {isLoading ? (
-          <div className="loading-message">Loading requests...</div>
+          <div className="loading-message">{t('RUNNER.CONFIG.LOADING')}</div>
         ) : flattenedRequests.length === 0 ? (
-          <div className="empty-message">No requests found in this collection</div>
+          <div className="empty-message">{t('RUNNER.CONFIG.EMPTY')}</div>
         ) : (
           <div className="requests-container">
             {flattenedRequests.map((item, idx) => {
